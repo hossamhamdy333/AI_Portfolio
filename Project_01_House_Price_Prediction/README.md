@@ -1,16 +1,16 @@
-# 🏠 House Price Prediction — Advanced Regression
+#  House Price Prediction — Advanced Regression
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![Scikit-learn](https://img.shields.io/badge/Scikit--learn-1.8-orange)
 ![XGBoost](https://img.shields.io/badge/XGBoost-3.2-green)
 ![MLflow](https://img.shields.io/badge/MLflow-3.10-red)
 
-## 📌 Overview
+##  Overview
 End-to-end machine learning project predicting house prices
 using the Ames Housing Dataset. Covers the complete ML pipeline
 from raw data to explainable predictions.
 
-## 🎯 Results
+##  Results
 
 | Model | CV RMSE | Improvement |
 |-------|---------|-------------|
@@ -22,7 +22,7 @@ from raw data to explainable predictions.
 **Best model: Stacking Ensemble — RMSE 0.1109**
 (~11% average error on log-transformed prices)
 
-## 🗂️ Project Structure
+##  Project Structure
 
 ```
 AI_Portfolio/
@@ -47,7 +47,7 @@ AI_Portfolio/
     └── README.md
 ```
 
-## 🔍 Key Findings
+##  Key Findings
 
 - **OverallQual** is the strongest predictor (SHAP importance #1)
 - **TotalBathrooms** — engineered feature — outperformed
@@ -56,7 +56,7 @@ AI_Portfolio/
   well-engineered tabular data
 - Quality premium accelerates sharply above OverallQual=8
 
-## 🛠️ Tech Stack
+##  Tech Stack
 - **Data:** Pandas, NumPy, SciPy
 - **Visualization:** Matplotlib, Seaborn, Plotly
 - **ML:** Scikit-learn, XGBoost, LightGBM
@@ -64,7 +64,7 @@ AI_Portfolio/
 - **Tracking:** MLflow
 - **Tuning:** Optuna
 
-## 🚀 How to Run
+##  How to Run
 
 ```bash
 # Clone the repo
@@ -86,7 +86,7 @@ pip install -r requirements.txt
 # 4. explainability.ipynb
 ```
 
-## 📊 Key Visualizations
+##  Key Visualizations
 
 ### SHAP Feature Importance
 ![SHAP Summary](results/shap_summary.png)
@@ -94,7 +94,7 @@ pip install -r requirements.txt
 ### Model Comparison
 ![Model Comparison](results/model_comparison.png)
 
-## 📚 What I Learned
+##  What I Learned
 - Professional EDA reveals insights that intuition misses
 - Feature engineering impact: TotalBathrooms correlation
   0.673 vs raw features
