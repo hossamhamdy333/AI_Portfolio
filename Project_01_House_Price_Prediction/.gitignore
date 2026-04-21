@@ -1,0 +1,13 @@
+venv/
+AI/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/train.csv
+data/test.csv
+data/*.zip
+*.egg-info/
+.DS_Store
+data/X_train_processed.csv
+data/X_test_processed.csv
+data/y_train.csv
