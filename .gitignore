@@ -1,1 +1,70 @@
-Project_02_Credit_Fraud_Detection/data/*.csv
+# data
+**/data/*.csv
+**/data/*.tsv
+**/data/*.xlsx
+**/data/*.xls
+**/data/*.parquet
+**/data/*.feather
+**/data/*.json
+**/data/*.zip
+**/data/*.tar.gz
+**/data/*.gz
+
+# models
+**/models/*.pkl
+**/models/*.h5
+**/models/*.pt
+**/models/*.pth
+**/models/*.onnx
+**/models/*.joblib
+
+# PYTHON 
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# JUPYTER 
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# OS 
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE 
+.vscode/
+.idea/
+*.code-workspace
+
+# API KEYS & SECRETS 
+.env
+*.env
+.env.*
+secrets.yaml
+secrets.json
+
+# ML EXPERIMENT TRACKING
+lruns/
+wandb/
+.mlflow/
+lightning_logs/
+runs/
+
+# IMAGE / VIDEO DATASETS 
+**/data/*.png
+**/data/*.jpg
+**/data/*.jpeg
+**/data/*.gif
+**/data/*.bmp
+**/data/*.tiff
+**/data/*.mp4
+**/data/*.avi
+**/data/*.mov
+EOF
