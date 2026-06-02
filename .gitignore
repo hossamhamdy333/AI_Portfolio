@@ -72,3 +72,8 @@ EOF
 .dvc/cache/
 .dvc/tmp/
 .dvc/config.local
+
+# DVC internals
+**/.dvc/cache/
+**/.dvc/tmp/
+**/.dvc/config.local
