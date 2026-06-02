@@ -68,3 +68,7 @@ runs/
 **/data/*.avi
 **/data/*.mov
 EOF
+# DVC internals - never commit these
+.dvc/cache/
+.dvc/tmp/
+.dvc/config.local
