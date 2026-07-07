@@ -69,7 +69,7 @@ mlflow:
   tracking_uri: "/content/drive/MyDrive/AI_Portfolio/mlruns"
 
 wandb:
-  project: "AI_Portfolio_P1"
+  project: "text_classification"
   entity: null
 
 serving:
