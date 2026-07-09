@@ -89,3 +89,6 @@ EOF
 .dvc/cache/
 .dvc/tmp/
 .dvc/config.local
+.dvc/cache/
+.dvc/tmp/
+.dvc/config.local
