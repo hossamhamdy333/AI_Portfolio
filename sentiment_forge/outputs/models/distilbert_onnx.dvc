@@ -1,0 +1,6 @@
+outs:
+- md5: ae49d10c8ca11a6ca08a97f44e4a1520.dir
+  size: 439286907
+  nfiles: 4
+  hash: md5
+  path: distilbert_onnx
