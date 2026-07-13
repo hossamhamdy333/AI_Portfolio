@@ -127,3 +127,7 @@ EOF
 .dvc/tmp/
 .dvc/config.local
 sentiment_forge/outputs/models/bert_onnx/
+
+.dvc/cache/
+.dvc/tmp/
+.dvc/config.local
