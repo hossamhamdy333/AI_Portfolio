@@ -1,4 +1,6 @@
 [core]
     remote = mydrive
+[cache]
+    type = copy
 ['remote "mydrive"']
     url = /content/drive/MyDrive/AI_Portfolio_DVC
