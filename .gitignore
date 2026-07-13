@@ -143,3 +143,7 @@ sentiment_forge/outputs/models/bert_onnx/
 .dvc/cache/
 .dvc/tmp/
 .dvc/config.local
+
+.dvc/cache/
+.dvc/tmp/
+.dvc/config.local
