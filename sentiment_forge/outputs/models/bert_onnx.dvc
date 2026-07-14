@@ -1,6 +1,0 @@
-outs:
-- md5: 6f134af1cb75b99da7f5209d22a36ab0.dir
-  size: 440146451
-  nfiles: 4
-  hash: md5
-  path: bert_onnx
