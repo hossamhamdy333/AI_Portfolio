@@ -1,6 +1,6 @@
 data:
   random_seed: 42
-  dataset_name: "khalidalt/ultimate_arabic_news"
+  dataset_name: "khalidalt/SANAD"
   subset_size: 2000
   raw_path: "data/raw/arabic_news_subset.parquet"
   processed_path: "data/processed/chunks.parquet"
