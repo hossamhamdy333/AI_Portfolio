@@ -1,0 +1,23 @@
+model:
+  name: "gemini-2.0-flash"
+  temperature: 0.7
+  max_output_tokens: 1024
+
+retry:
+  max_attempts: 3
+  backoff_seconds: 2
+
+serving:
+  host: "0.0.0.0"
+  port: 8000
+
+mlflow:
+  experiment_name: "llm_api_integration"
+  tracking_uri: "outputs/mlruns"
+
+# Gemini 2.0 Flash free tier has no per-request dollar cost, but the rates
+# are here so cost math is real, not hardcoded to zero — swap in whatever
+# model's actual per-million-token pricing if you move off the free tier.
+pricing:
+  input_cost_per_million: 0.0
+  output_cost_per_million: 0.0
