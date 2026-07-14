@@ -1,0 +1,43 @@
+
+name: llm_api_integration tests
+
+on:
+
+  push:
+
+    paths:
+
+      - 'llm_api_integration/**'
+
+jobs:
+
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+
+        uses: actions/setup-python@v4
+
+        with:
+
+          python-version: '3.11'
+
+      - name: Install dependencies
+
+        run: |
+
+          pip install pytest pydantic pyyaml mlflow google-generativeai python-dotenv
+
+      - name: Run tests
+
+        run: |
+
+          cd llm_api_integration
+
+          pytest tests/ -v
+
