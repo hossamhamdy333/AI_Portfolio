@@ -17,7 +17,7 @@ mlflow:
 
 # Gemini 2.0 Flash free tier has no per-request dollar cost, but the rates
 # are here so cost math is real, not hardcoded to zero — swap in whatever
-# model's actual per-million-token pricing if you move off the free tier.
+# model's actual per-million-token pricing if we move off the free tier.
 pricing:
   input_cost_per_million: 0.0
   output_cost_per_million: 0.0
