@@ -1,5 +1,5 @@
 outs:
-- md5: 6f5d64a16b08f3221c6c3ae85f1dea35
-  size: 3065284
+- md5: 7eeb6cf74055983d07ff642e16bef8a3
+  size: 3065092
   hash: md5
   path: tfidf_logreg.pkl
