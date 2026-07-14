@@ -1,0 +1,6 @@
+outs:
+- md5: 2b7afda3e25a63876a788d39995a1a44.dir
+  size: 440162186
+  nfiles: 4
+  hash: md5
+  path: bert_onnx
