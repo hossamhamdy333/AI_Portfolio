@@ -53,6 +53,9 @@ json_model = build_model(
 
 app = FastAPI(title="LLM API Integration")
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "model": config["model"]["name"]}
 
 class AnalyzeRequest(BaseModel):
     text: str
