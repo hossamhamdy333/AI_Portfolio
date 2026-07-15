@@ -188,7 +188,7 @@ def chat_with_tools(request: ToolChatRequest):
         raise HTTPException(status_code=502, detail=f"Model returned invalid routing decision: {e}")
 
     if not decision.tool_name:
-    return {"answer": routing_response.text, "tool_used": None, "tool_result": None}
+        return {"answer": routing_response.text, "tool_used": None, "tool_result": None}
 
     try:
         tool_result = run_tool(decision.tool_name, decision.arguments)
