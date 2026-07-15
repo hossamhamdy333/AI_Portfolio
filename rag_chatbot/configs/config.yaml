@@ -4,8 +4,13 @@
 # ============================================================
 
 data:
-  corpus: "arabic_news"     # placeholder public corpus; swap path when private corpus is ready
+  corpus: "xlsum_arabic"     # XL-Sum Arabic articles, summaries discarded
+  eval_sample_size: 200      # articles sampled for synthetic Q&A eval set
   random_seed: 42
+
+synthetic_qa:
+  questions_per_article: 2
+  model: "gemini-3.1-flash-lite"
 
 chunking:
   strategy: "sentence"      # sentence | fixed | semantic
