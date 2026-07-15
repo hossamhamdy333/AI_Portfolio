@@ -1,52 +1,79 @@
 # LLM API Integration
 
-> FastAPI service wrapping the Gemini API — streaming, function calling,
-> structured output, retries, and per-request token tracking.
+A FastAPI service that wraps the Gemini API properly — not just a `generate_content()` call behind an endpoint, but streaming, tool calling, schema-validated structured output, retry logic, and per-request token/cost tracking, the way you'd actually want an LLM wrapped before other services start depending on it.
 
----
+```
+Gemini API (google-generativeai)
+    → client.py   [build_model, call_gemini w/ retry+backoff, stream_gemini]
+    → tools.py    [tool registry + dispatcher]
+    → schemas.py  [Pydantic validation on everything the model returns]
+    → tracking.py [token counts + cost logged to MLflow per request]
+    → app.py      [FastAPI routes — thin, no business logic]
+    → 18 unit tests covering retries, schema validation, tool dispatch, cost math
+```
 
-## Why Gemini
+## Why this project, and why Gemini
 
-Free tier, no billing setup required, and it supports everything this
-project needs to demonstrate: streaming, function calling, and JSON-mode
-structured output.
+Most "LLM integration" demos are a single happy-path call to an API. The interesting engineering problems show up around that call: what happens when it times out, what happens when the model doesn't return valid JSON, how do you know what a feature is costing you, how do you stream a response without being able to "retry" a response the client has already started reading. This project is built around those problems specifically. Gemini was the pick mainly for practical reasons — free tier, no billing setup — but everything here (retries, structured output validation, tool-call routing) is provider-agnostic in shape; swapping in OpenAI or Anthropic would mean rewriting `client.py`, not the rest of the system.
 
-## What This Demonstrates
+## What it actually does
 
-- **Streaming** — `/chat/stream` returns tokens as they're generated
-- **Function/tool calling** — `/chat/tools` lets the model decide whether
-  to call `get_current_weather` or `search_documents`, executes the tool
-  itself, and returns a grounded final answer
-- **Structured output** — `/analyze` returns sentiment validated against a
-  Pydantic schema, not raw model text
-- **Retry logic** — exponential backoff on transient API failures
-- **Cost/usage tracking** — every call logs prompt/response token counts
-  to MLflow
+**Structured output** (`/analyze`) — sentiment analysis returned as a Pydantic-validated `SentimentResult`, not raw model text. Gemini's `response_mime_type="application/json"` does most of the work; `strip_markdown_fences()` is a defensive fallback for when the model wraps its answer in ` ```json ` fences anyway, and a failed validation returns a clean `502` instead of crashing.
 
-## Stack
+**Streaming** (`/chat/stream`) — tokens streamed back as they're generated via `StreamingResponse`. Deliberately has no retry logic, unlike the other two endpoints: once a chunk has reached the client, retrying from scratch would duplicate content they've already seen, so a mid-stream failure (dropped connection, a safety-filtered chunk) is caught and the stream ends cleanly with a `[response interrupted]` marker instead of an unhandled exception killing the connection.
 
-FastAPI · google-generativeai (Gemini) · Pydantic · MLflow · pytest
+**Tool calling** (`/chat/tools`) — the model decides whether it needs `get_current_weather(city)` or `search_documents(query)` to answer, returns that decision as JSON, and the server — not the model — actually executes the tool and feeds the result back for a grounded final answer. `search_documents` intentionally mirrors the retrieval interface from the semantic-search project (query in, ranked docs out), so swapping the in-memory keyword match for a real Qdrant/FAISS lookup is a one-function change, not a redesign.
 
-## Structure
+**Retries** — `call_gemini()` wraps every non-streaming call in exponential backoff (`config.yaml`: 3 attempts, 2s base). Rate limits and timeouts are treated as expected background noise for any external API, not edge cases worth special-casing per call site.
+
+**Cost/usage tracking** — every non-streaming call, and the final chunk of every stream, logs prompt/response token counts to MLflow via `log_usage()`, with real cost math (`compute_cost_usd()`, per-million-token rates from config) — not a hardcoded `$0`. Gemini's free tier means the rates default to `0.0`, but the calculation is correct and ready for whatever paid model gets swapped in later. Tracking failures are caught and logged rather than allowed to break the actual user-facing request.
+
+## Seeing it actually run
+
+`notebooks/01_demo.ipynb` spins up the FastAPI server and hits every endpoint for real. A few things worth pointing out from that run:
+
+**`/analyze` on five test sentences** — correctly separated clear positive/negative cases (confidence 1.00 both ways) from genuinely mixed ones: *"It was okay, nothing special but not bad either"* → neutral (0.95), and *"The acting was good but the plot made no sense whatsoever"* → neutral (0.85, lower confidence, reflecting the real ambiguity of a mixed review) rather than forcing it into positive or negative.
+
+**`/chat/tools` on three prompts** — this is where the demo is most honest about reliability, not just showing the happy path:
+- *"What is the weather like in Cairo right now?"* → correctly routed to `get_current_weather`, returned a grounded answer using the tool's output.
+- *"What is 2 + 2?"* → correctly recognized no tool was needed and answered directly.
+- *"How does function calling work with language models?"* → this one was **supposed** to route to `search_documents` (it's a question the in-memory doc corpus can answer) but the model answered directly from its own knowledge instead, skipping the tool entirely. Routing decisions are the model's judgment call, not a deterministic function — that's worth knowing going in rather than only demoing the cases that worked.
+
+## Testing philosophy
+
+18 unit tests across `tests/`, but deliberately scoped to what's actually deterministic:
+
+| File | What it covers |
+|---|---|
+| `test_client.py` | retry succeeds first try / succeeds after retries / raises after max attempts exhausted |
+| `test_client_json_parsing.py` | markdown-fence stripping (`json` fence, plain fence, already-clean JSON) |
+| `test_schemas.py` | valid `SentimentResult` parses, out-of-range confidence rejected, missing field rejected, valid tool call parses, null tool name is valid, missing arguments defaults to `{}` |
+| `test_streaming.py` | `stream_gemini` yields raw chunks (so callers can read `usage_metadata`), not `.text` |
+| `test_tools.py` | weather tool runs, document search finds a match, unknown tool name raises |
+| `test_tracking.py` | zero rate gives zero cost, nonzero rate computes correctly, config values actually get applied to MLflow |
+
+What's **not** tested: whether the model's actual answers are *good*. That's an evaluation problem, not a unit-test problem — there's no deterministic right answer to assert against for "is this a reasonable response to a prompt," so the tests stay focused on the parts of the system that do have one: does a retry actually retry, does a malformed schema actually get rejected, does an unknown tool name actually raise.
+
+## What's in the repo
 
 ```
 llm_api_integration/
-├── configs/config.yaml     # model settings, retry policy — nothing hardcoded
+├── notebooks/
+│   ├── 00_setup.ipynb   # environment/repo setup
+│   └── 01_demo.ipynb    # live server, hits every endpoint, MLflow dashboard, runs the test suite
 ├── src/
-│   ├── config.py           # loads config.yaml
-│   ├── client.py            # Gemini wrapper: build_model, call_gemini, stream_gemini
-│   ├── tools.py              # 2 tool definitions + dispatcher
-│   ├── schemas.py            # Pydantic models for structured output
-│   ├── tracking.py           # MLflow token usage logging
-│   └── app.py                 # FastAPI routes
-├── tests/                     # tests what's actually testable: retries,
-│                               # schema validation, tool dispatch — not
-│                               # "is the LLM's answer good" (that's an eval, not a test)
-├── requirements.txt
-└── .env.example
+│   ├── config.py     # loads config.yaml into a dict
+│   ├── client.py     # Gemini wrapper: build_model, call_gemini (retry), stream_gemini
+│   ├── tools.py      # tool definitions + TOOL_REGISTRY + dispatcher
+│   ├── schemas.py    # Pydantic models: SentimentResult, ToolCallRequest
+│   ├── tracking.py   # MLflow token/cost logging
+│   └── app.py        # FastAPI routes — /analyze, /chat/stream, /chat/tools, /health
+├── tests/            # 18 tests, see table above
+├── configs/config.yaml   # model name, temperature, retry policy, pricing, ports — nothing hardcoded
+└── requirements.txt
 ```
 
-## Running Locally
+## Try it
 
 ```bash
 pip install -r requirements.txt
@@ -54,56 +81,41 @@ cp .env.example .env   # add your GEMINI_API_KEY
 uvicorn src.app:app --reload --port 8000
 ```
 
-`.env` is loaded automatically via `python-dotenv` at app startup — no need
-to `export` the key manually in your shell.
+`.env` is loaded automatically via `python-dotenv` before the app reads `GEMINI_API_KEY` — no manual `export` needed.
 
-## Notes on Reliability
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This movie was absolutely breathtaking — a masterpiece."}'
+# → {"sentiment": "positive", "confidence": 1.0, "reasoning": "..."}
 
-- **JSON mode:** `/analyze` and `/chat/tools` use Gemini's
-  `response_mime_type="application/json"` so structured output is actually
-  parseable, rather than relying on the model obeying a "respond only with
-  JSON" instruction. `strip_markdown_fences()` is a defensive fallback in
-  case it wraps the response in ` ```json ` fences anyway.
-- **Cost tracking:** `log_usage()` computes real `cost_usd` from
-  configurable per-million-token rates in `config.yaml` (both `0.0` by
-  default since Gemini 2.0 Flash's free tier has no per-request charge) —
-  not just token counts. Swap in real rates if you move to a paid model.
-- **Error handling:** malformed model output (bad JSON, unknown tool name,
-  wrong tool arguments) returns a `502` with a clear message, not an
-  unhandled `500`.
-- **Retry consistency:** all three LLM calls (`/analyze`, and both calls
-  inside `/chat/tools`) use `config.yaml`'s retry settings explicitly —
-  none rely on silently-matching function defaults.
-- **Streaming has no retry, on purpose:** `/chat/stream` doesn't retry on
-  failure like the other endpoints do. Once a chunk has been sent to the
-  client, retrying from scratch would duplicate output they've already
-  seen — there's no clean way to "retry" a partially-delivered stream.
-  Instead, a mid-stream failure (network drop, a safety-filtered chunk)
-  is caught, logged, and ends the stream with a short marker instead of
-  crashing the connection with an unhandled exception.
+curl -X POST http://localhost:8000/chat/tools \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "What is the weather like in Cairo right now?"}'
+# → {"answer": "...", "tool_used": "get_current_weather", "tool_result": {"city": "Cairo", "temp_c": 24, "condition": "clear"}}
 
-## Endpoints
+curl -X POST http://localhost:8000/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Explain what a vector database is in 3 sentences."}'
+# → streamed plain text, chunk by chunk
+```
 
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/analyze` | POST | `{"text": "..."}` → structured `SentimentResult` |
-| `/chat/stream` | POST | `{"prompt": "..."}` → streamed plain-text response |
-| `/chat/tools` | POST | `{"prompt": "..."}` → model picks a tool if needed, we execute it, return grounded answer |
-
-## Running Tests
+Run the tests:
 
 ```bash
 pytest tests/ -v
 ```
 
-Tests cover retry behavior, schema validation, and tool dispatch — the
-parts of this system that have a deterministic right answer. LLM output
-quality itself is an evaluation problem, not something a unit test checks.
+## Reliability details worth knowing
 
-## Part of AI Engineering Portfolio
+- **Two separate model instances** are built at startup — one plain, one forced into `json_mode=True` — rather than one instance with a mode flag flipped per call, so a bug in call ordering can't accidentally return JSON for a prose request or vice versa.
+- **Errors from the model are `502`s, not `500`s.** Invalid JSON, an unknown tool name, wrong tool arguments — all of that is the model's output failing validation, not a bug in this service, so it's surfaced as a bad-upstream-response error rather than an unhandled server exception.
+- **Usage is logged immediately after each call**, not batched at the end of a request — a call already happened and cost real tokens the moment it returns, so logging it before downstream parsing/tool-execution can fail means a later error never silently drops that usage record.
+- **Retry settings are passed explicitly** on every one of the three LLM call sites, not left to a function default that happens to match `config.yaml` — so a future change to the retry policy in config can't silently stop applying somewhere.
 
-Reuses the retrieval pattern from `semantic_search/` (P3) inside the
-`search_documents` tool. Precedes the RAG Chatbot (P6) and the Arabic AI
-Agent (Mega Project) in the execution order.
+## A few things I'd improve with more time
 
-→ [Full Portfolio](https://github.com/hossamhamdy333/AI_Portfolio)
+- Wire Gemini's native function-calling schema into the request itself instead of asking the model to emit a JSON routing decision as plain text — fewer moving parts, and it's what the demo notebook shows can go wrong (the model answering directly instead of routing to `search_documents`)
+- Add a lightweight eval set for the tool-routing decision specifically, since that's the one place in this system where "did it do the right thing" doesn't reduce to a schema check
+- Swap `search_documents`' in-memory keyword match for the real Qdrant retrieval built in the semantic-search project, now that the interface already matches
+- Add request-level rate limiting on the FastAPI side, not just retry-on-failure against Gemini's own limits
