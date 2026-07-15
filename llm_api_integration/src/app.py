@@ -188,7 +188,21 @@ def chat_with_tools(request: ToolChatRequest):
         raise HTTPException(status_code=502, detail=f"Model returned invalid routing decision: {e}")
 
     if not decision.tool_name:
-        return {"answer": routing_response.text, "tool_used": None, "tool_result": None}
+        direct_response = call_gemini(
+            model,
+            request.prompt,
+            max_attempts=config["retry"]["max_attempts"],
+            backoff_seconds=config["retry"]["backoff_seconds"],
+        )
+        prompt_tokens, response_tokens = extract_token_counts(direct_response)
+        log_usage(
+            prompt_tokens,
+            response_tokens,
+            config["model"]["name"],
+            input_cost_per_million=config["pricing"]["input_cost_per_million"],
+            output_cost_per_million=config["pricing"]["output_cost_per_million"],
+        )
+        return {"answer": direct_response.text, "tool_used": None, "tool_result": None}
 
     try:
         tool_result = run_tool(decision.tool_name, decision.arguments)
