@@ -6,10 +6,9 @@ model:
   base_model: "ALLaM-AI/ALLaM-7B-Instruct-preview"   # Apache 2.0, Arabic-native tokenizer, 7B instruct-tuned
 
 data:
-  dataset_name: "arabic_legal_news_qa"
+  dataset_name: "arabic_legal_instruction_qa"
   format: "alpaca"          # alpaca | chatml
   random_seed: 42
-  news_sample_size: 500 
   quality_filter:
     min_length: 10
     max_length: 2048
@@ -33,8 +32,8 @@ training:
 
 evaluation:
   benchmark: "mt_bench_style"
-  llm_judge_model: "gemini-3.1-flash-lite"
-  temperature: 0.0          # judge should be deterministic, not creative
+  llm_judge_model: "gemini-3.1-flash-lite" 
+  temperature: 0.0
 
 cost:
   input_rate_per_million: 0.25
