@@ -1,4 +1,4 @@
-name: finetuning tests
+name: allam_finetune tests
 
 on:
   push:
@@ -19,5 +19,5 @@ jobs:
           pip install pytest pandas numpy PyYAML pydantic
       - name: Run tests
         run: |
-          cd finetuning
+          cd allam_finetune
           pytest tests/ -v
