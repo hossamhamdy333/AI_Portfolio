@@ -9,7 +9,7 @@ data:
   dataset_name: "arabic_legal_news_qa"
   format: "alpaca"          # alpaca | chatml
   random_seed: 42
-  news_sample_size: 200 
+  news_sample_size: 500 
   quality_filter:
     min_length: 10
     max_length: 2048
