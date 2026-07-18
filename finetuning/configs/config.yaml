@@ -1,0 +1,51 @@
+# ============================================================
+# QLoRA Fine-tuning pipeline
+# ALL hyperparameters live here
+# ============================================================
+model:
+  base_model: "ALLaM-AI/ALLaM-7B-Instruct-preview"   # Apache 2.0, Arabic-native tokenizer, 7B instruct-tuned
+
+data:
+  dataset_name: "arabic_legal_news_qa"
+  format: "alpaca"          # alpaca | chatml
+  random_seed: 42
+  quality_filter:
+    min_length: 10
+    max_length: 2048
+    dedup: true
+
+qlora:
+  r: 16                     # LoRA rank
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "v_proj"]
+  bits: 4                   # 4-bit quantisation
+
+training:
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4
+  num_train_epochs: 3
+  learning_rate: 2.0e-4
+  warmup_ratio: 0.03
+  lr_scheduler_type: "cosine"
+  fp16: true
+
+evaluation:
+  benchmark: "mt_bench_style"
+  llm_judge_model: "gemini-3.1-flash-lite"
+  temperature: 0.0          # judge should be deterministic, not creative
+
+cost:
+  input_rate_per_million: 0.25
+  output_rate_per_million: 1.50
+
+flywheel:
+  failure_rate_threshold: 0.15
+  wandb_project: "finetuning-flywheel"
+
+mlflow:
+  experiment_name: "QLoRA_Fine_Tuning"
+  tracking_uri: "sqlite:///mlflow.db"
+
+wandb:
+  project: "QLoRA_Fine_Tuning"
