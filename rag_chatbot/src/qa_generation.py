@@ -3,6 +3,8 @@
 Cost/tracking/retry logic adapted from llm_api_integration/src/client.py
 and tracking.py — copied here rather than imported, since each portfolio
 project stays independently installable.
+
+Uses google-genai (google.generativeai is deprecated as of mid-2026).
 """
 
 import json
@@ -10,21 +12,20 @@ import logging
 import os
 import time
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import mlflow
 
 logger = logging.getLogger(__name__)
 
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
 
 def build_model(model_name: str, temperature: float, max_output_tokens: int, json_mode: bool = False):
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GEMINI_API_KEY is not set.")
-    genai.configure(api_key=api_key)
-    generation_config = {"temperature": temperature, "max_output_tokens": max_output_tokens}
+    config_kwargs = {"temperature": temperature, "max_output_tokens": max_output_tokens}
     if json_mode:
-        generation_config["response_mime_type"] = "application/json"
-    return genai.GenerativeModel(model_name, generation_config=generation_config)
+        config_kwargs["response_mime_type"] = "application/json"
+    return model_name, types.GenerateContentConfig(**config_kwargs)
 
 
 def strip_markdown_fences(text: str) -> str:
@@ -36,10 +37,11 @@ def strip_markdown_fences(text: str) -> str:
 
 
 def call_gemini(model, prompt: str, max_attempts: int = 3, backoff_seconds: int = 2):
+    model_name, gen_config = model
     last_error = None
     for attempt in range(1, max_attempts + 1):
         try:
-            return model.generate_content(prompt)
+            return client.models.generate_content(model=model_name, contents=prompt, config=gen_config)
         except Exception as e:
             last_error = e
             logger.warning(f"Gemini call failed (attempt {attempt}/{max_attempts}): {e}")
@@ -102,7 +104,7 @@ def log_usage(prompt_tokens, response_tokens, model_name, input_cost_per_million
     return cost_usd
 
 
-def generate_qa_dataset(model, df, config: dict, sleep_seconds: float = 0.5):
+def generate_qa_dataset(model, df, config: dict, sleep_seconds: float = 4.5):
     """Generate synthetic Q&A pairs for every row in df (needs id, title, article).
     Caller must run init_tracking(...) before calling this, so MLflow logging works.
     """
