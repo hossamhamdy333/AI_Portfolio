@@ -4,7 +4,7 @@
 # ============================================================
 
 data:
-  corpus: "xlsum_arabic"     # XL-Sum Arabic articles
+  corpus: "xlsum_arabic"     # XL-Sum Arabic articles, summaries discarded
   eval_sample_size: 200      # articles sampled for synthetic Q&A eval set
   random_seed: 42
 
@@ -16,6 +16,7 @@ chunking:
   strategy: "sentence"      # sentence | fixed | semantic
   chunk_size: 256
   overlap: 32
+  semantic_similarity_threshold: 0.2
 
 rag:
   top_k_retrieve: 10
@@ -53,4 +54,4 @@ mlflow:
 
 serving:
   host: "0.0.0.0"
-  port: 8000
+  port: 8000 
