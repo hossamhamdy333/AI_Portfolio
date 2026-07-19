@@ -1,0 +1,5 @@
+outs:
+- md5: d4f9cb969f7ab96460898a26c3601c36
+  size: 772876
+  hash: md5
+  path: fixed_chunks.parquet
