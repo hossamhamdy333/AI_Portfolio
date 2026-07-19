@@ -32,7 +32,7 @@ training:
 
 evaluation:
   benchmark: "mt_bench_style"
-  llm_judge_model: "gemini-3.1-flash-lite" 
+  llm_judge_model: "gemini-3.1-flash-lite"
   temperature: 0.0
 
 cost:
