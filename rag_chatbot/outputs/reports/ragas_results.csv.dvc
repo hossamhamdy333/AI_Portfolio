@@ -1,0 +1,5 @@
+outs:
+- md5: 52bb11f0f460c7a5e9fe0d4e13d251a1
+  size: 233112
+  hash: md5
+  path: ragas_results.csv
