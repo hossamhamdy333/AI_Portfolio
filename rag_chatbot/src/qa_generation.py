@@ -54,9 +54,10 @@ QA_PROMPT_TEMPLATE = """You are generating evaluation questions for a retrieval 
 
 Given this Arabic news article, write {n_questions} questions that this article directly answers.
 Each question must be answerable using only the information in the article.
+For each question, also provide a short factual answer (1-2 sentences) taken directly from the article.
 
 Respond ONLY with valid JSON in this exact format, no other text:
-{{"questions": ["question 1 in Arabic", "question 2 in Arabic"]}}
+{{"qa_pairs": [{{"question": "question 1 in Arabic", "answer": "short answer 1 in Arabic"}}, {{"question": "question 2 in Arabic", "answer": "short answer 2 in Arabic"}}]}}
 
 Article:
 {article_text}
@@ -69,7 +70,7 @@ def generate_questions(model, article_text: str, n_questions: int = 2):
     raw_text = strip_markdown_fences(response.text)
     try:
         parsed = json.loads(raw_text)
-        return parsed.get("questions", []), response
+        return parsed.get("qa_pairs", []), response
     except json.JSONDecodeError:
         return [], response
 
