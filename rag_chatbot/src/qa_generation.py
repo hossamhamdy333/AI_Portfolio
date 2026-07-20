@@ -122,8 +122,13 @@ def generate_qa_dataset(model, df, config: dict, sleep_seconds: float = 4.5):
                 p_tok, r_tok, config["synthetic_qa"]["model"],
                 config["cost"]["input_rate_per_million"], config["cost"]["output_rate_per_million"]
             )
-            for q in questions:
-                qa_pairs.append({"question": q, "article_id": row["id"], "article_title": row["title"]})
+            for qa in questions:
+                qa_pairs.append({
+                    "question": qa.get("question", ""),
+                    "answer": qa.get("answer", ""),
+                    "article_id": row["id"],
+                    "article_title": row["title"]
+                })
         except Exception as e:
             failed.append({"article_id": row["id"], "error": str(e)})
 
