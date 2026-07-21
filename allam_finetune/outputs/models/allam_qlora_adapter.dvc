@@ -1,0 +1,6 @@
+outs:
+- md5: 869e67419e38f189513cd32184915640.dir
+  size: 39393299
+  nfiles: 8
+  hash: md5
+  path: allam_qlora_adapter
