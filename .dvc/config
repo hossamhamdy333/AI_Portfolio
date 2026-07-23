@@ -1,4 +1,4 @@
 [core]
-    remote = newdrive
-['remote "newdrive"']
+    remote = newwdrive
+['remote "newwdrive"']
     url = /content/drive/MyDrive/AI_Portfolio_DVC
