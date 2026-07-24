@@ -124,7 +124,7 @@ jupyter notebook notebooks/04_rag_pipeline.ipynb
 pytest tests/ -v
 ```
 
-A FastAPI serving layer now exists at `src/api.py` — `POST /chat` wires `search_chunks` → `rerank_chunks` → `generate_answer` behind an HTTP endpoint. Run with `uvicorn src.api:app --host 0.0.0.0 --port 8000` (host/port read from `configs/config.yaml`). Not yet load-tested against a live Qdrant/collection — see run instructions.
+A FastAPI serving layer now exists at `src/api.py` — `POST /chat` wires `search_chunks` → `rerank_chunks` → `generate_answer` behind an HTTP endpoint. Qdrant runs in local embedded mode (no separate server to stand up) pointed at `/content/drive/MyDrive/AI_Portfolio_Qdrant` — the same Drive folder `04_rag_pipeline.ipynb` writes to. Run `04_rag_pipeline.ipynb` first to populate that folder, then `uvicorn src.api:app --host 0.0.0.0 --port 8000` (host/port read from `configs/config.yaml`) in the same Colab session (Drive needs to be mounted).
 
 ## The MLOps pieces (not just the pipeline)
 
