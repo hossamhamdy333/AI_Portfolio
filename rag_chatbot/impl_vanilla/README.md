@@ -114,7 +114,8 @@ rag_chatbot/
 pip install -r requirements.txt
 cp .env.example .env   # add GEMINI_API_KEY
 
-docker run -p 6333:6333 qdrant/qdrant   # Qdrant needs to be running
+# No separate Qdrant server needed -- it runs in local embedded mode,
+# persisted to Drive when run in Colab (see notebooks/04_rag_pipeline.ipynb).
 
 # reproduce a notebook end to end, e.g. the RAG pipeline itself:
 jupyter notebook notebooks/04_rag_pipeline.ipynb
