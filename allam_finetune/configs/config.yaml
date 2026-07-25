@@ -7,6 +7,14 @@ model:
 
 data:
   dataset_name: "arabic_legal_instruction_qa"
+  sources:
+    - name: "fr3on/eg-legal-instruction-following"
+      domain: "egyptian_legal"
+      task_types: ["analysis", "simplification"]
+      note: "classification and keyword_extraction dropped — collapsed to near-duplicate boilerplate outputs"
+    - name: "mbayan/Arabic-LJP"
+      domain: "saudi_legal_judgment_prediction"
+      task_types: ["judgment_prediction"]
   format: "alpaca"          # alpaca | chatml
   random_seed: 42
   quality_filter:
