@@ -3,7 +3,7 @@ name: allam_finetune tests
 on:
   push:
     paths:
-      - 'finetuning/**'
+      - 'allam_finetune/**'
 
 jobs:
   test:
