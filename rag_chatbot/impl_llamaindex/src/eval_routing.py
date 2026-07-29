@@ -38,6 +38,13 @@ def _extract_retry_seconds(error, default=60):
 
 
 def _route_with_retry(router, domains, question, max_attempts=5):
+    """Retries on any failure -- rate limits (429) get their recommended
+    wait time; other transient failures (e.g. LlamaIndex's selector
+    occasionally returning a malformed response with no valid 'choice'
+    field) get a short fixed backoff. Never raises: if all attempts fail,
+    returns a placeholder result so one bad question can't crash the whole
+    run and lose everything already checkpointed.
+    """
     from router import route_and_query
 
     last_error = None
@@ -49,10 +56,13 @@ def _route_with_retry(router, domains, question, max_attempts=5):
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
                 wait = _extract_retry_seconds(e)
                 print(f"  Rate limited (attempt {attempt}/{max_attempts}), waiting {wait:.0f}s...")
-                time.sleep(wait)
             else:
-                raise
-    raise RuntimeError(f"Failed after {max_attempts} attempts") from last_error
+                wait = 5
+                print(f"  Failed (attempt {attempt}/{max_attempts}): {type(e).__name__}: {str(e)[:150]}")
+            time.sleep(wait)
+
+    print(f"  Giving up on this question after {max_attempts} attempts, logging as failed.")
+    return f"[FAILED: {type(last_error).__name__}]", None, []
 
 
 def run_eval(router, domains, qa_df, mlflow_run_name="llamaindex_router_eval",
