@@ -1,0 +1,33 @@
+DocuMind Project Overview
+
+DocuMind is a Retrieval-Augmented Generation (RAG) system. It lets a user upload
+their own documents and ask natural-language questions about them, receiving
+answers that are grounded in the actual document content rather than the
+model's general knowledge.
+
+How it works:
+1. Documents are split into overlapping text chunks.
+2. Each chunk is converted into a vector embedding using a local
+   sentence-transformers model (no external API call required).
+3. Embeddings are stored in a ChromaDB vector database on disk.
+4. When a user asks a question, the question is embedded and compared against
+   stored chunks using cosine similarity to find the most relevant passages.
+5. The most relevant passages are inserted into a prompt sent to Claude, which
+   generates a final answer citing its sources.
+
+Why this architecture matters for engineers:
+RAG systems solve the problem of large language models not knowing about
+private, recent, or domain-specific information. Instead of retraining a
+model, you retrieve relevant facts at query time and let the model reason
+over them. This pattern is widely used in production systems such as
+customer support bots, internal knowledge bases, legal research tools, and
+coding assistants.
+
+Key components an AI engineer should understand:
+- Chunking strategy: how documents are split affects retrieval quality.
+- Embedding models: convert text into vectors that capture semantic meaning.
+- Vector databases: store and efficiently search embeddings at scale.
+- Prompt construction: how retrieved context is presented to the LLM affects
+  answer quality and hallucination rates.
+- Evaluation: measuring whether retrieved chunks are relevant and whether
+  generated answers are faithful to the source material.
