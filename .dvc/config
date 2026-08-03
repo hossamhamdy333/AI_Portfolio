@@ -1,4 +1,4 @@
 [core]
     remote = mydrive
 ['remote "mydrive"']
-    url = gdrive://1Q1lvCGXFQt8bea-7GpZySd4CqHxseQdh
+    url = /content/drive/MyDrive/AI_Portfolio_DVC
