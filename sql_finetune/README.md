@@ -1,4 +1,4 @@
-# 🤖 Fine-Tuning Qwen2.5-Coder for SQL Text-to-Code Generation
+#  Fine-Tuning Qwen2.5-Coder for SQL Text-to-Code Generation
 
 [![Hugging Face](https://img.shields.io/badge/Model-Qwen2.5--Coder--1.5B--Instruct-blueviolet)](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -7,7 +7,7 @@ An end-to-end repository for fine-tuning **Qwen2.5-Coder-1.5B-Instruct** on SQL 
 
 ---
 
-## 📈 Performance & Results
+##  Performance & Results
 
 By standardizing prompt structures, refining SQL extraction logic, and fine-tuning with QLoRA using `TRL`'s `SFTTrainer`, the model achieved significant accuracy gains over the baseline:
 
@@ -21,7 +21,7 @@ By standardizing prompt structures, refining SQL extraction logic, and fine-tuni
 
 ---
 
-## 🛠 Engineering & Troubleshooting Highlights
+##  Engineering & Troubleshooting Highlights
 
 During development, several key technical and engineering challenges were resolved:
 - **Prompt Standardization:** Aligned input text structure to explicit schema context (`### Context:`), natural language instruction (`### Question:`), and strict output markers (`### Response:`).
@@ -30,7 +30,7 @@ During development, several key technical and engineering challenges were resolv
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 ```text
 sql_finetune/
@@ -46,7 +46,7 @@ sql_finetune/
 
 ---
 
-## ⚙️ Configuration Specs
+##  Configuration Specs
 
 All experimental parameters are controlled via [`configs/config.yaml`](configs/config.yaml):
 
@@ -81,7 +81,7 @@ training:
 
 ---
 
-## 📊 Dataset Overview
+##  Dataset Overview
 
 Trained on the [`b-mc2/sql-create-context`](https://huggingface.co/datasets/b-mc2/sql-create-context) dataset (~78k triplets):
 
@@ -91,7 +91,7 @@ Trained on the [`b-mc2/sql-create-context`](https://huggingface.co/datasets/b-mc
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Installation
 
