@@ -1,19 +1,20 @@
-"""Thin wrapper around the Anthropic API for the generation step of RAG."""
-from anthropic import Anthropic
+"""Thin wrapper around the Gemini API for the generation step of RAG."""
+from google import genai
 
 from app.config import settings
 
 _client = None
 
 
-def get_client() -> Anthropic:
+def get_client() -> "genai.Client":
     global _client
     if _client is None:
-        if not settings.anthropic_api_key:
+        if not settings.gemini_api_key:
             raise RuntimeError(
-                "ANTHROPIC_API_KEY is not set. Add it to your .env file."
+                "GEMINI_API_KEY is not set. Add it to your .env file. "
+                "Get a free key at https://aistudio.google.com/apikey"
             )
-        _client = Anthropic(api_key=settings.anthropic_api_key)
+        _client = genai.Client(api_key=settings.gemini_api_key)
     return _client
 
 
@@ -47,10 +48,9 @@ Question: {question}
 Answer using only the context above."""
 
     client = get_client()
-    response = client.messages.create(
-        model=settings.claude_model,
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+    response = client.models.generate_content(
+        model=settings.gemini_model,
+        contents=user_message,
+        config={"system_instruction": SYSTEM_PROMPT, "max_output_tokens": 1024},
     )
-    return response.content[0].text
+    return response.text

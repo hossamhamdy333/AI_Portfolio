@@ -2,7 +2,7 @@
 
 Ask questions about your own documents (PDF / TXT / MD) and get answers grounded
 in their content, with sources cited. Built with FastAPI, ChromaDB, local
-sentence-transformer embeddings, and Claude for generation.
+sentence-transformer embeddings, and Gemini for generation.
 
 **Why this project:** RAG is the single most in-demand pattern in applied AI
 engineering. This project demonstrates the full stack: document processing,
@@ -23,7 +23,7 @@ support bots, internal knowledge assistants, and research tools.
                                                                   ▼
                                                           ┌───────────────┐
                                                           │   llm.py       │
-                                                          │ (Claude API)   │
+                                                          │ (Gemini API)   │
                                                           └───────┬───────┘
                                                                   ▼
                                                              final answer
@@ -32,7 +32,7 @@ support bots, internal knowledge assistants, and research tools.
 - **Embeddings**: local `sentence-transformers` model (`all-MiniLM-L6-v2`) —
   no API key or network call needed for this step, and it's free.
 - **Vector store**: ChromaDB, persisted to disk under `data/chroma_db`.
-- **Generation**: Claude (Anthropic API), grounded strictly in retrieved
+- **Generation**: Gemini (free tier via Google AI Studio), grounded strictly in retrieved
   context via the system prompt in `app/llm.py`.
 - **API**: FastAPI (`app/main.py`) — `/ingest`, `/query`, `/health`, `/reset`.
 - **UI**: Streamlit chat interface (`ui/streamlit_app.py`) that talks to the API.
@@ -45,7 +45,7 @@ documind-rag/
 │   ├── config.py       # env-driven settings
 │   ├── ingest.py        # load + chunk + embed + store documents
 │   ├── vectorstore.py   # ChromaDB wrapper
-│   ├── llm.py            # Claude API wrapper (generation)
+│   ├── llm.py            # Gemini API wrapper (generation)
 │   ├── rag.py             # retrieve -> generate orchestration
 │   └── main.py             # FastAPI app
 ├── ui/
@@ -78,8 +78,8 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 ```
-Open `.env` and paste your Anthropic API key into `ANTHROPIC_API_KEY`
-(get one at https://console.anthropic.com/).
+Open `.env` and paste your Gemini API key into `GEMINI_API_KEY`
+(get a **free** key, no credit card required, at https://aistudio.google.com/apikey).
 
 **3. Ingest the sample documents** (or drop your own files into `data/sample_docs/` first)
 ```bash
@@ -110,7 +110,7 @@ pytest tests/ -v
 
 ```bash
 cd documind-rag
-cp .env.example .env        # then add your ANTHROPIC_API_KEY
+cp .env.example .env        # then add your GEMINI_API_KEY
 docker compose up --build
 ```
 - API: http://localhost:8000
@@ -152,7 +152,7 @@ Talking points that make this project stand out in interviews:
   `vectorstore.py` to Pinecone, Weaviate, or pgvector.
 - **Add reranking**: insert a cross-encoder reranking step after initial
   retrieval to improve answer quality.
-- **Add streaming**: stream the Claude response token-by-token to the UI.
+- **Add streaming**: stream the Gemini response token-by-token to the UI.
 - **Add auth + multi-user**: namespace the Chroma collection per user/session.
 - **Deploy it**: put the Docker image on Fly.io / Render / AWS and link a
   live demo on your CV — a deployed, working link is worth far more than a

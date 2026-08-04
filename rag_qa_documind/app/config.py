@@ -5,8 +5,8 @@ load_dotenv()
 
 
 class Settings:
-    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    claude_model: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     chroma_db_dir: str = os.getenv("CHROMA_DB_DIR", "./data/chroma_db")
     chroma_collection: str = os.getenv("CHROMA_COLLECTION", "documind")
