@@ -1,4 +1,8 @@
-"""Thin wrapper around the Gemini API for the generation step of RAG."""
+"""Thin wrapper around the Gemini API (Interactions API) for the generation
+step of RAG. Google requires the Interactions API -- not the older
+generateContent method -- for current-generation models like gemini-3.6-flash;
+using generateContent with these models returns a confusing
+'unexpected model name format' error instead of a clear deprecation notice."""
 from google import genai
 
 from app.config import settings
@@ -48,9 +52,9 @@ Question: {question}
 Answer using only the context above."""
 
     client = get_client()
-    response = client.models.generate_content(
+    interaction = client.interactions.create(
         model=settings.gemini_model,
-        contents=user_message,
-        config={"system_instruction": SYSTEM_PROMPT, "max_output_tokens": 1024},
+        input=user_message,
+        system_instruction=SYSTEM_PROMPT,
     )
-    return response.text
+    return interaction.output_text
