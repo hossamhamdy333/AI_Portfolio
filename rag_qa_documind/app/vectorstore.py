@@ -22,10 +22,6 @@ def get_client():
 def get_collection():
     global _collection
     if _collection is None:
-        # low_cpu_mem_usage=False forces the standard model-loading path
-        # instead of the memory-saving "meta device" fast-init trick --
-        # that trick breaks under low-RAM hosts (e.g. Streamlit Community
-        # Cloud's free tier) with a "Cannot copy out of meta tensor" error.
         embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name=settings.embedding_model,
             model_kwargs={"low_cpu_mem_usage": False},
