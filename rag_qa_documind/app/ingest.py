@@ -18,7 +18,16 @@ def load_text(file_path: str) -> str:
 
     if ext == ".pdf":
         reader = PdfReader(file_path)
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
+        # "layout" mode preserves visual spacing far more faithfully than the
+        # default "plain" mode -- some PDFs (common with LaTeX-generated
+        # academic/textbook PDFs) encode text without explicit space
+        # characters between words, relying on visual positioning instead.
+        # Plain mode loses that positioning and runs words together
+        # ("Sofarwehavegivenafairly..."); layout mode reconstructs spacing
+        # from each character's actual position on the page.
+        return "\n".join(
+            page.extract_text(extraction_mode="layout") or "" for page in reader.pages
+        )
 
     if ext in (".txt", ".md"):
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
