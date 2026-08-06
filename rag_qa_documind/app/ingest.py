@@ -15,18 +15,6 @@ from app.vectorstore import get_collection
 
 
 def _fix_concatenated_words(text: str, min_len: int = 20) -> str:
-    """
-    Some PDFs (common with certain LaTeX-generated academic/textbook PDFs)
-    extract with no spaces between words at all -- pypdf's "layout" mode
-    fixes this for most PDFs by reconstructing spacing from character
-    position, but some PDFs' internal encoding has no positional gap to
-    detect. As a robust fallback that works regardless of the root cause,
-    any individual "word" that's suspiciously long (a strong sign several
-    real words got fused together, e.g. "Sofarwehavegivenafairly...") gets
-    run through dictionary-based word segmentation. Normal-length words are
-    left completely untouched, so ordinary text, punctuation, and
-    capitalization are unaffected.
-    """
     def fix_token(match):
         token = match.group(0)
         core = token.rstrip(".,:;!?)")
