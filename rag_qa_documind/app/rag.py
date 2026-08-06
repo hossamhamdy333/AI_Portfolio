@@ -8,5 +8,8 @@ def answer_question(question: str, top_k: int = None) -> dict:
     return {
         "question": question,
         "answer": answer,
-        "sources": [{"source": h["source"], "score": round(h["score"], 3)} for h in hits],
+        "sources": [
+            {"source": h["source"], "score": round(h["score"], 3), "text": h["text"]}
+            for h in hits
+        ],
     }
