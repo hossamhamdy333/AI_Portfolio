@@ -5,14 +5,6 @@ load_dotenv()
 
 
 class Settings:
-    """
-    gemini_api_key and gemini_model are read dynamically via properties
-    (not fixed at class-definition time) so that if something sets
-    os.environ AFTER this module is first imported -- e.g. Streamlit Cloud
-    injecting secrets into os.environ slightly after app startup -- the
-    correct value is still picked up on the next call, without needing a
-    full process restart.
-    """
 
     @property
     def gemini_api_key(self) -> str:
