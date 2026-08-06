@@ -1,39 +1,18 @@
 """
 Standalone entrypoint for Streamlit Community Cloud.
-
-Unlike ui/streamlit_app.py (which talks to a separate FastAPI backend over
-HTTP -- the right setup for local dev with two terminals, or Docker with two
-services), Streamlit Cloud only runs a single Python file with no separate
-backend process. So this version imports the RAG pipeline functions
-directly and calls them in-process instead of making HTTP requests.
-
-To deploy: point Streamlit Community Cloud's "Main file path" at
-    rag_qa_documind/streamlit_app.py
-and set GEMINI_API_KEY / GEMINI_MODEL in the app's Secrets (TOML), e.g.:
-    GEMINI_API_KEY = "your-key-here"
-    GEMINI_MODEL = "gemini-3.1-flash-lite"
 """
 import os
 import sys
 import tempfile
-
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Streamlit Cloud's secrets aren't automatically OS environment variables,
-# but app/config.py reads settings via os.getenv -- so copy them over here,
-# before importing anything from app/, with zero changes needed downstream.
 for key in ("GEMINI_API_KEY", "GEMINI_MODEL"):
     if key in st.secrets:
         os.environ[key] = st.secrets[key]
 
-# --- TEMPORARY DIAGNOSTIC: remove once the secrets issue is confirmed fixed ---
-_debug_secrets_keys = list(st.secrets.keys()) if hasattr(st.secrets, "keys") else "N/A"
-_debug_env_has_key = bool(os.environ.get("GEMINI_API_KEY"))
-_debug_env_key_len = len(os.environ.get("GEMINI_API_KEY", ""))
-# --- end diagnostic ---
-
+from app.config import settings
 from app.ingest import ingest_file
 from app.rag import answer_question
 from app.vectorstore import reset_collection, get_collection
@@ -42,11 +21,10 @@ st.set_page_config(page_title="DocuMind", page_icon="📚")
 st.title("📚 DocuMind — Ask your documents")
 
 with st.sidebar:
-    st.warning(
-        f"DEBUG — st.secrets keys found: {_debug_secrets_keys} | "
-        f"GEMINI_API_KEY in os.environ: {_debug_env_has_key} | "
-        f"length: {_debug_env_key_len}"
-    )
+    if settings.gemini_api_key:
+        st.success(f"🟢 Connected — using **{settings.gemini_model}**")
+    else:
+        st.error("🔴 Gemini API key not configured — add GEMINI_API_KEY in Secrets")
 
     st.header("Upload documents")
     uploaded = st.file_uploader(
