@@ -4,7 +4,7 @@ Ask questions about your own documents (PDF / TXT / MD) and get answers grounded
 in their content, with sources cited. Built with FastAPI, ChromaDB, local
 sentence-transformer embeddings, and Gemini for generation.
 
-**Live demo:** _add your Streamlit Community Cloud URL here once deployed_
+**Live demo:** https://documents-mind.streamlit.app/
 
 **Why this project:** RAG is one of the most widely used patterns in applied AI
 engineering. This project covers the full stack: document processing,
