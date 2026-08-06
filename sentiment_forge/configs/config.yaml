@@ -73,8 +73,4 @@ wandb:
   entity: null
 
 serving:
-  host: "0.0.0.0"
-  port: 7860
   model_repo: "hossam3759180/sentiment_forge"
-  model_path: "outputs/models/best_model.onnx"
-  max_length: 128
