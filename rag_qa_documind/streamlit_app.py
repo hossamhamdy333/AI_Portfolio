@@ -28,6 +28,12 @@ for key in ("GEMINI_API_KEY", "GEMINI_MODEL"):
     if key in st.secrets:
         os.environ[key] = st.secrets[key]
 
+# --- TEMPORARY DIAGNOSTIC: remove once the secrets issue is confirmed fixed ---
+_debug_secrets_keys = list(st.secrets.keys()) if hasattr(st.secrets, "keys") else "N/A"
+_debug_env_has_key = bool(os.environ.get("GEMINI_API_KEY"))
+_debug_env_key_len = len(os.environ.get("GEMINI_API_KEY", ""))
+# --- end diagnostic ---
+
 from app.ingest import ingest_file
 from app.rag import answer_question
 from app.vectorstore import reset_collection, get_collection
@@ -36,6 +42,12 @@ st.set_page_config(page_title="DocuMind", page_icon="📚")
 st.title("📚 DocuMind — Ask your documents")
 
 with st.sidebar:
+    st.warning(
+        f"DEBUG — st.secrets keys found: {_debug_secrets_keys} | "
+        f"GEMINI_API_KEY in os.environ: {_debug_env_has_key} | "
+        f"length: {_debug_env_key_len}"
+    )
+
     st.header("Upload documents")
     uploaded = st.file_uploader(
         "Add .txt, .md, or .pdf files", type=["txt", "md", "pdf"], accept_multiple_files=True
