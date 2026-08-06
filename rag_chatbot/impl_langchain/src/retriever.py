@@ -39,19 +39,44 @@ def build_parent_document_retriever(
     parent_chunk_size=1200,
     child_chunk_size=300,
     child_chunk_overlap=32,
+    persist_directory=None,
+    batch_size=200,
+    device=None,
 ):
     """Mirrors impl_vanilla's chunk_size=256/overlap=32 choice for the child
     splitter (the layer that actually gets embedded and searched), so the
     retrieval-quality comparison in COMPARISON.md isn't confounded by a
     different chunk size on top of the different architecture.
+
+    persist_directory: if set, Chroma writes to disk instead of holding the
+    whole vector index in RAM -- avoids the OOM crash that a single
+    in-memory add_documents() call over 15K+ articles can trigger on Colab.
+    batch_size: documents are added in batches with a progress bar so a
+    slow-but-working run doesn't look identical to a frozen/crashed one.
+    device: 'cuda' or 'cpu'. Auto-detects GPU if not specified -- CPU
+    embedding of 100K+ chunks can take hours, GPU cuts that dramatically.
     """
+    import torch
+    from tqdm.auto import tqdm
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Embedding on device: {device}")
+
     parent_splitter = RecursiveCharacterTextSplitter(chunk_size=parent_chunk_size, chunk_overlap=0)
     child_splitter = RecursiveCharacterTextSplitter(
         chunk_size=child_chunk_size, chunk_overlap=child_chunk_overlap
     )
 
-    embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
-    vectorstore = Chroma(collection_name="rag_documents_langchain", embedding_function=embeddings)
+    embeddings = HuggingFaceEmbeddings(
+        model_name=embedding_model_name,
+        model_kwargs={"device": device},
+        encode_kwargs={"batch_size": 64},
+    )
+    chroma_kwargs = {"collection_name": "rag_documents_langchain", "embedding_function": embeddings}
+    if persist_directory:
+        chroma_kwargs["persist_directory"] = persist_directory
+    vectorstore = Chroma(**chroma_kwargs)
     docstore = InMemoryStore()
 
     retriever = ParentDocumentRetriever(
@@ -60,7 +85,10 @@ def build_parent_document_retriever(
         child_splitter=child_splitter,
         parent_splitter=parent_splitter,
     )
-    retriever.add_documents(documents)
+
+    for i in tqdm(range(0, len(documents), batch_size), desc="Embedding batches"):
+        retriever.add_documents(documents[i:i + batch_size])
+
     return retriever
 
 

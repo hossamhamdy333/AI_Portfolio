@@ -65,15 +65,12 @@ evaluation:
   threshold: 0.5
 
 mlflow:
-  experiment_name: "text_classification"
-  tracking_uri: "/content/drive/MyDrive/AI_Portfolio/mlruns"
+  experiment_name: "sentiment_forge"
+  tracking_uri: "https://dagshub.com/hossam3759180/AI_Portfolio.mlflow"
 
 wandb:
   project: "text_classification"
   entity: null
 
 serving:
-  host: "0.0.0.0"
-  port: 8000
-  model_path: "outputs/models/best_model.onnx"
-  max_length: 128
+  model_repo: "hossam3759180/sentiment_forge"

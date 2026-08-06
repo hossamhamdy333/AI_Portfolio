@@ -37,6 +37,7 @@ DOMAIN_KEYWORDS = {
     ],
 }
 
+DOMAINS = list(DOMAIN_KEYWORDS.keys())
 TARGET_PER_DOMAIN = 300  # matches the scale-down ratio vanilla used (37.5K -> 300 eval)
 
 
@@ -45,18 +46,32 @@ def article_matches_domain(title, text, keywords):
     return any(kw in haystack for kw in keywords)
 
 
-def build_domain_corpus(dataset_split, domain_keywords, target_per_domain, seed=42):
+def build_domain_corpus(dataset_split, domain_keywords, target_per_domain, seed=42,
+                         max_articles_scanned=500_000, progress_every=10_000):
     """Stream the wikipedia dump once, bucket matching articles per domain.
 
     Streaming (not loading the full ~20GB dump into memory) since we only
     need a few hundred articles per domain out of millions.
+
+    Prints progress every `progress_every` articles scanned, and stops after
+    `max_articles_scanned` even if some domains aren't full yet -- without
+    this, a domain with rare keyword matches could scan for a very long time
+    with zero visible output, indistinguishable from a hang.
     """
     buckets = {domain: [] for domain in domain_keywords}
     filled = set()
 
-    for row in dataset_split:
+    for scanned, row in enumerate(dataset_split, start=1):
         if len(filled) == len(domain_keywords):
             break
+        if scanned >= max_articles_scanned:
+            print(f"Hit max_articles_scanned={max_articles_scanned}, stopping early.")
+            print(f"Bucket sizes so far: {{k: len(v) for k, v in buckets.items()}}")
+            break
+        if scanned % progress_every == 0:
+            sizes = {k: len(v) for k, v in buckets.items()}
+            print(f"Scanned {scanned} articles... bucket sizes: {sizes}")
+
         title, text = row["title"], row["text"]
         for domain, keywords in domain_keywords.items():
             if domain in filled:

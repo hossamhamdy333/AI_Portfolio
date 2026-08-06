@@ -1,5 +1,5 @@
 outs:
-- md5: 24baf94027bb2231875b11e5b7d7bf2e
-  size: 753588
+- md5: be4788f4a3c63398899e0df2dbd01851
+  size: 748391
   hash: md5
   path: sentence_chunks.parquet

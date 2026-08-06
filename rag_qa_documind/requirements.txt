@@ -3,8 +3,14 @@ uvicorn[standard]==0.30.6
 python-dotenv==1.0.1
 chromadb==0.5.5
 sentence-transformers==3.0.1
+<<<<<<< HEAD
 anthropic==0.34.2
 pypdf==4.3.1
+=======
+google-genai==2.16.0
+pypdf==4.3.1
+wordninja==2.0.0
+>>>>>>> 1daa2d74e09f7db542620d4ab4861f9cf5e0dc25
 python-multipart==0.0.9
 streamlit==1.38.0
 pytest==8.3.2

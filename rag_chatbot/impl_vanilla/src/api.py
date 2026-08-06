@@ -4,6 +4,13 @@ is already set up for'). Wires together retrieval.py + generation.py exactly
 as the eval loop already does, just behind an HTTP endpoint instead of a
 notebook loop.
 
+Qdrant runs in local embedded mode (no separate server) pointed at the same
+Drive folder 04_rag_pipeline.ipynb writes to -- so this API reads whatever
+was last built there. Run this from within the same Colab session/runtime
+that has Drive mounted at /content/drive, right after running the pipeline
+notebook (or after confirming that Drive path already has data from a
+previous run).
+
 Run: uvicorn src.api:app --host <serving.host> --port <serving.port>
 (reads host/port from configs/config.yaml, same as everything else in this repo)
 """
@@ -26,6 +33,10 @@ logger = logging.getLogger(__name__)
 with open("configs/config.yaml") as f:
     CONFIG = yaml.safe_load(f)
 
+# Same path 04_rag_pipeline.ipynb's cell 10 writes to -- must match, since this
+# API only has data if that notebook already ran and populated this Drive folder.
+QDRANT_LOCAL_PATH = "/content/drive/MyDrive/AI_Portfolio_Qdrant"
+
 app = FastAPI(title="RAG Chatbot API", version="1.0")
 
 # Loaded once at startup, reused across requests -- these are the same
@@ -37,9 +48,12 @@ _state = {}
 def load_models():
     _state["embedder"] = SentenceTransformer(CONFIG["retrieval"]["model_name"])
     _state["reranker"] = CrossEncoder(CONFIG["reranker"]["model_name"])
-    _state["qdrant_client"] = QdrantClient(
-        host=CONFIG["qdrant"]["host"], port=CONFIG["qdrant"]["port"]
-    )
+    if not os.path.isdir(QDRANT_LOCAL_PATH):
+        raise RuntimeError(
+            f"No Qdrant data found at {QDRANT_LOCAL_PATH} -- run 04_rag_pipeline.ipynb "
+            "first to build and persist the collection."
+        )
+    _state["qdrant_client"] = QdrantClient(path=QDRANT_LOCAL_PATH)
     _state["gemini_client"] = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     logger.info("Models and Qdrant client loaded.")
 

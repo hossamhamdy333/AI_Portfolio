@@ -1,11 +1,21 @@
+<<<<<<< HEAD
 """Thin wrapper around the Anthropic API for the generation step of RAG."""
 from anthropic import Anthropic
+=======
+"""Thin wrapper around the Gemini API (Interactions API) for the generation
+step of RAG. Google requires the Interactions API -- not the older
+generateContent method -- for current-generation models like gemini-3.6-flash;
+using generateContent with these models returns a confusing
+'unexpected model name format' error instead of a clear deprecation notice."""
+from google import genai
+>>>>>>> 1daa2d74e09f7db542620d4ab4861f9cf5e0dc25
 
 from app.config import settings
 
 _client = None
 
 
+<<<<<<< HEAD
 def get_client() -> Anthropic:
     global _client
     if _client is None:
@@ -14,6 +24,17 @@ def get_client() -> Anthropic:
                 "ANTHROPIC_API_KEY is not set. Add it to your .env file."
             )
         _client = Anthropic(api_key=settings.anthropic_api_key)
+=======
+def get_client() -> "genai.Client":
+    global _client
+    if _client is None:
+        if not settings.gemini_api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY is not set. Add it to your .env file. "
+                "Get a free key at https://aistudio.google.com/apikey"
+            )
+        _client = genai.Client(api_key=settings.gemini_api_key)
+>>>>>>> 1daa2d74e09f7db542620d4ab4861f9cf5e0dc25
     return _client
 
 
@@ -47,6 +68,7 @@ Question: {question}
 Answer using only the context above."""
 
     client = get_client()
+<<<<<<< HEAD
     response = client.messages.create(
         model=settings.claude_model,
         max_tokens=1024,
@@ -54,3 +76,11 @@ Answer using only the context above."""
         messages=[{"role": "user", "content": user_message}],
     )
     return response.content[0].text
+=======
+    interaction = client.interactions.create(
+        model=settings.gemini_model,
+        input=user_message,
+        system_instruction=SYSTEM_PROMPT,
+    )
+    return interaction.output_text
+>>>>>>> 1daa2d74e09f7db542620d4ab4861f9cf5e0dc25

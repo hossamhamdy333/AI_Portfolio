@@ -38,6 +38,8 @@ def run_eval(run_chain, qa_df, mlflow_run_name="langchain_eval", sleep_seconds=1
             results_log.append({
                 "question": row["question"],
                 "answer_text": answer_text,
+                "reference_answer": row["answer"],
+                "contexts": [doc.page_content for doc in reranked_docs],
                 "correct_id": row["article_id"],
                 "ranked_ids": ranked_ids,
                 "correct_cited": citation_result["correct_cited"],

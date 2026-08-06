@@ -23,7 +23,12 @@ def get_collection():
     global _collection
     if _collection is None:
         embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+<<<<<<< HEAD
             model_name=settings.embedding_model
+=======
+            model_name=settings.embedding_model,
+            model_kwargs={"low_cpu_mem_usage": False},
+>>>>>>> 1daa2d74e09f7db542620d4ab4861f9cf5e0dc25
         )
         _collection = get_client().get_or_create_collection(
             name=settings.chroma_collection,
