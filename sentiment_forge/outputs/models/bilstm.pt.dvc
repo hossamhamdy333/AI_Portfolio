@@ -1,0 +1,5 @@
+outs:
+- md5: 1b370b27ff4550e6c6b9227446028588
+  size: 15883347
+  hash: md5
+  path: bilstm.pt

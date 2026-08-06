@@ -1,0 +1,13 @@
+id,reason
+140415_iraq_abughraib_prison_closed,"1 validation error for ArticleRow
+arabic_ratio
+  Assertion failed, article is less than 50% Arabic text [type=assertion_error, input_value=0.22102009273570325, input_type=float]
+    For further information visit https://errors.pydantic.dev/2.13/v/assertion_error"
+middleeast-45903274,"1 validation error for ArticleRow
+arabic_ratio
+  Assertion failed, article is less than 50% Arabic text [type=assertion_error, input_value=0.464859437751004, input_type=float]
+    For further information visit https://errors.pydantic.dev/2.13/v/assertion_error"
+world-55047957,"1 validation error for ArticleRow
+arabic_ratio
+  Assertion failed, article is less than 50% Arabic text [type=assertion_error, input_value=0.40527240773286466, input_type=float]
+    For further information visit https://errors.pydantic.dev/2.13/v/assertion_error"

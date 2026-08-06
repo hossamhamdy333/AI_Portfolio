@@ -1,0 +1,23 @@
+name: allam_finetune tests
+
+on:
+  push:
+    paths:
+      - 'allam_finetune/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install pytest pandas numpy PyYAML pydantic
+      - name: Run tests
+        run: |
+          cd allam_finetune
+          pytest tests/ -v

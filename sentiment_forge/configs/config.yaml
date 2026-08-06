@@ -1,0 +1,76 @@
+# ============================================================
+# Text Classification Pipeline
+# ALL hyperparameters is here
+# ============================================================
+
+data:
+  dataset_name: "sst"
+  dataset_config: "default"
+  num_labels: 5
+  label_names: ["very negative", "negative", "neutral", "positive", "very positive"]
+  test_size: 0.1
+  val_size: 0.1
+  random_seed: 42
+  max_length: 128           # max token length for transformer
+  min_length: 3             # drop samples shorter than this (words)
+
+classical:
+  tfidf:
+    max_features: 20000
+    ngram_range: [1, 2]
+    min_df: 2
+    max_df: 0.95
+    sublinear_tf: true
+  logistic_regression:
+    C: 1.0
+    max_iter: 1000
+    solver: "lbfgs"
+    multi_class: "multinomial"
+  cross_validation:
+    n_splits: 5
+    shuffle: true
+    random_seed: 42
+
+neural:
+  vocab_size: 20000
+  embedding_dim: 100
+  hidden_dim: 256
+  num_layers: 2
+  dropout: 0.3
+  max_length: 64
+  bidirectional: true
+  training:
+    batch_size: 64
+    epochs: 10
+    learning_rate: 0.001
+    clip_grad_norm: 1.0
+    random_seed: 42
+    checkpoint_dir: "/content/drive/MyDrive/AI_Portfolio/checkpoints/bilstm"
+
+transformer:
+  model_name: "bert-base-uncased"
+  training:
+    batch_size: 32
+    epochs: 5
+    learning_rate: 2.0e-5
+    warmup_ratio: 0.1
+    weight_decay: 0.01
+    random_seed: 42
+    checkpoint_dir: "/content/drive/MyDrive/AI_Portfolio/checkpoints/bert-base"
+    fp16: true
+
+evaluation:
+  primary_metric: "f1"
+  average: "weighted"       # weighted because SST-5 is slightly imbalanced
+  threshold: 0.5
+
+mlflow:
+  experiment_name: "sentiment_forge"
+  tracking_uri: "https://dagshub.com/hossam3759180/AI_Portfolio.mlflow"
+
+wandb:
+  project: "text_classification"
+  entity: null
+
+serving:
+  model_repo: "hossam3759180/sentiment_forge"
