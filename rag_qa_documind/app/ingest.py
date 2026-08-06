@@ -3,13 +3,39 @@ Document ingestion pipeline:
   load file -> extract text -> chunk text -> embed chunks -> store in vector DB
 """
 import os
+import re
 import uuid
 from typing import List
 
+import wordninja
 from pypdf import PdfReader
 
 from app.config import settings
 from app.vectorstore import get_collection
+
+
+def _fix_concatenated_words(text: str, min_len: int = 20) -> str:
+    """
+    Some PDFs (common with certain LaTeX-generated academic/textbook PDFs)
+    extract with no spaces between words at all -- pypdf's "layout" mode
+    fixes this for most PDFs by reconstructing spacing from character
+    position, but some PDFs' internal encoding has no positional gap to
+    detect. As a robust fallback that works regardless of the root cause,
+    any individual "word" that's suspiciously long (a strong sign several
+    real words got fused together, e.g. "Sofarwehavegivenafairly...") gets
+    run through dictionary-based word segmentation. Normal-length words are
+    left completely untouched, so ordinary text, punctuation, and
+    capitalization are unaffected.
+    """
+    def fix_token(match):
+        token = match.group(0)
+        core = token.rstrip(".,:;!?)")
+        trailing = token[len(core):]
+        if len(core) >= min_len:
+            return " ".join(wordninja.split(core)) + trailing
+        return token
+
+    return re.sub(r"\S+", fix_token, text)
 
 
 def load_text(file_path: str) -> str:
@@ -19,15 +45,13 @@ def load_text(file_path: str) -> str:
     if ext == ".pdf":
         reader = PdfReader(file_path)
         # "layout" mode preserves visual spacing far more faithfully than the
-        # default "plain" mode -- some PDFs (common with LaTeX-generated
-        # academic/textbook PDFs) encode text without explicit space
-        # characters between words, relying on visual positioning instead.
-        # Plain mode loses that positioning and runs words together
-        # ("Sofarwehavegivenafairly..."); layout mode reconstructs spacing
-        # from each character's actual position on the page.
-        return "\n".join(
+        # default "plain" mode for most PDFs with missing word spaces.
+        text = "\n".join(
             page.extract_text(extraction_mode="layout") or "" for page in reader.pages
         )
+        # Belt-and-suspenders: fix any words that are still fused together
+        # even after layout-mode extraction.
+        return _fix_concatenated_words(text)
 
     if ext in (".txt", ".md"):
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -62,7 +86,6 @@ def chunk_text(
         else:
             if current:
                 chunks.append(current)
-            # paragraph itself is longer than chunk_size -> hard split it
             if len(para) > chunk_size:
                 for i in range(0, len(para), chunk_size - chunk_overlap):
                     chunks.append(para[i:i + chunk_size])
@@ -73,7 +96,6 @@ def chunk_text(
     if current:
         chunks.append(current)
 
-    # add overlap between consecutive chunks for better retrieval context
     overlapped = []
     for i, c in enumerate(chunks):
         if i == 0:
