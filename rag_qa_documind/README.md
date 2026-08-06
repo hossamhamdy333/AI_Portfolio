@@ -177,14 +177,10 @@ curl -X POST http://localhost:8000/query \
 - **Free-tier Gemini rate limits apply** if this is deployed publicly and
   gets meaningful traffic.
 
-## How to extend this for your CV / portfolio
+## How to extend this project
 
-- **Chunking strategy**: explain the tradeoff between chunk size and context
-  precision (implemented in `app/ingest.py::chunk_text`).
 - **Evaluation**: extend the notebook's precision@k example into a real
   regression test suite against a hand-labeled set of question/answer pairs.
-- **Swap the vector DB**: show you understand alternatives by porting
-  `vectorstore.py` to Pinecone, Weaviate, or pgvector.
 - **Add reranking**: insert a cross-encoder reranking step after initial
   retrieval to improve answer quality.
 - **Add streaming**: stream the Gemini response token-by-token to the UI.
@@ -192,5 +188,4 @@ curl -X POST http://localhost:8000/query \
   instead of one shared index.
 - **Support more providers**: `app/llm.py` currently calls Gemini only;
   adding an `LLM_PROVIDER` setting to switch between Gemini/OpenAI/Anthropic
-  is a natural next step and a good interview talking point about
-  abstraction design.
+  
