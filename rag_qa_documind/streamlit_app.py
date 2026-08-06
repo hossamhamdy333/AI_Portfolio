@@ -1,9 +1,22 @@
 """
 Standalone entrypoint for Streamlit Community Cloud.
+
+Unlike ui/streamlit_app.py (which talks to a separate FastAPI backend over
+HTTP -- the right setup for local dev with two terminals, or Docker with two
+services), Streamlit Cloud only runs a single Python file with no separate
+backend process. So this version imports the RAG pipeline functions
+directly and calls them in-process instead of making HTTP requests.
+
+To deploy: point Streamlit Community Cloud's "Main file path" at
+    rag_qa_documind/streamlit_app.py
+and set GEMINI_API_KEY / GEMINI_MODEL in the app's Secrets (TOML), e.g.:
+    GEMINI_API_KEY = "your-key-here"
+    GEMINI_MODEL = "gemini-3.1-flash-lite"
 """
 import os
 import sys
 import tempfile
+
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -13,7 +26,7 @@ for key in ("GEMINI_API_KEY", "GEMINI_MODEL"):
         os.environ[key] = st.secrets[key]
 
 from app.config import settings
-from app.ingest import ingest_file
+from app.ingest import ingest_file, load_text
 from app.rag import answer_question
 from app.vectorstore import reset_collection, get_collection
 
@@ -37,8 +50,18 @@ with st.sidebar:
                 tmp.write(f.getvalue())
                 tmp_path = tmp.name
             try:
-                n_chunks = ingest_file(tmp_path, source_name=f.name)
-                st.success(f"{f.name}: {n_chunks} chunks indexed")
+                extracted = load_text(tmp_path)
+                char_count = len(extracted.strip())
+                if char_count < 200:
+                    st.warning(
+                        f"⚠️ {f.name}: only extracted {char_count} characters of text. "
+                        f"This usually means the PDF is a scanned image rather than "
+                        f"real text -- try a different file, or one with a text layer "
+                        f"(e.g. exported from Word/Google Docs rather than scanned)."
+                    )
+                else:
+                    n_chunks = ingest_file(tmp_path, source_name=f.name)
+                    st.success(f"{f.name}: {n_chunks} chunks indexed")
             except Exception as e:
                 st.error(f"{f.name}: {e}")
             finally:
@@ -73,9 +96,11 @@ if question := st.chat_input("Ask a question about your documents..."):
                 result = answer_question(question)
                 st.markdown(result["answer"])
                 if result["sources"]:
-                    with st.expander("Sources"):
+                    with st.expander("📄 View source passages"):
                         for s in result["sources"]:
-                            st.write(f"- {s['source']} (relevance {s['score']})")
+                            st.write(f"**{s['source']}** · relevance {s['score']}")
+                            preview = s["text"][:300].strip()
+                            st.code(preview if preview else "(empty chunk)")
                 answer_text = result["answer"]
             except Exception as e:
                 answer_text = f"Error: {e}"
