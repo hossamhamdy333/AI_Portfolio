@@ -16,7 +16,7 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install pytest pandas numpy scikit-learn PyYAML datasets
+          pip install pytest pandas numpy scikit-learn PyYAML datasets matplotlib seaborn
       - name: Run tests
         run: |
           cd sentiment_forge
