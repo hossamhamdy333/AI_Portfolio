@@ -1,0 +1,11 @@
+datasets
+pandas
+matplotlib
+seaborn
+jupyter
+google-generativeai
+fastapi
+uvicorn
+pydantic
+streamlit
+requests
