@@ -1,0 +1,46 @@
+# --- LLM / orchestration ---
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-groq
+langchain-community<0.4     # ragas 0.4.x imports a module that 0.4.x of this package dropped
+langchain-text-splitters
+langchain-huggingface
+langgraph-checkpoint-sqlite
+
+# --- multimodal ingestion ---
+pypdf
+python-docx
+openpyxl
+unstructured
+faster-whisper          # local, free, no API — replaces paid Whisper API
+yt-dlp                  # pull audio from YouTube links for transcription
+pytesseract              # free local OCR fallback
+Pillow
+
+# --- embeddings / vector db ---
+sentence-transformers
+qdrant-client            # local mode, no server needed, no card
+
+# --- tools ---
+ddgs                      # free web search, no key (formerly duckduckgo-search)
+pandas
+numpy
+
+# --- backend ---
+fastapi
+uvicorn[standard]
+python-multipart
+websockets
+
+# --- frontend ---
+streamlit
+requests
+
+# --- eval / observability ---
+ragas
+arize-phoenix             # fully open-source, runs locally, no signup
+openinference-instrumentation-langchain
+
+# --- utils ---
+python-dotenv
+pyngrok                   # only needed if tunneling FastAPI out of Colab for demo
