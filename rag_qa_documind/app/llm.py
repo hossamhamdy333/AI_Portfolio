@@ -1,8 +1,3 @@
-"""Thin wrapper around the Gemini API (Interactions API) for the generation
-step of RAG. Google requires the Interactions API -- not the older
-generateContent method -- for current-generation models like gemini-3.6-flash;
-using generateContent with these models returns a confusing
-'unexpected model name format' error instead of a clear deprecation notice."""
 from google import genai
 
 from app.config import settings
