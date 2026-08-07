@@ -1,3 +1,4 @@
+```markdown
 # LLM API Integration
 
 A FastAPI service that wraps the Gemini API properly — not just a `generate_content()` call behind an endpoint, but streaming, tool calling, schema-validated structured output, retry logic, and per-request token/cost tracking, the way you'd actually want an LLM wrapped before other services start depending on it.
@@ -9,7 +10,7 @@ Gemini API (google-generativeai)
     → schemas.py  [Pydantic validation on everything the model returns]
     → tracking.py [token counts + cost logged to MLflow per request]
     → app.py      [FastAPI routes — thin, no business logic]
-    → 18 unit tests covering retries, schema validation, tool dispatch, cost math
+    → 19 unit tests covering retries, schema validation, tool dispatch, cost math
 ```
 
 ## Why this project, and why Gemini
@@ -26,7 +27,7 @@ Most "LLM integration" demos are a single happy-path call to an API. The interes
 
 **Retries** — `call_gemini()` wraps every non-streaming call in exponential backoff (`config.yaml`: 3 attempts, 2s base). Rate limits and timeouts are treated as expected background noise for any external API, not edge cases worth special-casing per call site.
 
-**Cost/usage tracking** — every non-streaming call, and the final chunk of every stream, logs prompt/response token counts to MLflow via `log_usage()`, with real cost math (`compute_cost_usd()`, per-million-token rates from config) — not a hardcoded `$0`. Gemini's free tier means the rates default to `0.0`, but the calculation is correct and ready for whatever paid model gets swapped in later. Tracking failures are caught and logged rather than allowed to break the actual user-facing request.
+**Cost/usage tracking** — every non-streaming call, and the final chunk of every stream, logs prompt/response token counts to MLflow via `log_usage()`, with real cost math (`compute_cost_usd()`, per-million-token rates from config) — not a hardcoded `$0`. gemini-3.1-flash-lite's free tier means the rates default to `0.0`, but the calculation is correct and ready for whatever paid model gets swapped in later. Tracking failures are caught and logged rather than allowed to break the actual user-facing request.
 
 ## Seeing it actually run
 
@@ -41,7 +42,7 @@ Most "LLM integration" demos are a single happy-path call to an API. The interes
 
 ## Testing philosophy
 
-18 unit tests across `tests/`, but deliberately scoped to what's actually deterministic:
+19 unit tests across `tests/`, but deliberately scoped to what's actually deterministic:
 
 | File | What it covers |
 |---|---|
@@ -68,7 +69,7 @@ llm_api_integration/
 │   ├── schemas.py    # Pydantic models: SentimentResult, ToolCallRequest
 │   ├── tracking.py   # MLflow token/cost logging
 │   └── app.py        # FastAPI routes — /analyze, /chat/stream, /chat/tools, /health
-├── tests/            # 18 tests, see table above
+├── tests/            # 19 tests, see table above
 ├── configs/config.yaml   # model name, temperature, retry policy, pricing, ports — nothing hardcoded
 └── requirements.txt
 ```
@@ -119,3 +120,4 @@ pytest tests/ -v
 - Add a lightweight eval set for the tool-routing decision specifically, since that's the one place in this system where "did it do the right thing" doesn't reduce to a schema check
 - Swap `search_documents`' in-memory keyword match for the real Qdrant retrieval built in the semantic-search project, now that the interface already matches
 - Add request-level rate limiting on the FastAPI side, not just retry-on-failure against Gemini's own limits
+```
