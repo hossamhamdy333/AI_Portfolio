@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -31,5 +30,3 @@ def plot_confusion_matrix(y_true, y_pred, label_names, title, save_path):
     plt.tight_layout()
     plt.savefig(save_path, bbox_inches="tight")
     plt.show()
-
-
