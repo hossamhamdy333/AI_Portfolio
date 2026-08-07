@@ -1,9 +1,7 @@
 """Logs token usage per request to MLflow.
 
 Gemini's free tier has no per-request dollar cost, so we log tokens rather
-than dollars. The habit is what matters: in a real job you'll need to show
-someone exactly how many tokens a feature is burning, and "we log every
-call" is the answer they want to hear.
+than dollars. The habit is what matters
 """
 
 import logging
@@ -14,12 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 def init_tracking(tracking_uri: str, experiment_name: str) -> None:
-    """Point MLflow at the configured store and experiment.
-
-    Must run once at app startup. Without it, MLflow silently defaults to
-    a local ./mlruns folder and the "Default" experiment — the config
-    values would exist in config.yaml but do nothing.
-    """
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment_name)
 
