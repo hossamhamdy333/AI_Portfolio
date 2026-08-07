@@ -1,8 +1,9 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
-
-load_dotenv()
-
+# load_dotenv() isn't guaranteed to search upward and find .env in that case.
+_project_root = Path(__file__).resolve().parent.parent
+load_dotenv(_project_root / ".env")
 
 class Settings:
 
