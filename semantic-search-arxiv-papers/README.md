@@ -75,7 +75,7 @@ A few things worth calling out:
 ## What's in the repo
 
 ```
-semantic_search/
+semantic-search-arxiv-papers/
 ├── notebooks/
 │   ├── 01_eda.ipynb              # corpus stats, length distribution, top keywords, dedup
 │   ├── 02_sparse_retriever.ipynb # BM25 baseline + eval-set construction
