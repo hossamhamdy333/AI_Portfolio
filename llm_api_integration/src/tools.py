@@ -1,3 +1,19 @@
+"""Tool/function definitions the model can call.
+
+Tool calling isn't the model running code — it's the model returning
+"call this function with these arguments." We stay in control: we decide
+whether to actually run it, run it ourselves, and feed the result back.
+
+Two tools, deliberately different in shape, so the routing logic is
+actually meaningful rather than two copies of the same thing:
+  - get_current_weather: a stub, no external dependency
+  - search_documents: same retrieval pattern as the semantic_search
+    project (P3) — swap the in-memory list for a real Qdrant/FAISS
+    lookup when wiring this into a bigger system
+"""
+
+# Small in-memory corpus so this tool works with zero external setup.
+# Replace with semantic_search/src/retrieval.py's Qdrant search for real use.
 _DOCUMENTS = [
     {"id": 1, "title": "Gemini API quickstart", "text": "How to call the Gemini API for text generation."},
     {"id": 2, "title": "Function calling guide", "text": "How the model requests tool calls and how to respond."},
