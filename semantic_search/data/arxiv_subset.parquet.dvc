@@ -1,5 +1,0 @@
-outs:
-- md5: e27e95618cb30732374ffb5ea6fb6661
-  size: 32604322
-  hash: md5
-  path: arxiv_subset.parquet
