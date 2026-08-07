@@ -12,7 +12,7 @@ serving:
 
 mlflow:
   experiment_name: "llm_api_integration"
-  tracking_uri: "outputs/mlruns"
+  tracking_uri: "https://dagshub.com/hossam3759180/AI_Portfolio.mlflow"
 
 # Gemini 2.0 Flash free tier has no per-request dollar cost, but the rates
 # are here so cost math is real, not hardcoded to zero — swap in whatever
