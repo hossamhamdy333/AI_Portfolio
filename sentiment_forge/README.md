@@ -87,7 +87,7 @@ sentiment_forge/
 │   ├── data_utils.py    # load / clean / split / persist
 │   ├── features.py      # TF-IDF feature union + top-feature inspection
 │   ├── models.py        # BiLSTM architecture
-│   └── evaluate.py      # shared metrics, confusion matrices, error analysis
+│   └── evaluate.py      # shared metrics, confusion matrices
 ├── tests/
 │   └── test_pipeline.py # cleaning + metrics unit tests
 ├── .github/workflows/   # CI: pytest on every push
