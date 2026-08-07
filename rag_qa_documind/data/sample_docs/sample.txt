@@ -12,7 +12,7 @@ How it works:
 3. Embeddings are stored in a ChromaDB vector database on disk.
 4. When a user asks a question, the question is embedded and compared against
    stored chunks using cosine similarity to find the most relevant passages.
-5. The most relevant passages are inserted into a prompt sent to Claude, which
+5. The most relevant passages are inserted into a prompt sent to Gemini, which
    generates a final answer citing its sources.
 
 Why this architecture matters for engineers:
