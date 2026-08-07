@@ -140,7 +140,7 @@ Reproduce a training run: open any of the numbered notebooks — each one loads 
 - **ONNX export + verification** — BERT was exported to ONNX and the output was numerically checked against the original PyTorch model (max absolute difference: 0.0008) before it went anywhere else
 - **Hugging Face Hub** — the ONNX model + tokenizer are hosted publicly, loaded on demand via `snapshot_download`, so anyone can run inference without retraining or hosting anything themselves
 - **pytest + GitHub Actions** — 7 unit tests, CI runs automatically on every push to this folder
-- **Config-driven** — every hyperparameter (TF-IDF settings, LSTM dims, BERT training args, serving config) lives in one `config.yaml`, not scattered across notebooks
+- **Config-driven** — every hyperparameter (TF-IDF settings, LSTM dims, BERT training args, model repo reference) lives in one `config.yaml`, not scattered across notebooks
 
 ## A few things I'd improve with more time
 
