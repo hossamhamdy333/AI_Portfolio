@@ -35,6 +35,11 @@ support bots, internal knowledge assistants, and research tools.
   Interactions API, grounded strictly in retrieved context via the system
   prompt in `app/llm.py`.
 - **API**: FastAPI (`app/main.py`) — `/ingest`, `/query`, `/health`, `/reset`.
+- **Session isolation**: each visitor gets their own private Chroma
+  collection, keyed by a random session ID (browser session in Streamlit,
+  or an `X-Session-Id` header against the FastAPI backend). Concurrent
+  users never see each other's uploaded documents. Set `APP_PASSWORD` in
+  Secrets to also gate the public deployment behind a shared passcode.
 - **UI**: two interchangeable front ends —
   - `ui/streamlit_app.py`: talks to the FastAPI backend over HTTP. Use this
     for local development (two terminals) or Docker (two services).
@@ -164,12 +169,15 @@ curl -X POST http://localhost:8000/query \
   to almost no text and warns you, but it can't read text out of images —
   only PDFs with a real text layer (exported from Word, Google Docs, LaTeX,
   etc., not scanned photos of pages).
-- **One shared index.** All uploaded documents go into the same vector index.
-  Uploading unrelated documents together will hurt retrieval precision for
-  questions about any one of them. Click **Clear index** before switching to
-  a different document or topic.
+- **One shared index per session, not across the whole document set.**
+  Documents you upload in one browser session go into their own private
+  Chroma collection, but if you upload several unrelated documents within
+  the *same* session, retrieval precision for questions about any one of
+  them can drop. Click **Clear index** before switching to a different
+  document or topic.
 - **Free-tier Gemini rate limits apply** if this is deployed publicly and
-  gets meaningful traffic.
+  gets meaningful traffic. Set `APP_PASSWORD` in Secrets if you want to
+  gate access to people you've shared the code with.
 
 ## How to extend this project
 
@@ -178,8 +186,10 @@ curl -X POST http://localhost:8000/query \
 - **Add reranking**: insert a cross-encoder reranking step after initial
   retrieval to improve answer quality.
 - **Add streaming**: stream the Gemini response token-by-token to the UI.
-- **Add auth + multi-user**: namespace the Chroma collection per user/session
-  instead of one shared index.
+- **Persist sessions across restarts**: session collections currently live
+  only as long as the Chroma DB directory does; add per-user login (e.g.
+  via `st.experimental_user` or a lightweight auth provider) if you need
+  uploads to survive across visits rather than just across the session.
 - **Support more providers**: `app/llm.py` currently calls Gemini only;
   adding an `LLM_PROVIDER` setting would let it switch between
   Gemini, OpenAI, and Anthropic backends without touching `rag.py`.

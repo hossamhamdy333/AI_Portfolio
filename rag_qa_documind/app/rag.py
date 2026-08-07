@@ -2,8 +2,8 @@
 from app import vectorstore, llm
 
 
-def answer_question(question: str, top_k: int = None) -> dict:
-    hits = vectorstore.query(question, top_k=top_k)
+def answer_question(question: str, top_k: int = None, session_id: str = None) -> dict:
+    hits = vectorstore.query(question, top_k=top_k, session_id=session_id)
     answer = llm.generate_answer(question, hits)
     return {
         "question": question,

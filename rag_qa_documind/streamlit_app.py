@@ -7,15 +7,28 @@ services), Streamlit Cloud only runs a single Python file with no separate
 backend process. So this version imports the RAG pipeline functions
 directly and calls them in-process instead of making HTTP requests.
 
+Since this is the file actually deployed publicly (documents-mind.streamlit.app),
+it adds two things ui/streamlit_app.py doesn't need:
+  1. Per-session document isolation -- each visitor gets a private Chroma
+     collection, keyed by a random ID stored in their browser session, so
+     concurrent strangers never see each other's uploaded documents.
+  2. An optional shared-passcode gate -- set APP_PASSWORD in Secrets to
+     require a code before anyone can use the app. This protects your
+     Gemini free-tier quota from random traffic. Leave it unset (e.g. for
+     local dev) and the app stays open, same as before.
+
 To deploy: point Streamlit Community Cloud's "Main file path" at
     rag_qa_documind/streamlit_app.py
-and set GEMINI_API_KEY / GEMINI_MODEL in the app's Secrets (TOML), e.g.:
+and set GEMINI_API_KEY / GEMINI_MODEL (and optionally APP_PASSWORD) in the
+app's Secrets (TOML), e.g.:
     GEMINI_API_KEY = "your-key-here"
     GEMINI_MODEL = "gemini-3.1-flash-lite"
+    APP_PASSWORD = "choose-a-passcode"
 """
 import os
 import sys
 import tempfile
+import uuid
 
 import streamlit as st
 
@@ -31,6 +44,32 @@ from app.rag import answer_question
 from app.vectorstore import reset_collection, get_collection
 
 st.set_page_config(page_title="DocuMind", page_icon="📚")
+
+# --- Optional shared-passcode gate ------------------------------------
+# Set APP_PASSWORD in Secrets to require a code before anyone can use the
+# app. Without it (e.g. local dev, or if you're fine with open access),
+# the app behaves exactly as before -- no gate at all.
+_app_password = st.secrets.get("APP_PASSWORD")
+if _app_password and not st.session_state.get("authed"):
+    st.title("📚 DocuMind")
+    entered = st.text_input("Enter access code to continue", type="password")
+    if entered:
+        if entered == _app_password:
+            st.session_state.authed = True
+            st.rerun()
+        else:
+            st.error("Incorrect code.")
+    st.stop()
+
+# --- Per-session document isolation ------------------------------------
+# Each browser session gets its own private collection so concurrent
+# visitors never see each other's uploaded documents. This resets if the
+# tab is closed or the app restarts -- it isn't meant to be durable
+# storage, just isolation between visitors while they're using the app.
+if "session_id" not in st.session_state:
+    st.session_state.session_id = uuid.uuid4().hex
+session_id = st.session_state.session_id
+
 st.title("📚 DocuMind — Ask your documents")
 
 with st.sidebar:
@@ -38,6 +77,11 @@ with st.sidebar:
         st.success(f"🟢 Connected — using **{settings.gemini_model}**")
     else:
         st.error("🔴 Gemini API key not configured — add GEMINI_API_KEY in Secrets")
+
+    st.caption(
+        "Documents you upload are private to this session and aren't "
+        "visible to other visitors."
+    )
 
     st.header("Upload documents")
     uploaded = st.file_uploader(
@@ -60,7 +104,7 @@ with st.sidebar:
                         f"(e.g. exported from Word/Google Docs rather than scanned)."
                     )
                 else:
-                    n_chunks = ingest_file(tmp_path, source_name=f.name)
+                    n_chunks = ingest_file(tmp_path, source_name=f.name, session_id=session_id)
                     st.success(f"{f.name}: {n_chunks} chunks indexed")
             except Exception as e:
                 st.error(f"{f.name}: {e}")
@@ -69,13 +113,13 @@ with st.sidebar:
 
     st.divider()
     try:
-        count = get_collection().count()
+        count = get_collection(session_id).count()
         st.caption(f"Indexed chunks: {count}")
     except Exception as e:
         st.caption(f"⚠️ {e}")
 
     if st.button("Clear index"):
-        reset_collection()
+        reset_collection(session_id)
         st.rerun()
 
 if "messages" not in st.session_state:
@@ -93,7 +137,7 @@ if question := st.chat_input("Ask a question about your documents..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                result = answer_question(question)
+                result = answer_question(question, session_id=session_id)
                 st.markdown(result["answer"])
                 if result["sources"]:
                     with st.expander("📄 View source passages"):
