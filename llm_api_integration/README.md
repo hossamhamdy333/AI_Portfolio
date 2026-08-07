@@ -1,4 +1,3 @@
-```markdown
 # LLM API Integration
 
 A FastAPI service that wraps the Gemini API properly — not just a `generate_content()` call behind an endpoint, but streaming, tool calling, schema-validated structured output, retry logic, and per-request token/cost tracking, the way you'd actually want an LLM wrapped before other services start depending on it.
@@ -120,4 +119,3 @@ pytest tests/ -v
 - Add a lightweight eval set for the tool-routing decision specifically, since that's the one place in this system where "did it do the right thing" doesn't reduce to a schema check
 - Swap `search_documents`' in-memory keyword match for the real Qdrant retrieval built in the semantic-search project, now that the interface already matches
 - Add request-level rate limiting on the FastAPI side, not just retry-on-failure against Gemini's own limits
-```
