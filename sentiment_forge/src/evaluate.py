@@ -33,13 +33,3 @@ def plot_confusion_matrix(y_true, y_pred, label_names, title, save_path):
     plt.show()
 
 
-def error_analysis(df, y_true, y_pred, label_names, n=5):
-    errors = df.copy().reset_index(drop=True)
-    errors["true_label"]      = [label_names[i] for i in y_true]
-    errors["predicted_label"] = [label_names[i] for i in y_pred]
-    errors["correct"]         = (np.array(y_true) == np.array(y_pred))
-    errors["confidence_gap"]  = abs(np.array(y_true) - np.array(y_pred))
-    failures = errors[~errors["correct"]].sort_values("confidence_gap", ascending=False)
-    print(f"Total errors: {len(failures)} / {len(df)} ({len(failures)/len(df)*100:.1f}%)")
-    print(failures[["text", "true_label", "predicted_label"]].head(n).to_string())
-    return failures
