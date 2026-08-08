@@ -8,14 +8,22 @@ backend process. So this version imports the RAG pipeline functions
 directly and calls them in-process instead of making HTTP requests.
 
 Since this is the file actually deployed publicly (documents-mind.streamlit.app),
-it adds two things ui/streamlit_app.py doesn't need:
+it adds a few things ui/streamlit_app.py doesn't need:
   1. Per-session document isolation -- each visitor gets a private Chroma
-     collection, keyed by a random ID stored in their browser session, so
-     concurrent strangers never see each other's uploaded documents.
+     collection, keyed by a random ID, so concurrent strangers never see
+     each other's uploaded documents.
   2. An optional shared-passcode gate -- set APP_PASSWORD in Secrets to
      require a code before anyone can use the app. This protects your
      Gemini free-tier quota from random traffic. Leave it unset (e.g. for
      local dev) and the app stays open, same as before.
+  3. "Remember me on this device" -- both the session ID and the fact that
+     you've entered the passcode are stashed in the page's URL query
+     string (not a cookie or server-side store). As long as you keep using
+     that same URL (bookmark it after your first login), reloading or
+     reopening the tab won't ask for the passcode again and won't lose
+     your indexed documents. Anyone using the bare share link (no query
+     string) still hits the passcode and gets a fresh, empty, isolated
+     session -- this doesn't weaken isolation for other visitors.
 
 To deploy: point Streamlit Community Cloud's "Main file path" at
     rag_qa_documind/streamlit_app.py
@@ -25,6 +33,7 @@ app's Secrets (TOML), e.g.:
     GEMINI_MODEL = "gemini-3.1-flash-lite"
     APP_PASSWORD = "choose-a-passcode"
 """
+import hashlib
 import os
 import sys
 import tempfile
@@ -45,29 +54,59 @@ from app.vectorstore import reset_collection, get_collection
 
 st.set_page_config(page_title="DocuMind", page_icon="📚")
 
-# --- Optional shared-passcode gate ------------------------------------
+params = st.query_params
+
+
+def _remember_token(password: str) -> str:
+    """A short, non-reversible token derived from the passcode, safe to put
+    in a URL -- it proves "I entered the right passcode before" without
+    putting the actual passcode in the browser history or address bar."""
+    return hashlib.sha256(f"documind-remember:{password}".encode()).hexdigest()[:20]
+
+
+# --- Optional shared-passcode gate, with "remember me on this device" ----
 # Set APP_PASSWORD in Secrets to require a code before anyone can use the
 # app. Without it (e.g. local dev, or if you're fine with open access),
 # the app behaves exactly as before -- no gate at all.
 _app_password = st.secrets.get("APP_PASSWORD")
-if _app_password and not st.session_state.get("authed"):
-    st.title("📚 DocuMind")
-    entered = st.text_input("Enter access code to continue", type="password")
-    if entered:
-        if entered == _app_password:
-            st.session_state.authed = True
-            st.rerun()
-        else:
-            st.error("Incorrect code.")
-    st.stop()
+if _app_password:
+    _expected_token = _remember_token(_app_password)
+    if params.get("auth") == _expected_token:
+        st.session_state.authed = True
 
-# --- Per-session document isolation ------------------------------------
-# Each browser session gets its own private collection so concurrent
-# visitors never see each other's uploaded documents. This resets if the
-# tab is closed or the app restarts -- it isn't meant to be durable
-# storage, just isolation between visitors while they're using the app.
+    if not st.session_state.get("authed"):
+        st.title("📚 DocuMind")
+        entered = st.text_input("Enter access code to continue", type="password")
+        remember = st.checkbox(
+            "Remember me on this device",
+            value=True,
+            help="Adds a token to this page's URL so reloading or reopening "
+            "it (bookmark it!) won't ask again. Don't enable this on a "
+            "shared/public computer.",
+        )
+        if entered:
+            if entered == _app_password:
+                st.session_state.authed = True
+                if remember:
+                    params["auth"] = _expected_token
+                st.rerun()
+            else:
+                st.error("Incorrect code.")
+        st.stop()
+
+# --- Per-session document isolation, persisted via the URL ---------------
+# Each visitor gets their own private collection. The session ID is also
+# stashed in the URL query string (not a cookie), so reloading the same
+# URL keeps using the same collection instead of starting a fresh one.
+# Opening the bare share link (no ?sid=... in the URL) always starts a
+# brand-new, empty, isolated session -- this doesn't let visitors see or
+# guess into each other's document sets.
 if "session_id" not in st.session_state:
-    st.session_state.session_id = uuid.uuid4().hex
+    if "sid" in params:
+        st.session_state.session_id = params["sid"]
+    else:
+        st.session_state.session_id = uuid.uuid4().hex
+        params["sid"] = st.session_state.session_id
 session_id = st.session_state.session_id
 
 st.title("📚 DocuMind — Ask your documents")
@@ -79,8 +118,9 @@ with st.sidebar:
         st.error("🔴 Gemini API key not configured — add GEMINI_API_KEY in Secrets")
 
     st.caption(
-        "Documents you upload are private to this session and aren't "
-        "visible to other visitors."
+        "Documents you upload are private to your session and aren't "
+        "visible to other visitors. Bookmark this exact page URL to keep "
+        "the same session (and skip the passcode) next time."
     )
 
     st.header("Upload documents")
