@@ -1,4 +1,5 @@
 from google import genai
+from google.genai import types
 
 from app.config import settings
 
@@ -47,9 +48,17 @@ Question: {question}
 Answer using only the context above."""
 
     client = get_client()
-    interaction = client.interactions.create(
+    # Uses the standard generate_content endpoint rather than the newer
+    # Interactions API (client.interactions.create). As of mid-2026, Google
+    # is rolling out a new "AQ." API key format, and the Interactions API
+    # has an active, widely-reported bug rejecting AQ-format keys with
+    # 401 ACCESS_TOKEN_TYPE_UNSUPPORTED -- see
+    # https://discuss.ai.google.dev/t/not-able-to-use-api-key-starting-with-aq/174115
+    # generate_content is the long-established endpoint and doesn't have
+    # this issue, so it's the safer choice for a free-tier API key today.
+    response = client.models.generate_content(
         model=settings.gemini_model,
-        input=user_message,
-        system_instruction=SYSTEM_PROMPT,
+        contents=user_message,
+        config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
     )
-    return interaction.output_text
+    return response.text
