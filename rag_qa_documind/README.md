@@ -1,69 +1,57 @@
-# DocuMind — Retrieval-Augmented Generation (RAG) Q&A System
+# DocuMind — RAG Q&A over your own documents
 
-Ask questions about your own documents (PDF / TXT / MD) and get answers grounded
-in their content, with sources cited. Built with FastAPI, ChromaDB, local
-sentence-transformer embeddings, and Gemini for generation.
+Upload a PDF, TXT, or MD file, ask questions about it, get answers pulled straight from the text with the source shown so you can check it's not making things up.
 
 **Live demo:** https://documents-mind.streamlit.app/
 
-**Why this project:** RAG is one of the most widely used patterns in applied AI
-engineering. This project covers the full stack: document processing,
-chunking strategy, embeddings, vector search, prompt construction, an API
-layer, and a usable front end — the same architecture used in production
-support bots, internal knowledge assistants, and research tools.
+Built with FastAPI, ChromaDB, local sentence-transformer embeddings, and Gemini for generating the actual answers.
 
-## Architecture
+## How it works
 
-1. **Ingest** — a document (.txt/.md/.pdf) is loaded and split into
-   overlapping chunks (`ingest.py`)
-2. **Embed & store** — each chunk is embedded locally and stored in
-   ChromaDB (`vectorstore.py`)
-3. **Retrieve** — a question gets embedded and matched against stored
-   chunks to pull the top-k most relevant ones
-4. **Generate** — those chunks are passed to Gemini as grounding context,
-   which produces the final answer with sources cited (`llm.py`)
+1. Upload a document — it gets split into chunks and turned into embeddings using a small model that runs locally, no API key needed for this part
+2. Those embeddings go into ChromaDB, a lightweight vector database, stored on disk
+3. When you ask a question, it gets embedded too, and the system finds the chunks whose meaning is closest to it
+4. Those chunks get sent to Gemini along with your question, and Gemini answers using only that context
+5. You get the answer back with the source file named
 
-`rag.py` ties steps 3 and 4 together in `answer_question()`.
+```
+ upload doc                    ask question
+     │                              │
+     ▼                              ▼
+ chunk + embed  ──────────►  ChromaDB  ◄────────── embed the question
+                                  │
+                          top-k relevant chunks
+                                  │
+                                  ▼
+                          Gemini generates
+                          an answer from them
+```
 
-- **Embeddings**: local `sentence-transformers` model (`all-MiniLM-L6-v2`) —
-  no API key or network call needed for this step, and it's free.
-- **PDF extraction**: uses `pypdf` in layout mode, with a dictionary-based
-  fallback (`wordninja`) that repairs words that still end up fused together
-  with no spaces — a real issue with some LaTeX-generated academic PDFs.
-- **Vector store**: ChromaDB, persisted to disk under `data/chroma_db`.
-- **Generation**: Gemini (free tier via Google AI Studio), called through the
-  Interactions API, grounded strictly in retrieved context via the system
-  prompt in `app/llm.py`.
-- **API**: FastAPI (`app/main.py`) — `/ingest`, `/query`, `/health`, `/reset`.
-- **Session isolation**: each visitor gets their own private Chroma
-  collection, keyed by a random session ID (browser session in Streamlit,
-  or an `X-Session-Id` header against the FastAPI backend). Concurrent
-  users never see each other's uploaded documents. Set `APP_PASSWORD` in
-  Secrets to also gate the public deployment behind a shared passcode.
-- **UI**: two interchangeable front ends —
-  - `ui/streamlit_app.py`: talks to the FastAPI backend over HTTP. Use this
-    for local development (two terminals) or Docker (two services).
-  - `streamlit_app.py` (repo root): a standalone version that calls the RAG
-    pipeline directly in-process, for platforms like Streamlit Community
-    Cloud that only run a single process.
+A few things worth knowing about the implementation:
+
+- **PDF text extraction is trickier than it sounds.** Some PDFs (LaTeX-generated ones especially) extract with no spaces between words. This is handled with layout-mode extraction plus a dictionary-based fallback (`wordninja`) that fixes any words still stuck together.
+- **Each visitor gets their own private document set.** On the live demo, everyone who uploads a file gets an isolated Chroma collection, keyed to a random session ID — nobody sees anyone else's uploads. Set `APP_PASSWORD` in Secrets if you want to gate the public deployment behind a shared passcode (useful for keeping your free Gemini quota from getting hammered by random traffic).
+- **Two versions of the front end.** `ui/streamlit_app.py` talks to the FastAPI backend over HTTP — use this for local dev (two terminals) or Docker (two services). `streamlit_app.py` at the repo root calls the pipeline directly in-process — use this for Streamlit Community Cloud, which only runs one process.
 
 ## Project layout
 
 ```
 rag_qa_documind/
 ├── app/
-│   ├── config.py       # env-driven settings
-│   ├── ingest.py        # load + chunk + embed + store documents
-│   ├── vectorstore.py   # ChromaDB wrapper
-│   ├── llm.py            # Gemini API wrapper (generation)
-│   ├── rag.py             # retrieve -> generate orchestration
-│   └── main.py             # FastAPI app
-├── ui/streamlit_app.py       # chat UI (talks to FastAPI backend)
-├── streamlit_app.py            # standalone chat UI (Streamlit Cloud)
-├── scripts/run_ingest.py         # CLI bulk-ingest helper
-├── data/sample_docs/                # example document to try immediately
-├── tests/test_rag.py                  # unit tests for chunking logic
-├── notebooks/walkthrough.ipynb          # step-by-step notebook walkthrough
+│   ├── config.py       # settings, loaded from .env
+│   ├── ingest.py         # loads, chunks, and embeds documents
+│   ├── vectorstore.py    # talks to ChromaDB, handles session isolation
+│   ├── llm.py              # calls Gemini to generate the answer
+│   ├── rag.py                # ties retrieval + generation together
+│   └── main.py                  # the FastAPI app
+├── ui/streamlit_app.py            # chat UI (talks to the FastAPI backend)
+├── streamlit_app.py                 # standalone chat UI (for Streamlit Cloud)
+├── scripts/run_ingest.py              # command-line bulk-ingest helper
+├── data/sample_docs/                     # a sample file to try immediately
+├── tests/
+│   ├── test_rag.py                          # tests for the chunking logic
+│   └── test_vectorstore.py                    # tests for session isolation
+├── notebooks/walkthrough.ipynb                  # step-by-step notebook
 ├── requirements.txt
 ├── .env.example
 ├── .streamlit/secrets.toml.example
@@ -71,13 +59,9 @@ rag_qa_documind/
 └── docker-compose.yml
 ```
 
----
+## Running it
 
-## How to run it — step by step
-
-### Option A: Run locally with FastAPI + Streamlit (two terminals)
-
-**1. Install dependencies**
+**1. Install everything**
 ```bash
 cd rag_qa_documind
 python3 -m venv venv
@@ -85,111 +69,85 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**2. Set your API key**
+**2. Add your Gemini key**
 ```bash
 cp .env.example .env
 ```
-Open `.env` and paste your Gemini API key into `GEMINI_API_KEY`
-(get a **free** key, no credit card required, at
-https://aistudio.google.com/apikey).
+Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (no credit card needed) and paste it into `.env` as `GEMINI_API_KEY`.
 
-**3. Ingest the sample document** (or drop your own files into
-`data/sample_docs/` first)
+**3. Load the sample document**
 ```bash
 python scripts/run_ingest.py data/sample_docs
 ```
-You should see a per-file count of chunks indexed. The first run will
-download the local embedding model (~90MB), which takes a minute.
+First run downloads a small embedding model (~90MB) — normal, one-time thing.
 
-**4. Start the API backend**
+**4. Start the backend**
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
-Leave this running. Verify it's alive: open http://localhost:8000/health
+Leave this running. Check it worked: [localhost:8000/health](http://localhost:8000/health)
 
-**5. Start the UI** (in a new terminal, same venv activated)
+**5. Start the interface** (new terminal, same venv)
 ```bash
 streamlit run ui/streamlit_app.py
 ```
-This opens a browser tab at http://localhost:8501. Upload more documents
-from the sidebar if you like, then ask questions in the chat box.
+Opens at `localhost:8501`. Upload your own files from the sidebar and ask questions in the chat box. Both terminals need to stay open while you're using it.
 
-**6. (Optional) Run the tests**
+**6. Run the tests** (optional)
 ```bash
 pytest tests/ -v
 ```
 
-### Option B: Run with Docker (one command, no local Python setup)
+### Or with Docker, if you'd rather skip the setup
 
 ```bash
-cd rag_qa_documind
-cp .env.example .env        # then add your GEMINI_API_KEY
+cp .env.example .env   # add your key first
 docker compose up --build
 ```
-- API: http://localhost:8000
-- UI: http://localhost:8501
+API on port 8000, UI on port 8501.
 
-### Option C: Deploy for free to Streamlit Community Cloud (public link, no card)
+### Deploying it for free (public link, no credit card)
+
+Streamlit Community Cloud works well for this and doesn't ask for a card:
 
 1. Push this repo to GitHub.
-2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with
-   GitHub, click **Create app**.
-3. Repository: your repo. Branch: `main`. Main file path:
-   `rag_qa_documind/streamlit_app.py` (the standalone root-level file, not
-   the one in `ui/`).
+2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with GitHub, click **Create app**.
+3. Repository: your repo. Branch: `main`. Main file path: `rag_qa_documind/streamlit_app.py` (the standalone one at the repo root, not the one in `ui/`).
 4. Under **Advanced settings → Secrets**, paste:
    ```toml
    GEMINI_API_KEY = "your-key-here"
    GEMINI_MODEL = "gemini-3.1-flash-lite"
+   # optional: gate the app behind a shared passcode
+   APP_PASSWORD = "choose-a-passcode"
    ```
-5. Deploy. You'll get a public URL like `https://your-app.streamlit.app`.
+5. Deploy. You'll get a URL like `https://your-app.streamlit.app`.
 
----
-
-## Trying it via the raw API (no UI, local FastAPI setup only)
+## Trying it without the UI
 
 ```bash
-# health check
 curl http://localhost:8000/health
 
-# ingest a document
 curl -X POST http://localhost:8000/ingest -F "file=@data/sample_docs/sample.txt"
 
-# ask a question
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
-  -d '{"question": "How does DocuMind decide which text is relevant to a question?"}'
+  -d '{"question": "How does this project decide what text is relevant?"}'
 ```
 
----
+Add an `X-Session-Id: your-id` header to any of these to scope them to a private collection instead of the shared default one.
 
 ## Known limitations
 
-- **Scanned/image-only PDFs won't work.** The app detects when a PDF extracts
-  to almost no text and warns you, but it can't read text out of images —
-  only PDFs with a real text layer (exported from Word, Google Docs, LaTeX,
-  etc., not scanned photos of pages).
-- **One shared index per session, not across the whole document set.**
-  Documents you upload in one browser session go into their own private
-  Chroma collection, but if you upload several unrelated documents within
-  the *same* session, retrieval precision for questions about any one of
-  them can drop. Click **Clear index** before switching to a different
-  document or topic.
-- **Free-tier Gemini rate limits apply** if this is deployed publicly and
-  gets meaningful traffic. Set `APP_PASSWORD` in Secrets if you want to
-  gate access to people you've shared the code with.
+- **Scanned PDFs won't work.** If a PDF is just images of text (not a real text layer), there's nothing to extract — the app warns you when this happens instead of failing silently.
+- **Sessions isolate uploads between different visitors, not between unrelated documents you upload yourself.** If you upload several different documents in the same session, they all go into the same private index together, and retrieval precision for questions about any one of them can drop. Clear the index before switching topics.
+- **Sessions don't persist across restarts.** They live only as long as the Chroma DB directory does — no accounts, no login, just a random ID.
+- **Free-tier Gemini rate limits** apply if this gets real public traffic. Set `APP_PASSWORD` if you want to keep it to people you've actually shared the link with.
 
-## How to extend this project
+## Things worth adding if you want to take this further
 
-- **Evaluation**: extend the notebook's precision@k example into a real
-  regression test suite against a hand-labeled set of question/answer pairs.
-- **Add reranking**: insert a cross-encoder reranking step after initial
-  retrieval to improve answer quality.
-- **Add streaming**: stream the Gemini response token-by-token to the UI.
-- **Persist sessions across restarts**: session collections currently live
-  only as long as the Chroma DB directory does; add per-user login (e.g.
-  via `st.experimental_user` or a lightweight auth provider) if you need
-  uploads to survive across visits rather than just across the session.
-- **Support more providers**: `app/llm.py` currently calls Gemini only;
-  adding an `LLM_PROVIDER` setting would let it switch between
-  Gemini, OpenAI, and Anthropic backends without touching `rag.py`.
+- A proper eval script — the notebook has a tiny precision@k example, worth building into a real regression suite
+- Reranking after retrieval to improve which chunks actually get used
+- Streaming the answer back token-by-token instead of waiting for the whole thing
+- Real per-user accounts if you want uploads to survive across visits, not just within one session
+- Support for other LLM providers, not just Gemini — `app/llm.py` would need an `LLM_PROVIDER` setting to switch between Gemini/OpenAI/Anthropic without touching `rag.py`
+- Swapping ChromaDB for something like Pinecone or pgvector, mostly to show you understand the tradeoffs
