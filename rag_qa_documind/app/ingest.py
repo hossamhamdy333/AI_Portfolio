@@ -97,10 +97,14 @@ def chunk_text(
     return overlapped
 
 
-def ingest_file(file_path: str, source_name: str = None) -> int:
+def ingest_file(file_path: str, source_name: str = None, session_id: str = None) -> int:
     """
     Full pipeline for one file: load -> chunk -> embed -> upsert into Chroma.
     Returns the number of chunks stored.
+
+    session_id, if given, scopes this ingestion to that visitor's private
+    collection (see app/vectorstore.py) so it isn't visible to other
+    concurrent users of a shared public deployment.
     """
     source_name = source_name or os.path.basename(file_path)
     text = load_text(file_path)
@@ -109,7 +113,7 @@ def ingest_file(file_path: str, source_name: str = None) -> int:
     if not chunks:
         return 0
 
-    collection = get_collection()
+    collection = get_collection(session_id)
     ids = [str(uuid.uuid4()) for _ in chunks]
     metadatas = [{"source": source_name, "chunk_index": i} for i in range(len(chunks))]
 
@@ -117,11 +121,11 @@ def ingest_file(file_path: str, source_name: str = None) -> int:
     return len(chunks)
 
 
-def ingest_directory(directory: str) -> dict:
+def ingest_directory(directory: str, session_id: str = None) -> dict:
     """Ingest every supported file in a directory. Returns a summary dict."""
     summary = {}
     for fname in os.listdir(directory):
         if fname.lower().endswith((".txt", ".md", ".pdf")):
             path = os.path.join(directory, fname)
-            summary[fname] = ingest_file(path, source_name=fname)
+            summary[fname] = ingest_file(path, source_name=fname, session_id=session_id)
     return summary

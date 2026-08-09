@@ -1,9 +1,9 @@
 """Logs token usage per request to MLflow.
 
-Gemini's free tier has no per-request dollar cost, so we log tokens rather
-than dollars. The habit is what matters: in a real job you'll need to show
-someone exactly how many tokens a feature is burning, and "we log every
-call" is the answer they want to hear.
+gemini-3.1-flash-lite's free tier has no per-request dollar cost, so we log
+tokens rather than dollars. The habit is what matters: in a real job you'll
+need to show someone exactly how many tokens a feature is burning, and
+"we log every call" is the answer they want to hear.
 """
 
 import logging
@@ -27,7 +27,7 @@ def init_tracking(tracking_uri: str, experiment_name: str) -> None:
 def compute_cost_usd(prompt_tokens: int, response_tokens: int, input_rate: float, output_rate: float) -> float:
     """Real cost math, not a hardcoded $0 — rates are per-million-tokens,
     matching how every provider (OpenAI, Anthropic, Gemini) publishes pricing.
-    Gemini 2.0 Flash free tier means both rates are 0.0 by default, so this
+    gemini-3.1-flash-lite tier means both rates are 0.0 by default, so this
     currently returns 0.0 — but the calculation itself is correct and ready
     for whatever model/pricing you swap in later.
     """
