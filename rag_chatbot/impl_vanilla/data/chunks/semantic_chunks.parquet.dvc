@@ -1,5 +1,0 @@
-outs:
-- md5: bae83b0f52ef311f18bd0bde4c85c4f5
-  size: 737035
-  hash: md5
-  path: semantic_chunks.parquet
