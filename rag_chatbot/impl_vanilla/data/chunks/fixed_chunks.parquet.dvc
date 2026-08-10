@@ -1,5 +1,0 @@
-outs:
-- md5: dfc2c7dc173c572674a8a44a8aa91b48
-  size: 766878
-  hash: md5
-  path: fixed_chunks.parquet
