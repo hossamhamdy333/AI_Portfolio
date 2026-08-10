@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local run artifacts (DVC-tracked outputs are added explicitly via `dvc add`)
+mlflow.db
+mlruns/
+*/data/chroma_db/
+*/data/processed/
+*/data/chunks/
+*/outputs/synthetic_qa/*.parquet
+*/outputs/reports/*.csv
+
+.env
+*.egg-info/
