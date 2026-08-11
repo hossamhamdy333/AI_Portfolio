@@ -28,7 +28,7 @@ chunking:
   # 0.784/0.821 for semantic) -- previously this was set to "fixed" by
   # mistake, which meant every downstream number was measured on the
   # strategy that lost its own comparison.
-  strategy: "sentence"
+  strategy: "fixed"
   chunk_size: 256
   overlap: 32
   semantic_similarity_threshold: 0.2
