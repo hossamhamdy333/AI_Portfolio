@@ -82,7 +82,7 @@ dagshub:
   # are viewable at a real URL instead of a local sqlite file only you can
   # open. Connect this GitHub repo at https://dagshub.com first, then set
   # these to match (see shared/tracking.py for the one-time setup steps).
-  repo_owner: "hossamhamdy333"
+  repo_owner: "hossam3759180"
   repo_name: "AI_Portfolio"
 
 mlflow:
