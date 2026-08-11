@@ -61,7 +61,7 @@ qdrant:
   # exact session. A free cluster at https://cloud.qdrant.io gives a real
   # URL any of them can connect to from anywhere -- fill this in after
   # creating one; the API key is read from QDRANT_API_KEY, never put here.
-  url: "https://<your-cluster-id>.<region>.aws.cloud.qdrant.io"
+  url:https://ff3a5bed-2ea9-4149-a786-2db269606666.us-west-1-0.aws.cloud.qdrant.io
   collection_name: "rag_documents"
 
 # impl_langchain's vector store (ParentDocumentRetriever's child index)
