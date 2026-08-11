@@ -1,0 +1,5 @@
+outs:
+- md5: d2f0e4fcc09256b86d9f17c03a040a98
+  size: 89189066
+  hash: md5
+  path: xlsum_arabic_clean.parquet
