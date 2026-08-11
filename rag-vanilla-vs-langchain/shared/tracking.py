@@ -34,7 +34,7 @@ def init_tracking(config: dict, experiment_name: str = None):
     owner = config["dagshub"]["repo_owner"]
     repo = config["dagshub"]["repo_name"]
 
-    token = os.environ.get("DAGSHUB_TOKEN")
+    token = os.environ.get("DAGSHUB_TOKEN:")
     if not token:
         token = getpass.getpass("DagsHub token: ")
         os.environ["DAGSHUB_TOKEN"] = token
