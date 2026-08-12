@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Support Copilot</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #161a23;
+    --accent: #6366f1;
+    --accent-2: #22d3ee;
+    --text: #e6e8ef;
+    --muted: #8b90a1;
+    --bubble-user: #6366f1;
+    --bubble-bot: #1f2430;
+    --border: #262b38;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at top, #1a1e2b 0%, var(--bg) 60%);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  header .logo {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  header p { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+  .status { margin-left: auto; font-size: 12px; color: var(--accent-2); display: flex; align-items: center; gap: 6px; }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); }
+
+  main {
+    flex: 1;
+    max-width: 820px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .msg { display: flex; gap: 10px; max-width: 80%; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg .bubble {
+    padding: 12px 16px;
+    border-radius: 14px;
+    line-height: 1.5;
+    font-size: 14.5px;
+    white-space: pre-wrap;
+  }
+  .msg.bot .bubble { background: var(--bubble-bot); border: 1px solid var(--border); border-top-left-radius: 4px; }
+  .msg.user .bubble { background: var(--bubble-user); color: white; border-top-right-radius: 4px; }
+
+  .context-toggle {
+    font-size: 11.5px;
+    color: var(--muted);
+    cursor: pointer;
+    margin-top: 6px;
+    display: inline-block;
+  }
+  .context-box {
+    display: none;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--accent-2);
+    background: #0d1420;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .context-box.open { display: block; }
+
+  form {
+    max-width: 820px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px 24px 24px;
+    display: flex;
+    gap: 10px;
+  }
+  input[type="text"] {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 13px 16px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  button {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white;
+    border: none;
+    padding: 0 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .typing { display: flex; gap: 4px; padding: 6px 0; }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted);
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎧</div>
+  <div>
+    <h1>AI Support Copilot</h1>
+    <p>Fine-tuned Llama-3 (QLoRA) &middot; RAG-grounded responses</p>
+  </div>
+  <div class="status"><span class="dot"></span> Connected</div>
+</header>
+
+<main id="chat"></main>
+
+<form id="chat-form">
+  <input type="text" id="chat-input" placeholder="e.g. Where is my refund?" autocomplete="off" />
+  <button type="submit" id="send-btn">Send</button>
+</form>
+
+<script>
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-input");
+  const sendBtn = document.getElementById("send-btn");
+
+  function addMessage(role, text, context) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + role;
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+
+    if (role === "bot" && context) {
+      const toggle = document.createElement("div");
+      toggle.className = "context-toggle";
+      toggle.textContent = "🔍 view retrieved context";
+      const box = document.createElement("div");
+      box.className = "context-box";
+      box.textContent = context;
+      toggle.onclick = () => box.classList.toggle("open");
+
+      const col = document.createElement("div");
+      col.appendChild(bubble);
+      col.appendChild(toggle);
+      col.appendChild(box);
+      wrap.innerHTML = "";
+      wrap.appendChild(col);
+    }
+
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+    return wrap;
+  }
+
+  function addTyping() {
+    const wrap = document.createElement("div");
+    wrap.className = "msg bot";
+    wrap.id = "typing-indicator";
+    wrap.innerHTML = '<div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>';
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function removeTyping() {
+    const el = document.getElementById("typing-indicator");
+    if (el) el.remove();
+  }
+
+  addMessage("bot", "Hello! I'm your AI Support Copilot. How can I help?");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+
+    addMessage("user", query);
+    input.value = "";
+    sendBtn.disabled = true;
+    addTyping();
+
+    try {
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      if (!res.ok) throw new Error(`Server responded ${res.status}`);
+      const data = await res.json();
+      removeTyping();
+      addMessage("bot", data.response, data.context);
+    } catch (err) {
+      removeTyping();
+      addMessage("bot", "⚠️ System error: " + err.message);
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  });
+</script>
+
+</body>
+</html>
