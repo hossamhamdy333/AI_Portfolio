@@ -1,42 +1,43 @@
-#  House Price Prediction — Advanced Regression
+# House Price Prediction - Advanced Regression
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![Scikit-learn](https://img.shields.io/badge/Scikit--learn-1.8-orange)
 ![XGBoost](https://img.shields.io/badge/XGBoost-3.2-green)
 ![MLflow](https://img.shields.io/badge/MLflow-3.10-red)
 
-##  Overview
+## Overview
 End-to-end machine learning project predicting house prices
 using the Ames Housing Dataset. Covers the complete ML pipeline
 from raw data to explainable predictions.
 
-##  Results
+## Results
 
 | Model | CV RMSE | Improvement |
 |-------|---------|-------------|
-| Ridge (baseline) | 0.1119 | — |
-| LightGBM (tuned) | 0.1192 | 3.4% |
-| XGBoost (tuned) | 0.1140 | 5.5% |
-| Stacking Ensemble | 0.1109 | Best |
+| Ridge (baseline) | 0.1119 | 0.0% |
+| LightGBM (tuned) | 0.1189 | 3.6% |
+| XGBoost (tuned) | 0.1148 | 4.9% |
+| Stacking Ensemble | 0.1104 | Best |
 
-**Best model: Stacking Ensemble — RMSE 0.1109**
+**Best model: Stacking Ensemble - RMSE 0.1104**
 (~11% average error on log-transformed prices)
 
-##  Project Structure
+## Project Structure
 
 ```
 AI_Portfolio/
 └── Project_01_House_Price_Prediction/
     ├── notebooks/
-    │   ├── EDA.ipynb                   # Exploratory data analysis
-    │   ├── feature_engineering.ipynb   # Cleaning & feature engineering
-    │   ├── modeling.ipynb              # Model building & comparison
-    │   └── explainability.ipynb        # SHAP + MLflow tracking
+    │   ├── EDA.ipynb                     # Exploratory data analysis
+    │   ├── feature_engineering.ipynb     # Cleaning and feature engineering
+    │   ├── modeling.ipynb                # Model building and comparison
+    │   ├── Hyperparameters_Tuning.ipynb  # Optuna tuning and final blend
+    │   └── explainability.ipynb          # SHAP and MLflow tracking
     ├── src/
-    │   └── preprocessing.py            # Reusable preprocessing functions
+    │   └── preprocessing.py            # Reusable preprocessing functions, used by the notebooks
     ├── results/
     │   ├── shap_summary.png            # SHAP feature importance
-    │   ├── model_comparison.png        # Model comparison chart
+    │   ├── models_comparison.png       # Model comparison chart
     │   ├── optuna_history.png          # Tuning optimization history
     │   ├── correlation_heatmap.png     # Feature correlations
     │   └── ...                         # All other plots
@@ -47,24 +48,24 @@ AI_Portfolio/
     └── README.md
 ```
 
-##  Key Findings
+## Key Findings
 
 - **OverallQual** is the strongest predictor (SHAP importance #1)
-- **TotalBathrooms** — engineered feature — outperformed
+- **TotalBathrooms** - engineered feature - outperformed
   many original features
 - Linear models competitive with tree models on
   well-engineered tabular data
 - Quality premium accelerates sharply above OverallQual=8
 
-##  Tech Stack
+## Tech Stack
 - **Data:** Pandas, NumPy, SciPy
-- **Visualization:** Matplotlib, Seaborn, Plotly
+- **Visualization:** Matplotlib, Seaborn
 - **ML:** Scikit-learn, XGBoost, LightGBM
 - **Explainability:** SHAP
 - **Tracking:** MLflow
 - **Tuning:** Optuna
 
-##  How to Run
+## How to Run
 
 ```bash
 # Clone the repo
@@ -83,21 +84,22 @@ pip install -r requirements.txt
 # 1. EDA.ipynb
 # 2. feature_engineering.ipynb
 # 3. modeling.ipynb
-# 4. explainability.ipynb
+# 4. Hyperparameters_Tuning.ipynb
+# 5. explainability.ipynb
 ```
 
-##  Key Visualizations
+## Key Visualizations
 
 ### SHAP Feature Importance
 ![SHAP Summary](results/shap_summary.png)
 
 ### Model Comparison
-![Model Comparison](results/model_comparison.png)
+![Model Comparison](results/models_comparison.png)
 
-##  What I Learned
+## What I Learned
 - Professional EDA reveals insights that intuition misses
 - Feature engineering impact: TotalBathrooms correlation
   0.673 vs raw features
 - SHAP explainability is essential for trustworthy ML systems
-- Hyperparameter tuning with Optuna improved XGBoost by 5.5%
+- Hyperparameter tuning with Optuna improved XGBoost by 4.9%
 - Linear models with good features compete with gradient boosting
