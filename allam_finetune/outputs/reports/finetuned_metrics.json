@@ -1,17 +1,17 @@
 {
   "faithfulness": {
-    "analysis": 4.235294117647059,
-    "judgment_prediction": 5.3283582089552235,
-    "simplification": 5.2727272727272725
+    "analysis": 6.470588235294118,
+    "judgment_prediction": 5.835820895522388,
+    "simplification": 9.757575757575758
   },
   "relevance": {
-    "analysis": 4.647058823529412,
-    "judgment_prediction": 9.119402985074627,
-    "simplification": 5.7272727272727275
+    "analysis": 7.411764705882353,
+    "judgment_prediction": 8.373134328358208,
+    "simplification": 9.530303030303031
   },
   "fluency": {
-    "analysis": 5.294117647058823,
-    "judgment_prediction": 9.507462686567164,
-    "simplification": 5.5
+    "analysis": 8.705882352941176,
+    "judgment_prediction": 8.447761194029852,
+    "simplification": 9.878787878787879
   }
 }
