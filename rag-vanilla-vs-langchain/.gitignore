@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+mlflow.db
+mlruns/
+*/outputs/synthetic_qa/*.parquet
+*/outputs/reports/*.csv
+*/outputs/reports/*checkpoint*.json
+
+.env
+*.egg-info/
