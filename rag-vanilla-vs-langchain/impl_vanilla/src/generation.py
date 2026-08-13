@@ -37,9 +37,14 @@ def generate_answer(client, question, chunks, model_name, temperature, max_outpu
     gen_config = types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_output_tokens)
     response = call_gemini(client, model_name, gen_config, prompt)
 
-    cited_ids_used = set(int(n) for n in re.findall(r"\[(\d+)\]", response.text))
+    # response.text can be None -- a normal return, not an exception --
+    # when Gemini's finish_reason isn't one the installed google-genai SDK
+    # recognizes. Treat it as an empty answer with no citations rather
+    # than crashing re.findall() on None.
+    answer_text = response.text or ""
+    cited_ids_used = set(int(n) for n in re.findall(r"\[(\d+)\]", answer_text))
     citations = [
         {"source_num": i, "article_id": c["article_id"], "chunk_id": c["chunk_id"]}
         for i, c in enumerate(chunks, start=1) if i in cited_ids_used
     ]
-    return response.text, citations, response
+    return answer_text, citations, response

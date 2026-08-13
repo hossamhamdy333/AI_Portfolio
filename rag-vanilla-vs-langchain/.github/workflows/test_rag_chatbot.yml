@@ -1,0 +1,27 @@
+name: rag_chatbot tests
+
+on:
+  push:
+    paths:
+      - 'rag_chatbot/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install pytest pandas numpy scikit-learn PyYAML pydantic
+      - name: Run impl_vanilla tests
+        run: |
+          cd rag_chatbot
+          PYTHONPATH=impl_vanilla:. pytest impl_vanilla/tests/ -v
+      - name: Run impl_langchain tests
+        run: |
+          cd rag_chatbot
+          PYTHONPATH=impl_langchain/src:impl_langchain:. pytest impl_langchain/tests/ -v
