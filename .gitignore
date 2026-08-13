@@ -193,3 +193,7 @@ allam_finetune/mlflow.db
 *.safetensors
 *.bin
 *.pt
+
+*.safetensors
+*.bin
+*.pt
