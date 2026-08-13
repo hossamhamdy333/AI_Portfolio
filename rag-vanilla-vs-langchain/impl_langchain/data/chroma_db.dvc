@@ -1,0 +1,6 @@
+outs:
+- md5: 4e4719b215a566f9f57917dffd552d1c.dir
+  size: 30914984
+  nfiles: 830
+  hash: md5
+  path: chroma_db
