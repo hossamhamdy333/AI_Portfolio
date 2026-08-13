@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local run artifacts. DVC manages its own per-file .gitignore entries
+# automatically when `dvc add` runs (e.g. a data/processed/.gitignore that
+# excludes only the raw file dvc add was pointed at) -- don't duplicate
+# that here with a broader directory-level rule. An earlier version of
+# this file had `*/data/processed/` and `*/data/chunks/` (trailing slash =
+# whole directory ignored), which also caught the .dvc pointer files that
+# live in those same directories, since anything inside an ignored
+# directory is ignored too. That silently broke every `dvc add`/`dvc push`
+# targeting them: `dvc add` couldn't create a trackable .dvc file at all
+# ("bad DVC file name ... is git-ignored"), and the failure didn't stop
+# notebook execution, so it looked like nothing was wrong until a later
+# notebook tried to `dvc pull` a pointer file that was never created.
+mlflow.db
+mlruns/
+*/outputs/synthetic_qa/*.parquet
+*/outputs/reports/*.csv
+*/outputs/reports/*checkpoint*.json
+
+.env
+*.egg-info/
