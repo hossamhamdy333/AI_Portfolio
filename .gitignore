@@ -189,3 +189,7 @@ sentiment_forge/outputs/models/bert_onnx/
 .dvc/config.local
 
 allam_finetune/mlflow.db
+
+*.safetensors
+*.bin
+*.pt
