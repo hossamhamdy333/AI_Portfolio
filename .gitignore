@@ -17,8 +17,11 @@
 **/models/*.pth
 **/models/*.onnx
 **/models/*.joblib
+*.safetensors
+*.bin
+*.pt
 
-# PYTHON 
+# PYTHON
 __pycache__/
 *.py[cod]
 *.pyo
@@ -29,21 +32,21 @@ env/
 dist/
 build/
 
-# JUPYTER 
+# JUPYTER
 .ipynb_checkpoints/
 */.ipynb_checkpoints/
 
-# OS 
+# OS
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# IDE 
+# IDE
 .vscode/
 .idea/
 *.code-workspace
 
-# API KEYS & SECRETS 
+# API KEYS & SECRETS
 .env
 *.env
 .env.*
@@ -57,7 +60,7 @@ wandb/
 lightning_logs/
 runs/
 
-# IMAGE / VIDEO DATASETS 
+# IMAGE / VIDEO DATASETS
 **/data/*.png
 **/data/*.jpg
 **/data/*.jpeg
@@ -67,141 +70,15 @@ runs/
 **/data/*.mp4
 **/data/*.avi
 **/data/*.mov
-EOF
+
 # DVC internals - never commit these
 .dvc/cache/
 .dvc/tmp/
 .dvc/config.local
-
-# DVC internals
 **/.dvc/cache/
 **/.dvc/tmp/
 **/.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
 
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-sentiment_forge/outputs/models/bert_onnx/
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
-.dvc/cache/
-.dvc/tmp/
-.dvc/config.local
-
+# project-specific
 allam_finetune/mlflow.db
-
-*.safetensors
-*.bin
-*.pt
-
-*.safetensors
-*.bin
-*.pt
-
-*.safetensors
-*.bin
-*.pt
-
-*.safetensors
-*.bin
-*.pt
+sentiment_forge/outputs/models/bert_onnx/
