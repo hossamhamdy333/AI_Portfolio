@@ -9,10 +9,31 @@ a targeted-retention ROI estimate. Every claim in this README traces back to
 a number produced in one of the five notebooks — nothing here is asserted
 without a cell that generated it.
 
+## Dashboard
+
+![Executive Summary](dashboard_screenshots/page1_executive_summary.png)
+![Attrition Drivers](dashboard_screenshots/page2_attrition_drivers.png)
+![Tenure & Survival](dashboard_screenshots/page3_tenure_survival.png)
+![Cost & Retention ROI](dashboard_screenshots/page4_cost_roi.png)
+
+Full interactive Power BI file: `dashboard/Dashboard-employee-attrition.pbix`
+(includes live What-If sliders for the retention ROI scenario on page 4).
+A static PDF export is also included: `dashboard/Dashboard-employee-attrition.pdf`.
+A Streamlit version with the same 4 pages is at `dashboard/streamlit_app.py`
+(`streamlit run dashboard/streamlit_app.py`).
+
 ## Dataset
 
 [IBM HR Analytics Employee Attrition & Performance](https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset)
-— 1,470 employees, 35 columns, single flat snapshot. See `docs/kaggle_setup.md`.
+— 1,470 employees, 35 columns, single flat snapshot.
+
+**Getting the data:**
+1. Go to the Kaggle link above and sign in (or create a free account)
+2. Click **Download** — this is a plain dataset, not a competition, so no
+   rules-acceptance step is needed
+3. You'll get one file: `WA_Fn-UseC_-HR-Employee-Attrition.csv` (227 KB)
+4. Place it in `data/raw/` in this project, keeping that exact filename —
+   the notebooks reference it by name
 
 ## Project structure
 
@@ -21,15 +42,16 @@ employee-attrition/
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
-├── docs/
-│   └── kaggle_setup.md
 ├── data/
-│   ├── raw/                      # gitignored
-│   └── processed/                # gitignored
+│   ├── raw/                      # gitignored — put the Kaggle CSV here
+│   └── processed/                # gitignored — notebook outputs land here
 ├── sql/
 │   ├── 01_create_tables.sql
 │   ├── 02_load_staging.sql
-│   └── 03_build_fact_employee.sql
+│   ├── 03_build_dimensions_and_fact.sql
+│   ├── 04_query_department_attrition.sql
+│   ├── 05_query_income_percentile.sql
+│   └── 06_query_tenure_bucket.sql
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   ├── 02_feature_engineering.ipynb
@@ -39,11 +61,39 @@ employee-attrition/
 ├── models/                        # gitignored
 ├── reports/
 │   └── model_results_summary.md
-└── dashboard/
-    ├── streamlit_app.py
-    └── powerbi_spec.md
+├── dashboard/
+│   ├── Dashboard-employee-attrition.pbix
+│   ├── Dashboard-employee-attrition.pdf
+│   └── streamlit_app.py
+└── dashboard_screenshots/
+    ├── page1_executive_summary.png
+    ├── page2_attrition_drivers.png
+    ├── page3_tenure_survival.png
+    └── page4_cost_roi.png
 ```
 
+## How to run this
+
+1. Activate your Python environment, `pip install -r requirements.txt`
+2. Download the CSV into `data/raw/` — see **Dataset** above
+3. Run notebooks in order: `01_eda.ipynb` → `02_feature_engineering.ipynb` →
+   `03_classification_models.ipynb` → `04_survival_analysis.ipynb` →
+   `05_cost_of_attrition.ipynb` (the last one exports
+   `data/processed/fact_risk_scores.csv`, needed by the dashboards)
+4. (Optional) load into Postgres via `sql/01`–`06`, in order, for the
+   SQL-driven analytical queries (department attrition rate, income
+   percentile within role, tenure-bucket attrition rate)
+5. `streamlit run dashboard/streamlit_app.py` for the interactive web
+   dashboard, or open `dashboard/Dashboard-employee-attrition.pbix` in Power
+   BI Desktop for the full report with What-If sliders
+
+## Notes on scope decisions
+
+- **No Prophet.** Dropped after hitting a Windows long-path install failure
+  (Prophet's bundled Stan/TBB library has deeply nested paths past Windows'
+  260-char limit). Baseline is seasonal-naive/logistic-regression instead;
+  the real comparison is Logistic Regression vs. LightGBM, decided on
+  5-fold cross-validated PR-AUC rather than a single train/test split.
 
 ## Key findings
 
@@ -72,6 +122,8 @@ employee-attrition/
 - **Survival analysis:** median tenure for leavers is 3 years vs 6 for
   those who stayed; the Cox model reaches a concordance index of 0.80,
   meaning it correctly ranks "who leaves sooner" about 80% of the time.
+  Independently confirmed in SQL: attrition rate drops from 34.9% (0-1 yrs)
+  to 10.4% (10+ yrs), monotonically, across every tenure bucket.
 
 - **Cost of attrition:** total expected annual attrition cost across the
   workforce is an estimated **$10.15M**, using a standard 50%-of-salary
@@ -80,13 +132,15 @@ employee-attrition/
   classification model's risk scores with the survival analysis's OverTime
   finding — is estimated at $162K in cost against $967K in avoided
   attrition cost (**ROI ~497%**, under the notebook's stated assumptions
-  about intervention cost and effectiveness — not a measured result).
+  about intervention cost and effectiveness — not a measured result; see
+  `reports/model_results_summary.md` for the full breakdown, including how
+  quickly this ROI turns negative if the targeting is too broad).
 
-## What's different from Project 1
+## Techniques used
 
-Different domain (HR, not retail) and different core techniques: binary
-classification with class-imbalance handling, survival analysis
-(Kaplan-Meier / Cox), and cost-of-attrition ROI modeling — none of which
-appear in the retail-forecasting project. Same underlying discipline
-(SQL → EDA-driven features → model comparison → SHAP → dashboard) carried
-across both, which is itself worth calling out as a consistent skill set.
+SQL data modeling (star schema, window functions, CTEs) · EDA-driven feature
+engineering · binary classification with class-imbalance handling
+(Logistic Regression, LightGBM, 5-fold cross-validation, SHAP) · survival
+analysis (Kaplan-Meier, Cox Proportional Hazards) · cost-of-attrition and
+retention-ROI modeling · interactive dashboarding (Power BI with DAX
+measures and What-If parameters, Streamlit).
