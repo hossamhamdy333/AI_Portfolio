@@ -1,0 +1,24 @@
+# Core
+pandas
+numpy
+matplotlib
+seaborn
+jupyterlab
+
+# Modeling
+scikit-learn
+lightgbm
+xgboost
+shap
+
+# Survival analysis
+lifelines
+jinja2 
+
+# DB
+psycopg2-binary
+sqlalchemy
+
+# Dashboard
+streamlit
+plotly
