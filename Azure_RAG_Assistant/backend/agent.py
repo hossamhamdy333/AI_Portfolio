@@ -1,10 +1,16 @@
 from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_pinecone import PineconeVectorStore
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client import QdrantClient
+from qdrant_client.models import VectorParams, Distance
 from langchain_core.tools.retriever import create_retriever_tool
 from config import settings, embeddings
 from safe_math import safe_calculate
+
+# Must match the embedding model's output dimensionality
+# (sentence-transformers/all-MiniLM-L6-v2 -> 384).
+EMBEDDING_DIMENSIONS = 384
 
 SYSTEM_PROMPT = (
     "You are Azure RAG Assistant, a helpful enterprise assistant. "
@@ -28,7 +34,23 @@ def build_agent():
         temperature=0.1,
     )
 
-    vectorstore = PineconeVectorStore(index_name=settings.PINECONE_INDEX_NAME, embedding=embeddings)
+    client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+
+    # The collection is normally created on first document upload
+    # (text_processing.py). If someone chats before uploading anything, it
+    # won't exist yet - create an empty one here so the agent doesn't crash
+    # on startup with no documents indexed.
+    if not client.collection_exists(settings.QDRANT_COLLECTION_NAME):
+        client.create_collection(
+            collection_name=settings.QDRANT_COLLECTION_NAME,
+            vectors_config=VectorParams(size=EMBEDDING_DIMENSIONS, distance=Distance.COSINE),
+        )
+
+    vectorstore = QdrantVectorStore(
+        client=client,
+        collection_name=settings.QDRANT_COLLECTION_NAME,
+        embedding=embeddings,
+    )
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     retriever_tool = create_retriever_tool(
         retriever,
@@ -45,7 +67,7 @@ def build_agent():
 
 # Built lazily on first use (not at import time) so importing this module -
 # e.g. from a test that only checks the /health endpoint - never requires
-# live Gemini/Pinecone credentials or network access.
+# live Gemini/Qdrant credentials or network access.
 _agent_graph = None
 
 

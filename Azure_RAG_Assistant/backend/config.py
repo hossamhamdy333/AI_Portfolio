@@ -1,5 +1,4 @@
 import logging
-from pinecone import Pinecone
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,8 +12,9 @@ class Settings(BaseSettings):
     HF_TOKEN: str
     HF_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
-    PINECONE_API_KEY: str
-    PINECONE_INDEX_NAME: str = "omnirag"
+    QDRANT_URL: str
+    QDRANT_API_KEY: str
+    QDRANT_COLLECTION_NAME: str = "azure-rag-assistant"
 
     AZURE_STORAGE_CONNECTION_STRING: str = ""
     AZURE_STORAGE_CONTAINER_NAME: str = "omnirag-documents"
@@ -28,8 +28,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger("AzureRAGAssistant-Backend")
 
 settings = Settings()
-
-pc = Pinecone(api_key=settings.PINECONE_API_KEY)
 
 embeddings = HuggingFaceEndpointEmbeddings(
     model=settings.HF_EMBEDDING_MODEL,

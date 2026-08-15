@@ -18,7 +18,7 @@ def upload_to_blob_storage(file_bytes: bytes, filename: str) -> str | None:
     Archive the raw file to Azure Blob Storage. Best-effort: if
     AZURE_STORAGE_CONNECTION_STRING isn't set (e.g. before your Azure
     account is wired up), this logs a warning and returns None instead of
-    failing the whole upload. Pinecone remains the source of truth for
+    failing the whole upload. Qdrant remains the source of truth for
     retrieval either way, so document Q&A still works without this.
     """
     if not settings.AZURE_STORAGE_CONNECTION_STRING:

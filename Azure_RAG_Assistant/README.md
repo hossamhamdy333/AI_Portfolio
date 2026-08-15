@@ -20,11 +20,11 @@ deploy, no second account to manage.
 |---|---|---|
 | LLM | Google Gemini (`gemini-2.5-flash`) | Free API, no card |
 | Embeddings | Hugging Face Inference API | Free API, no card |
-| Vector DB | Pinecone | Free tier index, no card |
+| Vector DB | Qdrant Cloud | Free forever tier, no card |
 | Object storage | **Azure Blob Storage** (real) | Funded by your student credit |
 | Hosting (API + UI, one service) | **Azure App Service** (Web App for Containers) | Funded by your student credit, matches the "Deploy a Docker container" / "Azure App Service" tiles on your portal |
 
-Gemini, Hugging Face, and Pinecone stay as free third-party APIs regardless
+Gemini, Hugging Face, and Qdrant stay as free third-party APIs regardless
 of cloud provider — no reason to change those. The infrastructure pieces
 (storage + hosting) are now real Azure instead of a free-tier workaround.
 
@@ -34,10 +34,9 @@ of cloud provider — no reason to change those. The infrastructure pieces
 
 1. **Gemini**: [Google AI Studio](https://aistudio.google.com/apikey) → Create API key.
 2. **Hugging Face**: [huggingface.co](https://huggingface.co) → Settings → Access Tokens → create a *Read* token.
-3. **Pinecone**: [app.pinecone.io](https://app.pinecone.io) → create an index:
-   - Name: `omnirag`
-   - Dimensions: `384`
-   - Metric: `cosine`
+3. **Qdrant**: [cloud.qdrant.io](https://cloud.qdrant.io) → sign up (no card) →
+   **Create Cluster** → pick the **Free** tier → once it's up, copy the
+   cluster URL and create/copy an API key from the **API Keys** tab.
 
 ## 2. Put the code on GitHub (browser only, no git needed)
 
@@ -117,8 +116,9 @@ Now create the Web App:
    add each of these one at a time, then click **Save**:
    - `GEMINI_API_KEY`
    - `HF_TOKEN`
-   - `PINECONE_API_KEY`
-   - `PINECONE_INDEX_NAME` = `omnirag`
+   - `QDRANT_URL`
+   - `QDRANT_API_KEY`
+   - `QDRANT_COLLECTION_NAME` = `azure-rag-assistant`
    - `APP_API_KEY` = any random string you make up
    - `AZURE_STORAGE_CONNECTION_STRING` = the connection string from step 3.4
    - `AZURE_STORAGE_CONTAINER_NAME` = `omnirag-documents`
@@ -146,7 +146,7 @@ This is the real thing, so this is fully earned:
 > *"Built and deployed a cloud-native agentic RAG system on Microsoft
 > Azure — FastAPI backend containerized with Docker, deployed via Azure
 > App Service with CI/CD through GitHub Actions, using Azure Blob Storage
-> for document archival and Pinecone for vector search."*
+> for document archival and Qdrant for vector search."*
 
 You can describe the architecture, defend every piece of it, and point to
 a live `.azurewebsites.net` URL if asked.

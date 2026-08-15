@@ -4,7 +4,7 @@ import pytesseract
 from PIL import Image
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_pinecone import PineconeVectorStore
+from langchain_qdrant import QdrantVectorStore
 from config import embeddings, settings, logger
 
 
@@ -39,6 +39,12 @@ def process_and_upsert(file_bytes: bytes, filename: str) -> int:
     chunks = splitter.split_text(text)
     docs = [Document(page_content=c, metadata={"source": filename}) for c in chunks]
 
-    PineconeVectorStore.from_documents(docs, embeddings, index_name=settings.PINECONE_INDEX_NAME)
+    QdrantVectorStore.from_documents(
+        docs,
+        embeddings,
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
+        collection_name=settings.QDRANT_COLLECTION_NAME,
+    )
     logger.info("Indexed %d chunks from %s", len(docs), filename)
     return len(docs)

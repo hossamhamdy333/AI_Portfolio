@@ -6,7 +6,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # Dummy env vars so config.Settings() validates without real secrets in CI.
 os.environ.setdefault("GEMINI_API_KEY", "test")
 os.environ.setdefault("HF_TOKEN", "test")
-os.environ.setdefault("PINECONE_API_KEY", "test")
+os.environ.setdefault("QDRANT_URL", "http://test:6333")
+os.environ.setdefault("QDRANT_API_KEY", "test")
 
 from fastapi.testclient import TestClient
 from main import app

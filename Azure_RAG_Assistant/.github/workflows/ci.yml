@@ -9,8 +9,8 @@ jobs:
       # No real secrets are needed to run the unit tests below.
       GEMINI_API_KEY: ci-dummy
       HF_TOKEN: ci-dummy
-      PINECONE_API_KEY: ci-dummy
-      PINECONE_INDEX_NAME: omnirag
+      QDRANT_URL: http://ci-dummy:6333
+      QDRANT_API_KEY: ci-dummy
     steps:
       - uses: actions/checkout@v4
 
