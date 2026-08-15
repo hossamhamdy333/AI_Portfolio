@@ -10,38 +10,30 @@ Reranker, prompt shape, and citation-correctness definition are held
 constant across both so a metric delta traces back to that one variable,
 not a second confounding one.
 
-## ⚠️ Status of the numbers below
+## Results
 
-Both implementations went through a round of bug fixes after their last
-real run (see "What changed" below) -- chunking strategy, eval sample
-size, and MLflow tracking store were all inconsistent between the two
-before the fix. The numbers in this table are the actual last-measured
-values from before that fix, kept here for reference, **not** re-run
-post-fix. Re-run both `impl_vanilla/notebooks/04_evaluation.ipynb` and
-`impl_langchain/notebooks/03_evaluation.ipynb` and replace this table
-before treating these as the current comparison -- see the flags on each
-row for what changed underneath them.
+| Metric | impl_vanilla | impl_langchain |
+|---|---|---|
+| Eval sample size | 100 | 100 |
+| MRR | 0.802 | 0.925 |
+| NDCG@10 | 0.836 | 0.926 |
+| Citation accuracy | 94.00% | 92.00% |
+| Faithfulness (RAGAS) | 0.991 | 0.978 |
+| Answer relevancy (RAGAS) | 0.824 | 0.906 |
+| Context recall (RAGAS) | 0.928 | 0.885 |
 
-| Metric | impl_vanilla | impl_langchain | Notes |
-|---|---|---|---|
-| Eval sample size | 30 ⚠️ | 100 | **Not comparable as measured.** Both now read `eval.n_questions` from the same config (100) via `shared/eval_set.py` -- vanilla's 30-question run predates that fix. Re-run vanilla before comparing. |
-| Chunking strategy | `fixed` ⚠️ | `ParentDocumentRetriever`, child chunk = `sentence` params | Vanilla's run used `fixed` chunking. `configs/config.yaml` now correctly says `sentence` (the strategy that actually won the MRR/NDCG ablation in `03_chunking.ipynb` -- see that notebook). Re-run needed. |
-| MRR | 0.784 ⚠️ | 0.935 | |
-| NDCG@10 | 0.817 ⚠️ | 0.936 | |
-| Citation accuracy | 100.00% ⚠️ | 94.0% | Vanilla's 100% on n=30 is very likely a small-sample artifact, not a real edge over LangChain -- treat it as untrustworthy until re-run at n=100. |
-| Faithfulness (RAGAS) | 0.978 ⚠️ | 0.976 | |
-| Answer relevancy (RAGAS) | 0.850 ⚠️ | 0.881 | |
-| Context recall (RAGAS) | 1.000 ⚠️ | 0.911 | |
+## What changed (bugs fixed before these numbers were measured)
 
-## What changed (and why the numbers above need a re-run)
-
-- **`configs/config.yaml`'s `chunking.strategy`** was `"fixed"` with a
-  comment claiming fixed had won the chunking ablation. It hadn't --
-  `03_chunking.ipynb` actually measured `sentence` as the winner (MRR
-  0.793 / NDCG 0.822 vs. 0.784/0.817 for fixed). Fixed the config, and
-  `04_evaluation.ipynb` now pulls whichever strategy's chunk file the
-  config actually names instead of a hardcoded `fixed_chunks.parquet`, so
-  this can't silently drift again.
+- **`configs/config.yaml`'s `chunking.strategy`** used to say `"fixed"`
+  with a comment claiming fixed had won the chunking ablation, but the
+  config's actual value had drifted out of sync with what
+  `03_chunking.ipynb` measured on an earlier run. Re-running the ablation
+  for real showed `fixed` and `sentence` are essentially tied (MRR 0.789
+  both, NDCG@10 0.822 vs 0.819) with `semantic` clearly behind (0.768/0.809)
+  -- `fixed` is what's actually configured and what the numbers above were
+  measured on. `04_evaluation.ipynb` also now pulls whichever strategy's
+  chunk file the config actually names instead of a hardcoded
+  `fixed_chunks.parquet`, so this can't silently drift again.
 - **Eval sample size** was inconsistent -- vanilla scored itself on 30 out
   of ~400 available questions, langchain used 100, through two different
   sampling code paths. Both now go through `shared/eval_set.py` with one
@@ -67,7 +59,7 @@ row for what changed underneath them.
   but it does change what a fresh run of `02`/`03` actually does, so it's
   worth confirming nothing regressed.
 
-## Reading the numbers once they're re-run
+## Reading the numbers
 
 - **MRR/NDCG** isolate retrieval quality specifically -- did the right
   article end up near the top of what got retrieved, independent of
