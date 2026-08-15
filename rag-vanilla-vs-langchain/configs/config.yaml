@@ -23,11 +23,10 @@ eval:
 
 chunking:
   # sentence | fixed | semantic
-  # "sentence" won the MRR/NDCG comparison in 03_chunking.ipynb
-  # (MRR 0.793 / NDCG@10 0.822, vs. 0.784/0.817 for fixed and
-  # 0.784/0.821 for semantic) -- previously this was set to "fixed" by
-  # mistake, which meant every downstream number was measured on the
-  # strategy that lost its own comparison.
+  # "fixed" won the MRR/NDCG comparison in 03_chunking.ipynb -- but only
+  # barely: fixed and sentence are essentially tied (MRR 0.789 both,
+  # NDCG@10 0.822 vs 0.819), fixed won a tie-break on NDCG. semantic
+  # clearly trails both (MRR 0.768, NDCG@10 0.809).
   strategy: "fixed"
   chunk_size: 256
   overlap: 32
