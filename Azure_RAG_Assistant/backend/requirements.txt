@@ -1,0 +1,26 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.19
+pydantic>=2.11,<3.0
+pydantic-settings>=2.7.0,<3.0
+jinja2==3.1.5
+
+# Agent framework (current, non-deprecated API: langchain.agents.create_agent)
+langchain==1.3.14
+langchain-text-splitters>=1.0.0,<2.0
+langchain-google-genai==4.3.2
+langchain-pinecone==0.2.13
+langchain-huggingface==1.2.2
+pinecone>=6.0.0,<8.0.0
+
+# Document processing
+pdfplumber==0.11.5
+pytesseract==0.3.13
+Pillow==11.0.0
+
+python-dotenv==1.0.1
+azure-storage-blob==12.30.0
+
+# Tests
+pytest==8.3.4
+httpx==0.28.1
