@@ -78,6 +78,27 @@ def get_agent():
     return _agent_graph
 
 
+def _extract_text(content) -> str:
+    """
+    Newer Gemini models can return message content as either a plain string
+    or a list of structured content parts (e.g. [{"type": "text", "text":
+    "..."}]) instead of always a string. Normalize either shape into plain
+    text so the frontend always receives a string, not an object it would
+    otherwise render as "[object Object]".
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                parts.append(part["text"])
+        return "".join(parts) if parts else str(content)
+    return str(content)
+
+
 def run_agent(query: str) -> str:
     result = get_agent().invoke({"messages": [{"role": "user", "content": query}]})
-    return result["messages"][-1].content
+    return _extract_text(result["messages"][-1].content)
