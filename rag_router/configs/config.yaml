@@ -50,11 +50,7 @@ llm:
   temperature: 0.1
 
 qdrant:
-  # Qdrant Cloud, same standard as rag_chatbot -- a free cluster, can be
-  # the same one used there (different collection names) or a separate
-  # cluster; either is fine since collections are namespaced per domain
-  # below regardless. Never local embedded/on-disk storage.
-  url: "https://<your-cluster-id>.<region>.aws.cloud.qdrant.io"
+  url: https://ff3a5bed-2ea9-4149-a786-2db269606666.us-west-1-0.aws.cloud.qdrant.io
   collection_prefix: "wiki_router"   # actual collections: wiki_router_sports, wiki_router_tech, etc.
 
 cost:
