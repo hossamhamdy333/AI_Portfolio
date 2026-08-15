@@ -61,7 +61,7 @@ def load_resources():
     _model, _tokenizer = FastLanguageModel.from_pretrained(
         model_name=MODEL_REPO,
         max_seq_length=MAX_SEQ_LENGTH,
-        load_in_4bit=(DEVICE == "cuda"),
+        load_in_4bit=True,,
     )
     FastLanguageModel.for_inference(_model)
     logger.info("Model loaded.")
