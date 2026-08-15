@@ -4,10 +4,18 @@ FastAPI backend for the AI Support Copilot.
 NOTE: this is NOT what runs on Hugging Face Spaces -- see gradio_app.py for
 that (ZeroGPU only works with the Gradio SDK, not Docker/FastAPI). This app
 is for deploying to a platform with a real, always-on GPU -- e.g. an Azure
-VM or Container App once your student credits are active -- or for local
-testing with your own GPU.
+VM or Container App with a GPU workload profile -- or for local testing
+with your own GPU.
 
-It loads the QLoRA-fine-tuned Llama-3 adapter from Hugging Face Hub,
+IMPORTANT: this loads a full 8B-parameter model. On CPU-only hardware
+(no GPU workload profile available), this requires a LOT of memory
+(~16GB+ in float16). If your Container App's CPU/memory tier is too small,
+this will crash with an out-of-memory error on startup -- that's a
+hardware fit problem, not a bug in this file. Use the highest CPU/memory
+tier available, and if it still crashes, this model genuinely needs a GPU
+to run here.
+
+Loads the QLoRA-fine-tuned Llama-3 adapter from Hugging Face Hub,
 retrieves relevant KB context for each query, and generates a grounded
 response.
 """
@@ -19,7 +27,8 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from unsloth import FastLanguageModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 
 from src.retriever import KBRetriever
 from src.evaluate import evaluate_faithfulness
@@ -27,8 +36,8 @@ from src.evaluate import evaluate_faithfulness
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MODEL_REPO = os.environ.get("MODEL_REPO", "hossamhamdy333/support-copilot-llama3-lora")
-MAX_SEQ_LENGTH = 512
+MODEL_REPO = os.environ.get("MODEL_REPO", "hossam3759180/support-copilot-llama3-lora")
+BASE_MODEL_REPO = "unsloth/llama-3-8b-bnb-4bit"
 MAX_NEW_TOKENS = 200
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -54,16 +63,23 @@ def load_resources():
     logger.info("Loading fine-tuned model from %s on device=%s ...", MODEL_REPO, DEVICE)
     if DEVICE != "cuda":
         logger.warning(
-            "No CUDA device found -- running on CPU. Generation will be slow "
-            "(minutes per response) for an 8B model. Fine for occasional testing, "
-            "not recommended for a live demo."
+            "No CUDA device found -- running on CPU. This needs ~16GB+ RAM "
+            "for an 8B model in float16. If the container crashes here, the "
+            "CPU/memory tier is too small for this model."
         )
-    _model, _tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODEL_REPO,
-        max_seq_length=MAX_SEQ_LENGTH,
-        load_in_4bit=True,,
-    )
-    FastLanguageModel.for_inference(_model)
+
+    dtype = torch.float16 if DEVICE == "cuda" else torch.float32
+
+    logger.info("Loading base model %s ...", BASE_MODEL_REPO)
+    base_model = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL_REPO,
+        torch_dtype=dtype,
+    ).to(DEVICE)
+
+    logger.info("Loading tokenizer and LoRA adapter from %s ...", MODEL_REPO)
+    _tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO)
+    _model = PeftModel.from_pretrained(base_model, MODEL_REPO).to(DEVICE)
+    _model.eval()
     logger.info("Model loaded.")
 
     logger.info("Building KB retriever...")
