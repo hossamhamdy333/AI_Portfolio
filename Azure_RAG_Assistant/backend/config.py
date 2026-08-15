@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
 
     HF_TOKEN: str
     HF_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
