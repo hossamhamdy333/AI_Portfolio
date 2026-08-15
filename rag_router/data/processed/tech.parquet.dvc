@@ -1,0 +1,5 @@
+outs:
+- md5: e347fe3e0d062ebd3c59640d9d0096a0
+  size: 2222034
+  hash: md5
+  path: tech.parquet

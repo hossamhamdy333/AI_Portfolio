@@ -1,0 +1,5 @@
+outs:
+- md5: a7cb8ada0e514fb913340b81946108b2
+  size: 1883715
+  hash: md5
+  path: sports.parquet
