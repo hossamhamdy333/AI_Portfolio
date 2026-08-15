@@ -1,0 +1,54 @@
+# ============================================================
+# fact_check_crew: does a 3-agent research -> write -> critique
+# loop catch unsupported claims a single-pass answer wouldn't?
+#
+# Deliberately reuses what already exists instead of rebuilding it:
+#   - the 4 Wikipedia domain collections ../rag_router already built
+#     on Qdrant Cloud (same cluster, same collections, read-only here)
+#   - ../rag_router's 400-question synthetic eval set (same corpus,
+#     no reason to generate a second one)
+# The only new things this project adds are the agents themselves and
+# the comparison eval. See README.md for why this coupling is
+# intentional, not an accident.
+# ============================================================
+
+llm:
+  model: "gemini/gemini-3.1-flash-lite"   # crewai's LLM class is litellm-backed; "gemini/" prefix selects the provider
+  temperature: 0.2
+
+qdrant:
+  # Same cluster/collections rag_router built -- fill in the same url
+  # you used there.
+  url: "https://<your-cluster-id>.<region>.aws.cloud.qdrant.io"
+  collection_prefix: "wiki_router"
+
+embedding:
+  # Must match what rag_router used to build those collections
+  # (../rag_router/configs/config.yaml's embedding.model_name) --
+  # searching with a different model than the one that built the
+  # index would silently return garbage similarity scores.
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+domains:
+  - sports
+  - tech
+  - history
+  - english_literature
+
+search:
+  top_k: 5
+
+revision:
+  max_revisions: 1   # Critic gets to send the draft back once, not indefinitely
+
+eval:
+  n_questions: 100   # a subset of rag_router's 400 -- this eval runs 2 conditions x 3 agent-calls-ish each, keep it affordable
+  random_seed: 42
+  sleep_seconds: 8
+
+dagshub:
+  repo_owner: "hossamhamdy333"
+  repo_name: "AI_Portfolio"
+
+mlflow:
+  experiment_name: "fact_check_crew"

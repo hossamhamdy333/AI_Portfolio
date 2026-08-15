@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Local run artifacts -- eval checkpoints are resumption aids for a single
+# in-progress run, not deliverables; DVC-tracked outputs are added
+# explicitly via `dvc add`, not swept up here.
+mlruns/
+data/processed/*.parquet
+data/synthetic_qa_pairs.parquet
+outputs/reports/*.csv
+
+.env

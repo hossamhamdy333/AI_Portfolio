@@ -1,0 +1,25 @@
+# Core
+pandas
+numpy<2
+PyYAML
+pydantic
+pytest
+
+# Agents
+crewai
+
+# Retrieval (reads rag_router's existing Qdrant collections -- same
+# embedding model rag_router used to build them, no LlamaIndex needed
+# here since this project does plain vector search, not routed querying)
+sentence-transformers
+qdrant-client>=1.16.0,<1.19.0
+
+# Tracking (reuses ../rag_router/shared/tracking.py directly)
+mlflow
+
+# Test-only: tests/test_search_tool.py imports rag_router's ingest.py to
+# build a realistic test fixture (a real LlamaIndex-populated collection,
+# to test payload parsing against actual structure rather than a guess).
+# Not used by any of this project's own src/ files.
+llama-index-core
+llama-index-embeddings-huggingface

@@ -1,0 +1,29 @@
+# Core
+pandas
+numpy<2
+PyYAML
+pytest
+
+# Corpus
+datasets
+
+# LlamaIndex
+llama-index-core
+llama-index-embeddings-huggingface
+llama-index-llms-google-genai
+llama-index-vector-stores-qdrant
+# Pinned below 1.19.0 -- llama-index-vector-stores-qdrant 0.10.2 (current
+# latest as of this writing) hard-crashes on import against qdrant-client
+# 1.19.0 (reproduced: ImportError, IDF_EMBEDDING_MODELS moved). 1.16.0
+# through 1.18.0 all confirmed working.
+qdrant-client>=1.16.0,<1.19.0
+nest_asyncio
+
+# Generation
+google-genai
+
+# Tracking -- auth to DagsHub's hosted MLflow happens purely via MLflow's
+# own env-var HTTP basic auth (see shared/tracking.py); the `dagshub`
+# package itself is never imported anywhere in this repo, so it's not
+# listed here as a dependency.
+mlflow
