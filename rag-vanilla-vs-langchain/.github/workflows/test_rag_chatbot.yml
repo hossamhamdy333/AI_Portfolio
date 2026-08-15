@@ -1,9 +1,9 @@
-name: rag_chatbot tests
+name: rag-vanilla-vs-langchain tests
 
 on:
   push:
     paths:
-      - 'rag_chatbot/**'
+      - 'rag-vanilla-vs-langchain/**'
 
 jobs:
   test:
@@ -19,9 +19,9 @@ jobs:
           pip install pytest pandas numpy scikit-learn PyYAML pydantic
       - name: Run impl_vanilla tests
         run: |
-          cd rag_chatbot
+          cd rag-vanilla-vs-langchain
           PYTHONPATH=impl_vanilla:. pytest impl_vanilla/tests/ -v
       - name: Run impl_langchain tests
         run: |
-          cd rag_chatbot
+          cd rag-vanilla-vs-langchain
           PYTHONPATH=impl_langchain/src:impl_langchain:. pytest impl_langchain/tests/ -v
