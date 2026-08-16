@@ -19,7 +19,7 @@ llm:
 qdrant:
   # Same cluster/collections rag_router built -- fill in the same url
   # you used there.
-  url: "https://<your-cluster-id>.<region>.aws.cloud.qdrant.io"
+  url: https://ff3a5bed-2ea9-4149-a786-2db269606666.us-west-1-0.aws.cloud.qdrant.io
   collection_prefix: "wiki_router"
 
 embedding:
@@ -47,7 +47,7 @@ eval:
   sleep_seconds: 8
 
 dagshub:
-  repo_owner: "hossamhamdy333"
+  repo_owner: "hossam3759180"
   repo_name: "AI_Portfolio"
 
 mlflow:
