@@ -18,7 +18,7 @@ def init_tracking(config: dict, experiment_name: str = None):
 
     token = os.environ.get("DAGSHUB_TOKEN")
     if not token:
-        token = getpass.getpass("DagsHub token (from Settings -> Tokens): ")
+        token = getpass.getpass("DagsHub token: ")
         os.environ["DAGSHUB_TOKEN"] = token
 
     os.environ["MLFLOW_TRACKING_USERNAME"] = owner
