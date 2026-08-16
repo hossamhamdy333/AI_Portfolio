@@ -18,6 +18,7 @@ requests
 # --- Model inference (LoRA adapter loading + generation) ---
 torch
 unsloth
+llama-cpp-python
 transformers
 accelerate
 bitsandbytes
