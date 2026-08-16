@@ -15,6 +15,10 @@ hardware fit problem, not a bug in this file. Use the highest CPU/memory
 tier available, and if it still crashes, this model genuinely needs a GPU
 to run here.
 
+Also note: MAX_NEW_TOKENS is kept low (60) and decoding uses greedy search
+(do_sample=False) specifically to keep CPU inference under Azure Container
+Apps' request timeout (~4 minutes). Raise these once running on a GPU tier.
+
 Loads the QLoRA-fine-tuned Llama-3 adapter from Hugging Face Hub,
 retrieves relevant KB context for each query, and generates a grounded
 response.
@@ -38,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_REPO = os.environ.get("MODEL_REPO", "hossam3759180/support-copilot-llama3-lora")
 BASE_MODEL_REPO = "unsloth/llama-3-8b-bnb-4bit"
-MAX_NEW_TOKENS = 200
+MAX_NEW_TOKENS = 60
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 SYSTEM_PROMPT = (
@@ -102,8 +106,7 @@ def _generate(prompt: str) -> str:
         output_ids = _model.generate(
             **inputs,
             max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=True,
-            temperature=0.7,
+            do_sample=False,
             pad_token_id=_tokenizer.eos_token_id,
         )
     decoded = _tokenizer.decode(output_ids[0], skip_special_tokens=True)
