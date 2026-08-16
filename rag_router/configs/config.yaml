@@ -61,7 +61,7 @@ dagshub:
   # Same free hosted-MLflow pattern as rag_chatbot -- see shared/tracking.py.
   # Can point at the same AI_Portfolio repo (different experiment name) or
   # a separate repo if this ends up published standalone.
-  repo_owner: "hossamhamdy333"
+  repo_owner: "hossam3759180"
   repo_name: "AI_Portfolio"
 
 mlflow:
