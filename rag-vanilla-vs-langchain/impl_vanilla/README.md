@@ -37,13 +37,6 @@ uvicorn src.api:app --host 0.0.0.0 --port 8000
 ```
 Needs `GEMINI_API_KEY` and `QDRANT_API_KEY` in the environment.
 
-**Persistent deployment**: [../Dockerfile](../Dockerfile) deploys this same
-app to Hugging Face Spaces (Docker SDK) -- a real, always-on URL instead of
-something that dies with the Colab session that started it. See the
-Dockerfile's own comments for the one-time setup (create the Space, set
-the two secrets, point `configs/config.yaml`'s `qdrant.url` at a cluster
-that already has data from a `04_evaluation.ipynb` run).
-
 ## MCP
 
 `src/mcp_server.py` exposes the same pipeline as an MCP tool (`ask_arabic_news`)
@@ -62,6 +55,6 @@ no local `mlflow ui` needed.
 ## Tests
 
 ```bash
-cd rag_chatbot
+cd rag-vanilla-vs-langchain
 PYTHONPATH=impl_vanilla:. pytest impl_vanilla/tests/ -v
 ```
