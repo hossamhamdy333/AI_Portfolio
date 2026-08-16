@@ -86,12 +86,3 @@ dagshub:
 
 mlflow:
   experiment_name: "rag_chatbot_comparison"
-
-serving:
-  # Used by the Dockerfile deploying src/api.py to Hugging Face Spaces --
-  # Spaces expects the app to listen on 7860, not the 0.0.0.0:8000 this
-  # used to hardcode for local/Colab-only `uvicorn` runs. Deployed there,
-  # the API has a real persistent URL instead of dying with the Colab
-  # session that started it (see impl_vanilla/Dockerfile).
-  host: "0.0.0.0"
-  port: 7860
