@@ -21,7 +21,7 @@ def init_tracking(config: dict, experiment_name: str = None):
         token = getpass.getpass("DagsHub token: ")
         os.environ["DAGSHUB_TOKEN"] = token
 
-    os.environ["MLFLOW_TRACKING_USERNAME"] = owner
+    os.environ["MLFLOW_TRACKING_USERNAME"] = hossam3759180
     os.environ["MLFLOW_TRACKING_PASSWORD"] = token
 
     tracking_uri = f"https://dagshub.com/{owner}/{repo}.mlflow"
