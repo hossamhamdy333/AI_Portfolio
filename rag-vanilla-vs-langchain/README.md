@@ -69,7 +69,3 @@ notebook pulls DVC artifacts the previous one produced.
 - **MCP** (`impl_vanilla` only, optional): `src/mcp_server.py` exposes the
   pipeline as a tool for Claude Desktop or any other MCP client, alongside
   the REST API in `src/api.py`.
-- **Persistent hosting** (`impl_vanilla` only, optional): [Dockerfile](./Dockerfile)
-  deploys `src/api.py` to Hugging Face Spaces -- a real always-on URL,
-  since a Colab-run `uvicorn` process was never reachable from outside
-  Colab and died with the session either way.
