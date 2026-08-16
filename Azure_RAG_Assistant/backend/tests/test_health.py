@@ -11,8 +11,25 @@ os.environ.setdefault("QDRANT_API_KEY", "test")
 
 from fastapi.testclient import TestClient
 from main import app
+from agent import _extract_text
 
 client = TestClient(app)
+
+
+def test_extract_text_handles_plain_string():
+    assert _extract_text("hello") == "hello"
+
+
+def test_extract_text_handles_structured_content_parts():
+    # Newer Gemini models can return content as a list of parts instead of
+    # a plain string. Before this was handled, the frontend would render
+    # this as the literal text "[object Object]" instead of the message.
+    assert _extract_text([{"type": "text", "text": "Hello there"}]) == "Hello there"
+
+
+def test_extract_text_joins_multiple_parts():
+    content = [{"type": "text", "text": "Part A. "}, {"type": "text", "text": "Part B."}]
+    assert _extract_text(content) == "Part A. Part B."
 
 
 def test_health_check():
