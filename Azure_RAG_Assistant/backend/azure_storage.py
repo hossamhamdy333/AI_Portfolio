@@ -30,6 +30,6 @@ def upload_to_blob_storage(file_bytes: bytes, filename: str) -> str | None:
         container_client.upload_blob(name=filename, data=file_bytes, overwrite=True)
         account_name = container_client.account_name
         return f"https://{account_name}.blob.core.windows.net/{settings.AZURE_STORAGE_CONTAINER_NAME}/{filename}"
-    except AzureError as e:
+    except (AzureError, ValueError) as e:
         logger.warning("Blob archival skipped for %s: %s", filename, str(e))
         return None
