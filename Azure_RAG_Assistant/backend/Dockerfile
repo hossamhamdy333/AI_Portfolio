@@ -15,7 +15,7 @@ COPY . .
 
 EXPOSE 8000
 
-# Most container platforms (Back4App, Koyeb, Render, etc.) inject a $PORT
-# env var and expect the app to bind to it, rather than a fixed port. This
-# falls back to 8000 for local/docker-compose use where $PORT isn't set.
+# Azure App Service (via the WEBSITES_PORT setting) expects the container
+# to bind to a port it controls, rather than a fixed one. This falls back
+# to 8000 for local/docker-compose use where $PORT isn't set.
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
