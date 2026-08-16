@@ -37,6 +37,6 @@ actually pays for itself.
 ## Tests
 
 ```bash
-cd rag_chatbot
+cd rag-vanilla-vs-langchain
 PYTHONPATH=impl_langchain:. pytest impl_langchain/tests/ -v
 ```
