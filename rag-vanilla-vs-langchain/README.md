@@ -10,7 +10,7 @@ than flat chunking, on this corpus, holding everything else constant?
 ## Layout
 
 ```
-rag_chatbot/
+rag-vanilla-vs-langchain/
 ├── configs/config.yaml       # one config, both implementations read it
 ├── shared/                   # code genuinely shared by both implementations
 │   ├── metrics.py            # MRR/NDCG
