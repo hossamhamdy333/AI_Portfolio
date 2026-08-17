@@ -1,6 +1,6 @@
 """Tests for src/citation.py -- no live API calls, just tag parsing/matching."""
 
-from citation import extract_cited_indices, verify_citations
+from src.citation import extract_cited_indices, verify_citations
 
 
 class FakeDoc:
