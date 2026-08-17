@@ -1,0 +1,34 @@
+name: rag-vanilla-vs-langchain tests
+
+on:
+  push:
+    paths:
+      - 'rag-vanilla-vs-langchain/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install pytest pandas numpy PyYAML pydantic
+
+      - name: Run shared/ tests
+        run: |
+          cd rag-vanilla-vs-langchain
+          PYTHONPATH=shared pytest shared/tests/ -v
+
+      - name: Run impl_vanilla tests
+        run: |
+          cd rag-vanilla-vs-langchain
+          PYTHONPATH=impl_vanilla:. pytest impl_vanilla/tests/ -v
+
+      - name: Run impl_langchain tests
+        run: |
+          cd rag-vanilla-vs-langchain
+          PYTHONPATH=impl_langchain:. pytest impl_langchain/tests/ -v
