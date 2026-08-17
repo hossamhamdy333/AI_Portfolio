@@ -16,7 +16,7 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install pytest pandas numpy scikit-learn PyYAML pydantic
+          pip install pytest pandas numpy PyYAML pydantic google-genai
       - name: Run impl_vanilla tests
         run: |
           cd rag-vanilla-vs-langchain
@@ -24,4 +24,4 @@ jobs:
       - name: Run impl_langchain tests
         run: |
           cd rag-vanilla-vs-langchain
-          PYTHONPATH=impl_langchain/src:impl_langchain:. pytest impl_langchain/tests/ -v
+          PYTHONPATH=impl_langchain:. pytest impl_langchain/tests/ -v
