@@ -1,93 +1,65 @@
-# rag_router: Multi-Domain RAG with Query Routing
+# rag_router — Multi-Domain RAG with Query Routing
 
-A router sits in front of 4 separate topic-specific indexes (sports, tech,
-history, English literature — built from a real Wikipedia sample, not
-hand-picked pages) and decides which one to query for a given question,
-before that domain's retriever and the LLM take over. Two routing
-strategies are compared head-to-head: asking the LLM to pick a domain vs.
-picking by embedding similarity to each domain's description.
+Routes incoming questions to one of four topic-specific indexes (sports, tech,
+history, English literature — built from a Wikipedia sample) and answers from
+whichever one gets picked. Two routing methods are compared: an LLM call that
+selects the domain, and an embedding-similarity match against each domain's
+description.
 
-Standalone project — doesn't share code, corpus, or config with
-[`../rag-vanilla-vs-langchain`](../rag-vanilla-vs-langchain); see that
-project's own README for the single-domain retrieval-architecture
-comparison instead.
+Standalone project — no shared code, corpus, or config with
+[`../rag-vanilla-vs-langchain`](../rag-vanilla-vs-langchain). See that
+project's README for the vanilla-vs-LangChain retrieval comparison.
 
-## The comparison
+## Results
 
-| | LLM selector | Embedding selector |
+Evaluated on 400 questions (`notebooks/04_evaluation.ipynb`):
+
+| Metric | LLM selector | Embedding selector |
 |---|---|---|
-| Routing call | 1 extra Gemini call per question | No LLM call — pure embedding similarity |
-| Cost/latency | Higher | Lower |
 | Routing accuracy | **0.6975** | 0.6450 |
 | Citation accuracy | **0.6650** | 0.6275 |
-| MRR / NDCG@10 | **0.6319 / 0.6398** | 0.6010 / 0.6074 |
-| Known failure mode | Both hit the same LlamaIndex selector-parsing bug (see below), but at different rates: LLM selector 9.75% of questions, embedding selector 1.0% |
+| MRR | **0.6319** | 0.6010 |
+| NDCG@10 | **0.6398** | 0.6074 |
+| Parsing-bug failures | 39/400 (9.75%) | 4/400 (1.0%) |
+| Extra API call for routing | Yes | No |
 
-Both were evaluated on the same 400-question set in
-`notebooks/04_evaluation.ipynb`. The LLM selector wins on every accuracy
-metric, even after accounting for its higher parsing-bug failure rate — see
-[`COMPARISON.md`](./COMPARISON.md) for the full breakdown, including why
-the failure-rate gap actually understates how much better the LLM selector
-is.
+The LLM selector wins on every accuracy metric, despite hitting the known
+LlamaIndex bug below far more often. Excluding failed questions, its routing
+accuracy is 77.3% vs. 65.2% for the embedding selector — full breakdown in
+[COMPARISON.md](./COMPARISON.md).
 
-## A known LlamaIndex bug, and how this project handles it
+## Architecture
 
-LlamaIndex's selector-result parsing occasionally decodes a response with
-`choice=None`, which crashes downstream with `TypeError: unsupported
-operand type(s) for -: 'NoneType' and 'int'`. It's deterministic for a
-given question — retrying the identical call doesn't help — and it
-reproduces under **both** selectors, not just the LLM-based one (routing
-by embedding similarity means no LLM call happens for routing, but doesn't
-avoid this particular parsing path). `src/eval_routing.py` detects this
-specific error and short-circuits immediately instead of burning 5
-identical retries that can't succeed; every other failure still gets
-real, transient-error-appropriate retries. See `router.py`'s and
-`eval_routing.py`'s docstrings for the full story.
+- 4 domains, each its own Qdrant Cloud collection
+- Routing via LlamaIndex's `RouterQueryEngine`, either `LLMSingleSelector`
+  or `EmbeddingSingleSelector`
+- Corpus: `wikimedia/wikipedia` (20231101.en), filtered into domains by
+  keyword match, 300 articles per domain
+- Eval set: 400 synthetic Q&A pairs (50 articles × 2 questions × 4 domains),
+  generated with Gemini
+- Tracking: MLflow via DagsHub
+- Data and model artifacts: DVC
+
+## Known issue: LlamaIndex selector parsing bug
+
+LlamaIndex's selector-result parsing occasionally returns `choice=None`,
+which crashes with `TypeError: unsupported operand type(s) for -: 'NoneType'
+and 'int'`. It's deterministic per question — retrying doesn't help — and it
+affects both selectors, though the LLM selector hits it about 10x more often.
+`eval_routing.py` detects this specific error and skips retries for it, while
+still retrying transient failures like rate limits normally.
 
 ## Notebooks (run in order)
 
-1. **`01_build_corpus.ipynb`** — streams `wikimedia/wikipedia`, filters
-   into 4 domains by keyword match (not hand-picked titles), saves one
-   parquet per domain via DVC.
-2. **`02_ingest_and_router.ipynb`** — embeds each domain's articles into
-   its own Qdrant Cloud collection, builds the embedding-based router,
-   sanity-checks it on a few questions.
-3. **`03_synthetic_qa.ipynb`** — generates the 400-question eval set
-   (50 articles × 2 questions × 4 domains) with Gemini, tagged by domain
-   for scoring routing accuracy later.
-4. **`04_evaluation.ipynb`** — evaluates **both** selectors on the same
-   question set, with separate checkpoint files per selector (see below
-   for why that matters), reports routing accuracy / citation accuracy /
-   MRR / NDCG for each.
+1. `01_build_corpus.ipynb` — streams and filters the Wikipedia corpus into
+   4 domains, saves to DVC
+2. `02_ingest_and_router.ipynb` — embeds articles into Qdrant, builds the
+   router, sanity-checks routing on a few questions
+3. `03_synthetic_qa.ipynb` — generates the 400-question eval set
+4. `04_evaluation.ipynb` — runs both selectors on the eval set, reports
+   routing accuracy, citation accuracy, MRR, and NDCG
 
-## Nothing local
-
-- **Qdrant Cloud**, not local disk-persisted indexes — a free cluster at
-  [cloud.qdrant.io](https://cloud.qdrant.io). The original version of this
-  project persisted each domain's index as JSON directly into the repo's
-  working directory, which then got swept into git (not DVC) by a blind
-  `git add .`, permanently bloating the repo's history with binary index
-  data every run.
-- **MLflow, hosted on DagsHub** — see `shared/tracking.py`, same one-time
-  setup as `rag-vanilla-vs-langchain`.
-- **DVC** for the corpus and eval-set parquet files — properly this time.
-  An earlier version of this project's `03_synthetic_qa.ipynb` committed
-  the eval-set parquet straight to git, then tried to `dvc add` the
-  already-git-tracked file in the next cell, leaving DVC's own cache in a
-  warned, inconsistent state. Data goes through `dvc add` first now; the
-  GitHub Push cells only ever add code, config, and `.dvc` pointer files.
-
-## A real, fixed bug worth knowing about: checkpoint collisions
-
-An earlier version of `04_evaluation.ipynb`'s ancestor notebooks used one
-shared, un-versioned checkpoint file across separate Colab sessions. Two
-different sessions resumed from that same file at two different points and
-each produced a different "final" routing accuracy for what was supposed
-to be one run — the two numbers that used to be reported (0.725 and 0.66)
-weren't a real discrepancy to explain, they were two incomplete runs of the
-same thing. `eval_routing.py`'s `run_eval()` now takes a `selector_name`
-and builds a checkpoint filename from it, so two different runs can never
-silently share state.
+Each notebook pulls DVC artifacts the previous one produced.
 
 ## Tests
 
@@ -95,5 +67,6 @@ silently share state.
 cd rag_router
 PYTHONPATH=src:shared pytest tests/ shared/tests/ -v
 ```
-30 tests, all pure logic or against a real (in-memory) Qdrant client and
-real LlamaIndex machinery — no live API keys needed.
+
+30 tests — pure logic plus in-memory Qdrant and real LlamaIndex machinery,
+no API keys required.
