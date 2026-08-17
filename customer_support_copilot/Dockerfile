@@ -1,15 +1,16 @@
-# NOTE: this Dockerfile is NOT for Hugging Face Spaces (ZeroGPU does not
-# schedule onto Docker Spaces -- see gradio_app.py, which is the actual HF
-# Spaces entry point). Use this Dockerfile for a platform with a real,
-# always-on GPU: an Azure Container App / VM, a GPU-enabled VPS, etc.
+# CPU-only image, deployed on Azure Container Apps. Runs a quantized GGUF
+# model via llama.cpp instead of raw transformers -- that's what makes
+# CPU-only inference fast enough to finish within Azure's request timeout.
+# See src/app.py and notebooks/gguf_conversion.ipynb for details.
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# System deps needed by torch / sentence-transformers wheels
+# System deps needed to build llama-cpp-python and sentence-transformers wheels
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
