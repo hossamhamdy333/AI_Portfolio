@@ -1,0 +1,10 @@
+{
+  "n_questions": 100,
+  "n_failed": 89,
+  "baseline_hallucination_rate": 0.09090909090909091,
+  "baseline_judge_failures": 0,
+  "crew_hallucination_rate": 0.09090909090909091,
+  "crew_judge_failures": 0,
+  "crew_avg_revisions": 0.09090909090909091,
+  "crew_approval_rate": 1.0
+}
