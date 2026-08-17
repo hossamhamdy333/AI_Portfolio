@@ -8,8 +8,9 @@ strategies are compared head-to-head: asking the LLM to pick a domain vs.
 picking by embedding similarity to each domain's description.
 
 Standalone project — doesn't share code, corpus, or config with
-[`../rag_chatbot`](../rag_chatbot); see that project's own README for the
-single-domain retrieval-architecture comparison instead.
+[`../rag-vanilla-vs-langchain`](../rag-vanilla-vs-langchain); see that
+project's own README for the single-domain retrieval-architecture
+comparison instead.
 
 ## The comparison
 
@@ -17,13 +18,17 @@ single-domain retrieval-architecture comparison instead.
 |---|---|---|
 | Routing call | 1 extra Gemini call per question | No LLM call — pure embedding similarity |
 | Cost/latency | Higher | Lower |
-| Known failure mode | Both hit the same LlamaIndex selector-parsing bug (see below) — this isn't a difference between them |
+| Routing accuracy | **0.6975** | 0.6450 |
+| Citation accuracy | **0.6650** | 0.6275 |
+| MRR / NDCG@10 | **0.6319 / 0.6398** | 0.6010 / 0.6074 |
+| Known failure mode | Both hit the same LlamaIndex selector-parsing bug (see below), but at different rates: LLM selector 9.75% of questions, embedding selector 1.0% |
 
-Both are evaluated on the same 400-question set in
-`notebooks/04_evaluation.ipynb`; real, current numbers live in
-[`COMPARISON.md`](./COMPARISON.md) once that notebook's been run — see that
-file for why the ⚠️-flagged historical numbers there shouldn't be trusted
-as-is.
+Both were evaluated on the same 400-question set in
+`notebooks/04_evaluation.ipynb`. The LLM selector wins on every accuracy
+metric, even after accounting for its higher parsing-bug failure rate — see
+[`COMPARISON.md`](./COMPARISON.md) for the full breakdown, including why
+the failure-rate gap actually understates how much better the LLM selector
+is.
 
 ## A known LlamaIndex bug, and how this project handles it
 
@@ -64,7 +69,7 @@ real, transient-error-appropriate retries. See `router.py`'s and
   `git add .`, permanently bloating the repo's history with binary index
   data every run.
 - **MLflow, hosted on DagsHub** — see `shared/tracking.py`, same one-time
-  setup as `rag_chatbot`.
+  setup as `rag-vanilla-vs-langchain`.
 - **DVC** for the corpus and eval-set parquet files — properly this time.
   An earlier version of this project's `03_synthetic_qa.ipynb` committed
   the eval-set parquet straight to git, then tried to `dvc add` the
