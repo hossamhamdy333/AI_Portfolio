@@ -107,39 +107,57 @@ def run_comparison(llm, search_tool, run_crew_fn, qa_df, max_revisions=1, sleep_
         if question in already_done_questions:
             continue
 
-        try:
-            baseline_answer, baseline_passages = run_baseline(llm, search_tool, question)
-            baseline_unsupported = judge_faithfulness(llm, baseline_answer, baseline_passages)
-            time.sleep(sleep_seconds)
+        attempt = 0
+        while True:
+            try:
+                baseline_answer, baseline_passages = run_baseline(llm, search_tool, question)
+                baseline_unsupported = judge_faithfulness(llm, baseline_answer, baseline_passages)
+                time.sleep(sleep_seconds)
 
-            crew_result = run_crew_fn(llm, search_tool, question, max_revisions=max_revisions)
-            crew_unsupported = judge_faithfulness(llm, crew_result["answer"], crew_result["research_passages"])
-            time.sleep(sleep_seconds)
+                crew_result = run_crew_fn(llm, search_tool, question, max_revisions=max_revisions)
+                crew_unsupported = judge_faithfulness(llm, crew_result["answer"], crew_result["research_passages"])
+                time.sleep(sleep_seconds)
 
-            results.append({
-                "question": question,
-                "baseline_answer": baseline_answer,
-                "baseline_unsupported_claims": baseline_unsupported,
-                "crew_answer": crew_result["answer"],
-                "crew_approved": crew_result["approved"],
-                "crew_n_revisions": crew_result["n_revisions"],
-                "crew_unsupported_claims": crew_unsupported,
-                "failed": False,
-            })
-        except Exception as e:
-            error_str = f"{type(e).__name__}: {str(e)[:200]}"
-            print(f"  Question failed ({error_str}) -- logged, continuing.")
-            results.append({
-                "question": question,
-                "baseline_answer": None,
-                "baseline_unsupported_claims": None,
-                "crew_answer": None,
-                "crew_approved": False,
-                "crew_n_revisions": 0,
-                "crew_unsupported_claims": None,
-                "failed": True,
-                "error": error_str,
-            })
+                results.append({
+                    "question": question,
+                    "baseline_answer": baseline_answer,
+                    "baseline_unsupported_claims": baseline_unsupported,
+                    "crew_answer": crew_result["answer"],
+                    "crew_approved": crew_result["approved"],
+                    "crew_n_revisions": crew_result["n_revisions"],
+                    "crew_unsupported_claims": crew_unsupported,
+                    "failed": False,
+                })
+                break
+            except Exception as e:
+                error_str = f"{type(e).__name__}: {str(e)[:200]}"
+                # 429s (free-tier RPM limit) are transient -- a single
+                # crew run fires several LLM calls in quick succession
+                # with no spacing between them, so this limit gets hit
+                # mid-question, not just between questions. Back off and
+                # retry the SAME question a few times before giving up,
+                # instead of immediately marking it failed and racing
+                # through the rest of the dataset while still rate-limited.
+                is_rate_limit = "429" in error_str or "RESOURCE_EXHAUSTED" in error_str
+                if is_rate_limit and attempt < 3:
+                    attempt += 1
+                    wait = 60 * attempt
+                    print(f"  Rate limited, waiting {wait}s (retry {attempt}/3)...")
+                    time.sleep(wait)
+                    continue
+                print(f"  Question failed ({error_str}) -- logged, continuing.")
+                results.append({
+                    "question": question,
+                    "baseline_answer": None,
+                    "baseline_unsupported_claims": None,
+                    "crew_answer": None,
+                    "crew_approved": False,
+                    "crew_n_revisions": 0,
+                    "crew_unsupported_claims": None,
+                    "failed": True,
+                    "error": error_str,
+                })
+                break
 
         if checkpoint_path and len(results) % checkpoint_every == 0:
             with open(checkpoint_path, "w") as f:
