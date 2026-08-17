@@ -1,7 +1,8 @@
 """Build the 4-domain corpus from Wikipedia via HuggingFace `datasets`.
 
 Pulls a real dump, filters it down with actual logic (not hand-picked
-pages), and saves one clean parquet per domain to data/processed/<domain>/.
+pages), and saves one clean parquet per domain to
+data/processed/<domain>.parquet.
 
 Uses the community-maintained `wikimedia/wikipedia` dataset (20231101.en
 snapshot) -- properly licensed (CC BY-SA), built for exactly this kind of
@@ -65,7 +66,7 @@ def build_domain_corpus(dataset_split, domain_keywords, target_per_domain, seed=
             break
         if scanned >= max_articles_scanned:
             print(f"Hit max_articles_scanned={max_articles_scanned}, stopping early.")
-            print(f"Bucket sizes so far: {{k: len(v) for k, v in buckets.items()}}")
+            print(f"Bucket sizes so far: {dict((k, len(v)) for k, v in buckets.items())}")
             break
         if scanned % progress_every == 0:
             sizes = {k: len(v) for k, v in buckets.items()}

@@ -3,7 +3,7 @@
 Retry/cost/token-tracking logic lives in shared/llm_client.py -- this file
 only owns the prompt template and response parsing specific to this
 corpus, and tags every row with its source domain so
-notebooks/03_evaluation.ipynb can check the router's pick against ground
+notebooks/04_evaluation.ipynb can check the router's pick against ground
 truth.
 """
 
@@ -43,8 +43,9 @@ Article:
 def generate_questions(model, article_text: str, n_questions: int = 2):
     # get_client() is lazy -- only connects on first real use, not at
     # import time, so importing this module for testing never requires a
-    # live API key (same fix applied to rag_chatbot's qa_generation.py
-    # after the original version crashed on import without one).
+    # live API key (same fix applied to rag-vanilla-vs-langchain's
+    # impl_vanilla/src/qa_generation.py after the original version crashed
+    # on import without one).
     model_name, gen_config = model
     prompt = QA_PROMPT_TEMPLATE.format(n_questions=n_questions, article_text=article_text[:2000])
     response = call_gemini(get_client(), model_name, gen_config, prompt)

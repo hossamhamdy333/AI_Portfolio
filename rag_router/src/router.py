@@ -10,7 +10,7 @@ Two selector options:
     the question's embedding to each domain description's embedding. No LLM
     call for routing at all, so it's faster/cheaper per question.
 
-Both selectors are actually evaluated in notebooks/03_evaluation.ipynb, and
+Both selectors are actually evaluated in notebooks/04_evaluation.ipynb, and
 COMPARISON.md reports both numbers -- an earlier version of this docstring
 claimed a specific routing accuracy for the LLM selector while the eval
 notebook that produced that number had actually called
