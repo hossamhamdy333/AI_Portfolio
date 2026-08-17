@@ -1,0 +1,5 @@
+outs:
+- md5: 42f64e649383dc4645625b7c4841ceb9
+  size: 174
+  hash: md5
+  path: selector_comparison.csv
