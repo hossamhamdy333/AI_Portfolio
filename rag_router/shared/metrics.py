@@ -1,6 +1,6 @@
 """Retrieval scoring for rag_router.
 
-A near-identical module exists at ../rag_chatbot/shared/metrics.py -- not
+A near-identical module exists at ../rag-vanilla-vs-langchain/shared/metrics.py -- not
 imported from here on purpose. rag_router is a standalone project (own
 corpus, own task, own config); reaching across into a sibling project's
 internals for a ~20-line function would be tighter coupling than the

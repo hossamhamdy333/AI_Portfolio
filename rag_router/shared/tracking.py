@@ -1,6 +1,6 @@
 """Hosted MLflow tracking via DagsHub for rag_router.
 
-Same pattern and setup steps as ../rag_chatbot/shared/tracking.py -- see
+Same pattern and setup steps as ../rag-vanilla-vs-langchain/shared/tracking.py -- see
 that file's docstring for the one-time DagsHub setup, not repeated here.
 Not imported from there directly since this is a standalone project; see
 metrics.py's docstring for why.

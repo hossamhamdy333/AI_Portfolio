@@ -1,7 +1,7 @@
 """Gemini call wrapper: retry/backoff + cost/token tracking, for rag_router.
 
 Standalone copy -- see metrics.py's docstring for why this isn't imported
-from ../rag_chatbot/shared/llm_client.py instead. Same lazy-client pattern
+from ../rag-vanilla-vs-langchain/shared/llm_client.py instead. Same lazy-client pattern
 as that file (client is built on first real use, not at import time, so
 importing this module for testing never requires a live API key).
 """
