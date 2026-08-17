@@ -1,8 +1,8 @@
 """
 FastAPI backend for the AI Support Copilot.
 
-NOTE: this is NOT what runs on Hugging Face Spaces -- see gradio_app.py for
-that. This app is for Azure Container Apps (or any CPU-only host).
+This is the app that's actually deployed -- a CPU-only container on Azure
+Container Apps.
 
 Uses llama-cpp-python with a quantized GGUF model instead of raw
 transformers/peft -- this is what actually makes CPU inference fast enough
