@@ -1,126 +1,86 @@
----
-title: AI Support Copilot
-emoji: 🎧
-colorFrom: indigo
-colorTo: blue
-sdk: gradio
-sdk_version: 5.6.0
-app_file: gradio_app.py
-pinned: false
----
-
 # AI Support Copilot
 
-A RAG-grounded customer support chatbot: a QLoRA-fine-tuned Llama-3 (8B)
-model, retrieval over a knowledge base built from the Bitext customer
-support dataset, with an optional Gemini-based faithfulness evaluator.
+A customer support chatbot powered by a QLoRA-fine-tuned Llama-3 (8B) model,
+grounded with RAG retrieval over a knowledge base built from the Bitext
+customer support dataset. Deployed live on Azure Container Apps, running
+entirely on CPU.
 
-> The YAML block above is required by Hugging Face Spaces (it's how HF
-> knows this is a Gradio app and which file to run). It's harmless on
-> GitHub -- it just renders as a small metadata block at the top of the
-> page.
+**Live demo:** https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io
 
-## Two deployment targets, on purpose
-
-This repo supports two different ways to run the model, because they solve
-different problems:
-
-| | `gradio_app.py` | `src/app.py` |
-|---|---|---|
-| SDK / framework | Gradio | FastAPI |
-| Where it runs | **Hugging Face Spaces (free tier)** | Any host with a real, persistent GPU (e.g. an Azure VM/Container App) |
-| GPU | HF **ZeroGPU** -- shared, free, allocated per-request via `@spaces.GPU` | Whatever GPU the host gives you |
-| Frontend | Gradio's built-in chat UI | `frontend/index.html` (plain HTML/JS) |
-| Cost | Free, no card | Depends on the host |
-
-**Important:** ZeroGPU only schedules onto **Gradio SDK** Spaces -- Docker
-and Static Spaces cannot use it. That's why `gradio_app.py`, not
-`src/app.py`, is what you deploy to Hugging Face Spaces. `src/app.py` and
-the `Dockerfile` are there for later, once you have a platform with an
-always-on GPU (e.g. your Azure for Students credits).
-
-## Architecture
+## How it works
 
 ```
-User -> Gradio UI (gradio_app.py) -> KBRetriever (src/retriever.py) -> vector search
-                    |
-                    v
-      Fine-tuned Llama-3 LoRA adapter (from HF Hub, loaded once at startup)
-                    |
-                    v
-      generate() wrapped in @spaces.GPU -- claims a shared GPU slot only
-      for the few seconds each request needs it
+User message
+    │
+    ▼
+FastAPI backend (src/app.py)
+    │
+    ├──► KBRetriever (src/retriever.py)
+    │       embeds the query, finds the closest matching
+    │       support article from the knowledge base
+    │
+    └──► llama.cpp (quantized GGUF model)
+            generates a response grounded in that context
 ```
 
-- **`src/prepare_data.py`** — downloads the Bitext dataset, formats it into
-  `<|system|>/<|user|>/<|assistant|>` training examples, and builds
-  `data/kb_articles.jsonl` (the retrieval knowledge base).
-- **`notebooks/training.ipynb`** — Colab notebook that fine-tunes
-  `unsloth/llama-3-8b-bnb-4bit` with QLoRA, then pushes the adapter to HF Hub.
-- **`src/retriever.py`** — embeds KB articles with `sentence-transformers`
-  and indexes them in an in-memory Chroma collection for similarity search.
-  Runs on CPU either way, so it doesn't touch the GPU budget.
-- **`gradio_app.py`** — the HF Spaces entry point. Loads the model at
-  module scope (the documented ZeroGPU pattern), decorates the generation
-  call with `@spaces.GPU`.
-- **`src/app.py`** + **`Dockerfile`** + **`frontend/index.html`** — a
-  self-contained FastAPI + static-HTML stack for deploying somewhere with
-  a real GPU later.
-- **`src/evaluate.py`** — Gemini-based faithfulness check (is the response
-  actually supported by the retrieved context, or did it hallucinate).
+The model started as a QLoRA fine-tune of Llama-3-8B, trained on Colab and
+pushed to Hugging Face Hub. To make it run fast enough on CPU-only cloud
+hardware (no GPU available on the free Azure for Students tier), it was
+converted to GGUF format and quantized -- that's what takes response times
+from "times out after 4 minutes" down to about 15-20 seconds.
 
-## Local setup
+## Project layout
+
+| File | What it does |
+|---|---|
+| `src/prepare_data.py` | Downloads the Bitext dataset, builds the training set and the knowledge base (`data/kb_articles.jsonl`) |
+| `notebooks/training.ipynb` | Fine-tunes Llama-3-8B with QLoRA on Colab, pushes the adapter to HF Hub |
+| `notebooks/gguf_conversion.ipynb` | Converts the fine-tuned adapter to a quantized GGUF file (the format that runs fast on CPU) |
+| `notebooks/eda.ipynb` | Exploratory analysis of the training dataset |
+| `src/retriever.py` | Embeds and searches the knowledge base with `sentence-transformers` + Chroma |
+| `src/app.py` | The FastAPI backend -- loads the GGUF model with `llama-cpp-python`, retrieves context, generates answers |
+| `frontend/index.html` | The chat UI, served directly by the backend |
+| `src/evaluate.py` | Optional Gemini-based check for whether a response is actually supported by its retrieved context |
+| `Dockerfile` | Builds the deployed image |
+
+## Running it locally
 
 ```bash
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 1. Build training data + KB
+# Build the knowledge base (only needed once)
 python src/prepare_data.py
 
-# 2. Fine-tune on Colab (GPU) -- run notebooks/training.ipynb top to bottom.
-#    The last cell pushes the adapter to Hugging Face Hub.
-
-# 3a. Run the Gradio app locally (same thing that runs on HF Spaces,
-#     minus real ZeroGPU -- needs a local GPU or will error on .to("cuda"))
+# Optional: copy .env.example to .env if you want to override the default
+# model repo or enable the Gemini faithfulness check (ENABLE_EVAL=1)
 cp .env.example .env
-python gradio_app.py
 
-# 3b. OR run the FastAPI + HTML version locally (works on CPU too, just slow)
+# Run the API + chat UI
 uvicorn src.app:app --reload --port 8000
-# open frontend/index.html directly, or serve it separately
+# open http://localhost:8000
 ```
 
-## Deploying to Hugging Face Spaces (free, no card required)
+## Deploying
 
-1. Create a free account at huggingface.co if you don't have one.
-2. Create a new Space: profile icon (top right) → **New Space**.
-   - **SDK: Gradio** (this is the important part — not Docker)
-   - Hardware: default (free CPU basic) is fine to select; ZeroGPU access
-     comes from the `@spaces.GPU` decorator in code, not a hardware tier
-     you pick manually. If your account has ZeroGPU enabled, the Space
-     will request it automatically at call time.
-3. Push this repo's contents to the Space's git remote (Spaces are git
-   repos):
-   ```bash
-   git remote add space https://huggingface.co/spaces/<your-username>/<space-name>
-   git push space main
-   ```
-4. In the Space, go to **Settings → Variables and secrets** and add:
-   - `MODEL_REPO` = `hossamhamdy333/support-copilot-llama3-lora`
-   - `GEMINI_API_KEY` and `ENABLE_EVAL=1` (only if you want the inline faithfulness check active — it costs one extra Gemini call per chat message)
-5. Watch the build logs. First boot is slow (2–5 min, downloading the base
-   model + adapter). Once you see `Model loaded.` and `Retriever ready.`,
-   the Space's public URL is your live demo link for the CV.
+This is deployed as a Docker container on **Azure Container Apps**, built
+and pushed via a GitHub Actions workflow (`.github/workflows/build-push-acr.yml`)
+rather than pushed from a local machine -- this sidesteps large-image upload
+timeouts on a slow home connection.
 
-### Notes / constraints
-- `data/kb_articles.jsonl` must be committed to the repo (run
-  `prepare_data.py` locally first) — the container doesn't regenerate it.
-- Free-tier Spaces have no uptime guarantee and can sleep after inactivity
-  — fine for a portfolio demo, not for 24/7 production.
-- ZeroGPU has a daily quota per account; heavy testing can exhaust it
-  temporarily (requests will queue or fail until it resets).
+Environment variables the container accepts (all optional, defaults shown work out of the box):
 
-## Environment variables
+| Variable | Purpose |
+|---|---|
+| `GGUF_REPO` | Hugging Face repo holding the quantized model (default: `hossam3759180/support-copilot-gguf`) |
+| `GGUF_FILENAME` | File name within that repo (default: `support-copilot-q4.gguf`) |
+| `GEMINI_API_KEY` | Only needed if `ENABLE_EVAL=1` |
+| `ENABLE_EVAL` | Set to `1` to run the faithfulness check on every response (costs one extra Gemini call per message) |
 
-See `.env.example`.
+## Why CPU instead of GPU
+
+Azure for Students doesn't include a GPU workload profile in this account's
+available regions. Rather than block the whole project on that, the model
+was converted from raw `transformers` inference (too slow on CPU -- an 8B
+model in float32 would time out on every request) to a quantized GGUF file
+run through `llama.cpp`, which is specifically built for fast CPU inference.
