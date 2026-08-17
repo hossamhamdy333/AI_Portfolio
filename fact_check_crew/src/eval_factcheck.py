@@ -87,9 +87,20 @@ def run_comparison(llm, search_tool, run_crew_fn, qa_df, max_revisions=1, sleep_
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         with open(checkpoint_path) as f:
-            results = json.load(f)
+            loaded = json.load(f)
+        # Only successes count as "done" -- a row marked failed (e.g. from
+        # hitting the daily quota mid-run, where every remaining question
+        # in that run fails fast one after another) must be retried, not
+        # skipped forever. Keeping it in already_done_questions would
+        # silently cap the eval at whatever succeeded before the failure
+        # streak started, no matter how many times you resume.
+        results = [r for r in loaded if not r.get("failed", False)]
+        n_retrying = len(loaded) - len(results)
         already_done_questions = {r["question"] for r in results}
-        print(f"Resuming: {len(results)}/{len(qa_df)} questions already done")
+        msg = f"Resuming: {len(results)}/{len(qa_df)} questions already done"
+        if n_retrying:
+            msg += f", retrying {n_retrying} previously failed"
+        print(msg)
 
     for _, row in qa_df.iterrows():
         question = row["question"]
@@ -116,7 +127,8 @@ def run_comparison(llm, search_tool, run_crew_fn, qa_df, max_revisions=1, sleep_
                 "failed": False,
             })
         except Exception as e:
-            print(f"  Question failed ({type(e).__name__}: {str(e)[:150]}) -- logged, continuing.")
+            error_str = f"{type(e).__name__}: {str(e)[:200]}"
+            print(f"  Question failed ({error_str}) -- logged, continuing.")
             results.append({
                 "question": question,
                 "baseline_answer": None,
@@ -126,6 +138,7 @@ def run_comparison(llm, search_tool, run_crew_fn, qa_df, max_revisions=1, sleep_
                 "crew_n_revisions": 0,
                 "crew_unsupported_claims": None,
                 "failed": True,
+                "error": error_str,
             })
 
         if checkpoint_path and len(results) % checkpoint_every == 0:
