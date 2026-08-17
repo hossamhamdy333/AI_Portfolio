@@ -1,11 +1,12 @@
 # ============================================================
 # Multi-domain RAG with query routing (LlamaIndex)
 # Standalone project -- deliberately does NOT read
-# ../rag_chatbot/configs/config.yaml. Different corpus (Wikipedia,
-# English, 4 topic domains vs. rag_chatbot's single-domain Arabic news),
-# different task (routing + retrieval, not just retrieval), different
-# eval metric (routing_accuracy has no equivalent in rag_chatbot). Sharing
-# one config across two unrelated projects was more coupling than benefit.
+# ../rag-vanilla-vs-langchain/configs/config.yaml. Different corpus
+# (Wikipedia, English, 4 topic domains vs. rag-vanilla-vs-langchain's
+# single-domain Arabic news), different task (routing + retrieval, not
+# just retrieval), different eval metric (routing_accuracy has no
+# equivalent there). Sharing one config across two unrelated projects was
+# more coupling than benefit.
 # ============================================================
 data:
   source_dataset: "wikimedia/wikipedia"
@@ -26,15 +27,15 @@ synthetic_qa:
   model: "gemini-3.1-flash-lite"
 
 eval:
-  # Evaluate on the full set by default -- unlike rag_chatbot, there's no
-  # separate "vanilla" implementation to keep a matching sample size with,
-  # so there's no reason to sample down from what's available.
+  # Evaluate on the full set by default -- unlike rag-vanilla-vs-langchain,
+  # there's no separate "vanilla" implementation to keep a matching sample
+  # size with, so there's no reason to sample down from what's available.
   n_questions: 400
   # Checkpoints must be unique per run, not shared/reused across separate
   # attempts -- a real bug in the original version had two different Colab
   # sessions resume from the same checkpoint file at different points and
   # silently produce two different "final" scores for what was supposed to
-  # be one run. See notebooks/03_evaluation.ipynb.
+  # be one run. See notebooks/04_evaluation.ipynb.
   sleep_seconds: 12
 
 router:
@@ -42,8 +43,9 @@ router:
 
 embedding:
   model_name: "sentence-transformers/all-MiniLM-L6-v2"
-  # English-only corpus here, unlike rag_chatbot's multilingual-Arabic
-  # model -- these are genuinely different choices, not an inconsistency.
+  # English-only corpus here, unlike rag-vanilla-vs-langchain's
+  # multilingual-Arabic model -- these are genuinely different choices,
+  # not an inconsistency.
 
 llm:
   model: "gemini-3.1-flash-lite"
@@ -58,9 +60,10 @@ cost:
   output_rate_per_million: 1.50
 
 dagshub:
-  # Same free hosted-MLflow pattern as rag_chatbot -- see shared/tracking.py.
-  # Can point at the same AI_Portfolio repo (different experiment name) or
-  # a separate repo if this ends up published standalone.
+  # Same free hosted-MLflow pattern as rag-vanilla-vs-langchain -- see
+  # shared/tracking.py. Can point at the same AI_Portfolio repo (different
+  # experiment name) or a separate repo if this ends up published
+  # standalone.
   repo_owner: "hossam3759180"
   repo_name: "AI_Portfolio"
 
@@ -69,4 +72,4 @@ mlflow:
 
 serving:
   host: "0.0.0.0"
-  port: 7861   # different from rag_chatbot's 7860, in case both run on one HF org
+  port: 7861   # different from rag-vanilla-vs-langchain's 7860, in case both run on one HF org
