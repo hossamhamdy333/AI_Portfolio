@@ -6,23 +6,15 @@ seaborn
 jupyter
 ipykernel
 
-# --- HF Spaces UI (this is what actually gets free ZeroGPU) ---
-gradio
-
-# --- Generic API backend (for a real-GPU deployment target, e.g. Azure) ---
+# --- API / serving ---
 fastapi
 uvicorn[standard]
 pydantic
 requests
 
-# --- Model inference (LoRA adapter loading + generation) ---
-torch
-unsloth
+# --- Model inference (CPU-fast, quantized GGUF) ---
 llama-cpp-python
-transformers
-accelerate
-bitsandbytes
-peft
+huggingface_hub
 
 # --- RAG retrieval ---
 chromadb
@@ -30,9 +22,3 @@ sentence-transformers
 
 # --- Evaluation (Gemini faithfulness check) ---
 google-genai
-
-# --- Hugging Face Spaces ZeroGPU wrapper (Gradio SDK only) ---
-spaces
-
-# --- HF Hub push (used from the training notebook) ---
-huggingface_hub
