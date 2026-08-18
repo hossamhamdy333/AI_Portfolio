@@ -42,7 +42,7 @@ revision:
   max_revisions: 1   # Critic gets to send the draft back once, not indefinitely
 
 eval:
-  n_questions: 100   # free-tier Gemini caps at 15 req/min -- this will take a while and hit rate limits, but eval_factcheck.py now retries with backoff instead of failing
+  n_questions: 50   # free-tier Gemini caps at 15 req/min -- this will take a while and hit rate limits, but eval_factcheck.py now retries with backoff instead of failing
   random_seed: 42
   sleep_seconds: 20   # spacing between question-level stages; the crew's own agent calls within one kickoff aren't spaced by this at all, so this alone isn't a full fix -- see eval_factcheck.py's retry-with-backoff on 429s
 
