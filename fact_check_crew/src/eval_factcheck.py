@@ -94,8 +94,15 @@ def run_comparison(llm, search_tool, run_crew_fn, qa_df, max_revisions=1, sleep_
         # skipped forever. Keeping it in already_done_questions would
         # silently cap the eval at whatever succeeded before the failure
         # streak started, no matter how many times you resume.
-        results = [r for r in loaded if not r.get("failed", False)]
-        n_retrying = len(loaded) - len(results)
+        #
+        # Also drop any row whose question isn't in THIS run's sample --
+        # a checkpoint built with a different n_questions (e.g. an earlier
+        # 50- or 90-question run) would otherwise leak extra rows in,
+        # making the final count something like 57 instead of exactly
+        # matching len(qa_df).
+        qa_questions = set(qa_df["question"])
+        results = [r for r in loaded if not r.get("failed", False) and r["question"] in qa_questions]
+        n_retrying = len({r["question"] for r in loaded if r.get("failed", False) and r["question"] in qa_questions})
         already_done_questions = {r["question"] for r in results}
         msg = f"Resuming: {len(results)}/{len(qa_df)} questions already done"
         if n_retrying:
@@ -131,18 +138,20 @@ def run_comparison(llm, search_tool, run_crew_fn, qa_df, max_revisions=1, sleep_
                 break
             except Exception as e:
                 error_str = f"{type(e).__name__}: {str(e)[:200]}"
-                # 429s (free-tier RPM limit) are transient -- a single
-                # crew run fires several LLM calls in quick succession
-                # with no spacing between them, so this limit gets hit
-                # mid-question, not just between questions. Back off and
-                # retry the SAME question a few times before giving up,
-                # instead of immediately marking it failed and racing
-                # through the rest of the dataset while still rate-limited.
-                is_rate_limit = "429" in error_str or "RESOURCE_EXHAUSTED" in error_str
-                if is_rate_limit and attempt < 3:
+                # 429s (free-tier RPM limit) and 503s (Gemini "high
+                # demand" overload) are both transient server-side
+                # conditions, not bugs in this question -- a single crew
+                # run fires several LLM calls in quick succession with no
+                # spacing between them, so either limit can get hit
+                # mid-question. Back off and retry the SAME question a
+                # few times before giving up, instead of immediately
+                # marking it failed and racing through the rest of the
+                # dataset while still rate-limited/overloaded.
+                is_transient = any(s in error_str for s in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE"))
+                if is_transient and attempt < 3:
                     attempt += 1
                     wait = 60 * attempt
-                    print(f"  Rate limited, waiting {wait}s (retry {attempt}/3)...")
+                    print(f"  Transient error, waiting {wait}s (retry {attempt}/3)...")
                     time.sleep(wait)
                     continue
                 print(f"  Question failed ({error_str}) -- logged, continuing.")
