@@ -36,8 +36,8 @@ backed up by the sources" — so neither side gets an easier check:
 - **Baseline**: one LLM call, straight from the retrieved passages to an answer.
 - **Crew**: Researcher → Writer → Critic, with up to 1 revision.
 
-Real numbers land in [`COMPARISON.md`](./COMPARISON.md) once
-`notebooks/02_evaluation.ipynb` has run — nothing is reported there yet.
+Real numbers are in [`COMPARISON.md`](./COMPARISON.md) — `notebooks/02_evaluation.ipynb`
+has run, 100/100 questions, no failures.
 
 ## Notebooks (run in order, after `rag_router`'s notebooks 01–03 have run)
 
