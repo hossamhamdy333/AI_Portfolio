@@ -1,10 +1,10 @@
 {
-  "n_questions": 57,
-  "n_failed": 4,
-  "baseline_hallucination_rate": 0.1509433962264151,
+  "n_questions": 100,
+  "n_failed": 0,
+  "baseline_hallucination_rate": 0.12,
   "baseline_judge_failures": 0,
-  "crew_hallucination_rate": 0.07547169811320754,
+  "crew_hallucination_rate": 0.08,
   "crew_judge_failures": 0,
-  "crew_avg_revisions": 0.18867924528301888,
-  "crew_approval_rate": 0.9056603773584906
+  "crew_avg_revisions": 0.17,
+  "crew_approval_rate": 0.91
 }
