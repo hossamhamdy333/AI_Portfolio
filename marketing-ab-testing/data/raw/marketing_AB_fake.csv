@@ -1,0 +1,18 @@
+user id,test group,converted,total ads,most ads day,most ads hour
+1000001,ad,True,45,Monday,9
+1000002,ad,True,80,Monday,16
+1000003,ad,False,12,Monday,9
+1000004,ad,False,30,Tuesday,10
+1000005,ad,True,60,Tuesday,16
+1000006,ad,False,5,Wednesday,20
+1000007,ad,False,22,Wednesday,20
+1000008,ad,True,90,Thursday,11
+1000009,ad,False,15,Friday,14
+1000010,ad,False,8,Saturday,21
+1000011,psa,False,3,Monday,9
+1000012,psa,True,50,Monday,16
+1000013,psa,False,10,Tuesday,10
+1000014,psa,False,7,Wednesday,20
+1000015,psa,False,4,Thursday,11
+1000016,psa,True,40,Friday,14
+1000017,psa,False,6,Saturday,21

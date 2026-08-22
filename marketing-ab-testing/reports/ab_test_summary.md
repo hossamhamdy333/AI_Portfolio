@@ -39,7 +39,11 @@ detect it. But the effect size is small: ads move conversion up by about
 
 ## When the lift happens
 
-From `sql/01_campaign_summary.sql`, run against the real data:
+From `sql/01_campaign_summary.sql`, run against the real data. Note: at
+the time of this writeup, `sql/01_campaign_summary.sql` referenced a
+fixture filename that didn't exist yet, so re-run
+`sql/run_summary.py` against the real data to confirm the specific
+numbers below still hold before relying on them:
 
 - By day of week: ad conversion peaks Monday (3.32%) and is lowest Saturday
   (2.13%). Same general pattern holds for psa (highest Monday, lowest

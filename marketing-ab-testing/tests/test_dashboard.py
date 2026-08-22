@@ -1,7 +1,16 @@
 """
 Smoke test for the dashboard using Streamlit's AppTest -- runs the app
 headlessly and checks it doesn't crash, and that the key numbers are present.
+
+Points the dashboard at the small fixture in data/raw/marketing_AB_fake.csv
+(same one sql/01_campaign_summary.sql and test_sql.py use) via an env var,
+instead of requiring the real dataset -- so this actually runs before
+touching real data, matching the rest of the test suite.
 """
+
+import os
+
+os.environ["MARKETING_AB_DATA_PATH"] = "../data/raw/marketing_AB_fake.csv"
 
 from streamlit.testing.v1 import AppTest
 

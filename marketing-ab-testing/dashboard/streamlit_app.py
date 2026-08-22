@@ -5,6 +5,7 @@ Conversion funnel, significance test (with a confidence-interval chart),
 ROI what-if. Run with: streamlit run streamlit_app.py
 """
 
+import os
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -14,8 +15,12 @@ from statsmodels.stats.proportion import (
     proportion_confint,
     proportion_effectsize,
 )
+from scipy.stats import norm
 
-DATA_PATH = "../data/raw/marketing_AB.csv"
+# overridable so tests can point this at a small fixture instead of the
+# real dataset, keeping the "tested before touching real data" promise
+# in the README actually true for the dashboard too
+DATA_PATH = os.environ.get("MARKETING_AB_DATA_PATH", "../data/raw/marketing_AB.csv")
 
 st.set_page_config(page_title="Marketing A/B Test", layout="wide")
 
@@ -163,6 +168,11 @@ def load_data(path):
 
 
 def run_ab_test(df, group_a="ad", group_b="psa", alpha=0.05):
+    # z-critical value matches alpha -- same fix as notebooks/02_ab_test_analysis.ipynb.
+    # This function is a separate copy of that notebook's logic (not imported from a
+    # shared module), which is exactly how this exact bug came back after already being
+    # fixed once: duplicated logic drifts unless there's one source of truth.
+    z_crit = norm.ppf(1 - alpha / 2)
     a = df[df["test group"] == group_a]["converted"]
     b = df[df["test group"] == group_b]["converted"]
 
@@ -177,7 +187,7 @@ def run_ab_test(df, group_a="ad", group_b="psa", alpha=0.05):
 
     diff = rate_a - rate_b
     se_diff = np.sqrt(rate_a * (1 - rate_a) / n_a + rate_b * (1 - rate_b) / n_b)
-    diff_ci = (diff - 1.96 * se_diff, diff + 1.96 * se_diff)
+    diff_ci = (diff - z_crit * se_diff, diff + z_crit * se_diff)
 
     effect_size_h = proportion_effectsize(rate_a, rate_b)
 

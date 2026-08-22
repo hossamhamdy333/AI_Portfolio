@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, "../notebooks")
-import subprocess, shutil
+import subprocess
 import pandas as pd
 
 # import the two functions we're testing straight from the notebook
@@ -28,7 +28,6 @@ def achieved_power(effect_size_h, n_a, n_b, alpha=0.05):
 
 for scenario in ["real_effect", "no_effect", "borderline"]:
     subprocess.run(["python3", "make_fake_data.py", scenario], check=True)
-    shutil.move("../data/raw/marketing_AB_fake.csv", f"../data/raw/marketing_AB_fake_{scenario}.csv")
 
 df_real = pd.read_csv("../data/raw/marketing_AB_fake_real_effect.csv")
 result_real = run_ab_test(df_real)

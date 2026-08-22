@@ -2,6 +2,7 @@
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep
+!data/raw/marketing_AB_fake.csv
 !data/processed/.gitkeep
 
 # python
