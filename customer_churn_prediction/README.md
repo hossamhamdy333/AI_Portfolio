@@ -1,156 +1,168 @@
-# Customer Churn Prediction
+# Customer Churn Prediction — Model, SQL, and Two Dashboards
 
-![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Scikit-learn](https://img.shields.io/badge/Scikit--learn-1.8-orange)
-![XGBoost](https://img.shields.io/badge/XGBoost-3.2-green)
-![MLflow](https://img.shields.io/badge/MLflow-3.10-red)
+Predicting churn for a telecom customer base, then turning that model into
+something an actual retention team could use: a SQL layer that reproduces
+the segmentation independently of Python, a Streamlit app for day-to-day
+use, and a Power BI dashboard for stakeholders who live in Excel and
+Office, not notebooks.
 
-## Overview
-End-to-end machine learning project predicting customer churn for a
-telecom company, using the Telco Customer Churn dataset. Beyond
-picking the best classifier, the project calibrates predicted
-probabilities, explains the model with SHAP, and turns the output
-into a business decision: which customers are worth a retention
-offer, and who to prioritize first.
+The modeling work (EDA, four-model comparison, calibration, SHAP,
+profit-based thresholding) came first and is untouched by everything
+described below. Everything in `sql/`, `dashboard/`, and `reports/` was
+built afterward, on top of the model's real output — not a mockup.
 
-## Results
+## The numbers, up front
 
-| Model | ROC-AUC | AUC-PR | Recall | Precision | F1 | Brier |
-|-------|---------|--------|--------|-----------|-----|-------|
-| Random Forest | 0.8418 | 0.6544 | 0.7834 | 0.5416 | 0.6404 | 0.1587 |
-| Logistic Regression | 0.8387 | 0.6238 | 0.8048 | 0.5050 | 0.6206 | 0.1699 |
-| LightGBM | 0.8333 | 0.6418 | 0.7380 | 0.5359 | 0.6209 | 0.1602 |
-| XGBoost | 0.8310 | 0.6336 | 0.6925 | 0.5243 | 0.5968 | 0.1585 |
+- 7,043 customers, 26.54% churn rate
+- Best model: Random Forest, isotonic-calibrated — ROC-AUC 0.84, recall
+  78%, precision 54%
+- Customers on month-to-month contracts churn at 42.7%, vs. 11.3% on
+  one-year and 2.8% on two-year contracts
+- New customers (0–1 year tenure) churn at 47.4%, dropping to 6.6% by
+  year 5–6
+- 80 customers are High Value and High/Very High predicted risk — the
+  group worth calling this week
+- Average customer lifetime value: $2,279.73. Average monthly charge:
+  $64.76
 
-**Best model: Random Forest - ROC-AUC 0.8418**
+Every number above is pulled from an executed notebook cell or a live
+query, not estimated.
 
-Random Forest is then calibrated with isotonic regression, fit with
-cross validation on the training set only so the test set stays
-untouched for evaluation. Calibration brings the Brier score down
-from 0.1587 to 0.1363, a 14.1% improvement, meaning the predicted
-probabilities can actually be trusted as probabilities, not just
-used to rank customers.
-
-## Project Structure
+## What's in here
 
 ```
-customer_churn_prediction/
-├── notebooks/
-│   ├── EDA_and_Preprocessing.ipynb    # Exploratory analysis, cleaning, feature engineering
-│   ├── Modeling_and_Evaluation.ipynb  # Training, calibration, SHAP, profit-based threshold
-│   └── Customer_Segmentation.ipynb    # Risk and value segmentation, retention priority matrix
-├── results/
-│   ├── churn_by_category.png          # Churn rate by categorical feature
-│   ├── correlation_heatmap.png        # Feature correlations
-│   ├── roc_pr_curves.png              # ROC and precision-recall curves
-│   ├── calibration_curves.png         # Calibration before tuning (all four models)
-│   ├── after_calibration_curve.png    # Calibration after tuning (best model)
-│   ├── threshold_optimization.png     # Profit vs classification threshold
-│   ├── shap_summary.png               # SHAP feature importance
-│   ├── shap_waterfall.png             # SHAP explanation for one customer
-│   ├── priority_matrix.png            # Customer count by value x risk segment
-│   └── numerical_analysis.png         # Numerical feature distributions by churn
-├── data/                              # not tracked, see below
-├── models/                            # not tracked, see below
-├── .gitignore
-├── requirements.txt
-└── README.md
+notebooks/
+  EDA_and_Preprocessing.ipynb       feature engineering, tenure/charge buckets
+  Modeling_and_Evaluation.ipynb     4-model comparison, isotonic calibration,
+                                     profit-based threshold optimization
+  Customer_Segmentation.ipynb       risk/value priority matrix, exports
+                                     scored_test.csv for the layers below
+
+sql/
+  01_create_tables_postgres.sql     staging tables matching the real CSV schema
+  02_segment_queries_postgres.sql   churn-by-contract/tenure with window
+                                     functions, priority matrix rebuilt
+                                     independently of the notebook
+
+dashboard/
+  streamlit_app.py                  4-page app: churn overview, calibration
+                                     curve, priority matrix, profit-threshold
+                                     what-if slider
+  powerbi/
+    churn_dashboard.pbix            2-page Power BI version of the same idea
+    images/                         screenshots, since GitHub can't preview .pbix
+
+reports/
+  segment_summary.md                plain-language "who to call this week"
+
+results/                            static plots from the notebooks
+models/                             calibrated_model.pkl (gitignored — retrain to regenerate)
+data/                               raw + processed data (gitignored — see below)
 ```
 
-## Key Findings
+## Modeling summary
 
-- Overall churn rate is 26.54%
-- Contract type, tenure, and lack of add-on services (online
-  security, tech support) are the strongest churn signals, both by
-  raw correlation in EDA and by SHAP importance on the trained model
-- Customers flagged as high risk (month-to-month contract, above
-  median monthly charges) churn far more than everyone else, and
-  `high_risk` shows up as the 4th most important SHAP feature
-- Random Forest has the best ROC-AUC, but Logistic Regression has
-  meaningfully higher recall (0.8048 vs 0.7834), which matters if
-  the business would rather over-flag than miss a churner
-- Raw model probabilities are not well calibrated out of the box,
-  isotonic calibration is needed before probabilities can be used
-  in a profit calculation. After calibration, predicted probability
-  tracks actual churn rate closely across every risk band (see
-  segmentation results below)
-- The profit-optimal threshold is 0.01, far below the default 0.5.
-  This comes from a cost structure where a retained customer is
-  worth about 40x more than a wasted retention offer costs, and a
-  missed churner costs their entire estimated lifetime value. The
-  formula assumes every retention offer succeeds, which pushes the
-  threshold aggressively low, so 0.01 is closer to "who to rank
-  first" than a literal cutoff to act on for everyone
-- Segmenting the test set by risk band shows the calibration holds
-  up well: predicted probability tracks actual churn rate closely
-  in every band (Very Low: 6.9% predicted vs 7.7% actual, up to
-  Very High: 89.0% predicted vs 80.0% actual on a small sample of
-  45 customers)
-- Crossing risk with customer value narrows the list fast: of 1,409
-  test customers, only 80 are both high value and high or very
-  high risk, that's the group worth the most immediate, highest
-  touch retention effort
+Four models compared on the same train/test split (80/20, stratified,
+`random_state=42`): Logistic Regression, Random Forest, XGBoost, LightGBM.
+Random Forest won on ROC-AUC and got carried forward, then calibrated with
+isotonic regression (`CalibratedClassifierCV`, 5-fold) so its predicted
+probabilities are actually trustworthy, not just good for ranking.
+SHAP explains what's driving individual predictions. The threshold used
+for classification isn't the default 0.5 — it's chosen by maximizing
+expected profit given the cost of a retention offer against the value of
+a saved customer, which is a more honest way to pick a threshold than
+guessing.
 
-## Tech Stack
-- **Data:** Pandas, NumPy, SciPy
-- **Visualization:** Matplotlib, Seaborn
-- **ML:** Scikit-learn, XGBoost, LightGBM
-- **Explainability:** SHAP
-- **Tracking:** MLflow
-- **Model persistence:** joblib
+One finding worth calling out rather than hiding: at the cost assumptions
+used in the notebook ($50 retention offer, $5 outreach cost, ~$2,280
+average customer value), the profit-optimal threshold comes out at 0.01 —
+essentially "flag almost everyone." That's not a bug, it's what the math
+says when a missed churner costs far more than a wasted outreach attempt.
+Whether that's the right call in practice depends on assumptions the
+notebook doesn't have — real campaign capacity, actual offer acceptance
+rates — which is exactly why the dashboards below expose those knobs
+instead of hardcoding the notebook's answer.
 
-## How to Run
+## SQL layer
+
+Two things live here: rule-based churn analysis, and an independent
+rebuild of the priority matrix.
+
+The rule-based part — churn rate by contract type, by tenure band with a
+window function comparing each band to the overall average, and the
+`high_risk`/`high_value` flags — is fully reproducible in SQL from the raw
+CSV alone, no model needed.
+
+The priority matrix is different: its risk bands come from the calibrated
+model's predicted probabilities, which SQL can't generate. So the SQL
+takes the model's exported scores as input and does the bucketing math
+itself — the same `pd.cut` bin edges, the same value tertiles — as a
+genuine cross-check against the notebook's own pandas groupby, not just a
+restatement of it. That cross-check caught a real discrepancy during
+development: pandas' `pd.cut()` silently drops rows where the predicted
+probability is exactly 0.0 (left-exclusive bin by default), so the SQL
+version — written with `<=` throughout — keeps a small number of
+customers the notebook's own plot quietly excludes. Documented in the SQL
+file itself, not swept under the rug.
+
+Written for PostgreSQL/pgAdmin. Load the raw CSV into `customers_raw` and
+the notebook's exported `scored_test.csv` into `scored_customers`, then
+run the two SQL files in order.
+
+## Streamlit dashboard
 
 ```bash
-# Clone the repo
-git clone https://github.com/hossamhamdy333/AI_Portfolio
-
-# Navigate to project
-cd AI_Portfolio/customer_churn_prediction
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Download the data from Kaggle
-# https://www.kaggle.com/datasets/blastchar/telco-customer-churn
-# place WA_Fn-UseC_-Telco-Customer-Churn.csv in a data/ folder in this project
-
-# Run notebooks in order
-# 1. EDA_and_Preprocessing.ipynb
-# 2. Modeling_and_Evaluation.ipynb
-# 3. Customer_Segmentation.ipynb
+cd dashboard
+pip install streamlit
+streamlit run streamlit_app.py
 ```
 
-`data/` and `models/` are not tracked in git, they're created and
-filled in by running the notebooks above.
+Four pages: churn overview, the model's calibration curve, the priority
+matrix as a sortable/filterable table with a live "call list" view, and a
+what-if page where retention offer cost, outreach cost, and customer value
+are sliders instead of fixed numbers — so the threshold decision isn't
+locked to one notebook's assumptions.
 
-## Key Visualizations
+## Power BI dashboard
 
-### SHAP Feature Importance
-![SHAP Summary](results/shap_summary.png)
+Two pages, built on the same two CSVs the SQL layer uses.
 
-### ROC and Precision-Recall Curves
-![ROC and PR Curves](results/roc_pr_curves.png)
+**Executive Overview** — KPI cards, churn by contract type, churn by
+tenure band, model performance callout.
 
-### Retention Priority Matrix
-![Priority Matrix](results/priority_matrix.png)
+![Executive Overview](dashboard/powerbi/images/powerbi_executive_overview.png)
 
-## What I Learned
-- A model with the best ROC-AUC is not automatically the best
-  choice, recall, precision, and calibration all matter depending
-  on what the predictions are used for
-- Calibration has to be fit on data the model has not already been
-  evaluated against, doing this wrong is an easy mistake and it
-  quietly inflates how good the calibration looks. It's worth
-  checking calibration by segment after the fact, not just trusting
-  the Brier score on its own
-- Turning a classifier into a business decision means translating
-  probabilities into an expected profit, and the threshold that
-  maximizes profit depends entirely on the cost assumptions behind
-  it, an unrealistic assumption (like a guaranteed retention
-  success rate) can push the "optimal" threshold to an extreme that
-  isn't actually meant to be used at face value
-- SHAP is a useful sanity check that a model learned real signal,
-  the features it ranks highest here (contract type, tenure, lack
-  of support services) match domain intuition about churn, and
-  mostly line up with what stood out in EDA
+**Retention Priority** — the priority matrix, the filtered call list, and
+the same three what-if sliders as the Streamlit app (threshold, offer
+cost, outreach cost), feeding a live Expected Profit measure written in
+DAX.
+
+![Retention Priority](dashboard/powerbi/images/powerbi_retention_priority.png)
+
+Open `dashboard/powerbi/churn_dashboard.pbix` in Power BI Desktop to
+explore it interactively — moving the sliders recalculates Expected
+Profit in real time, same mechanism as the Streamlit version, different
+tool for a different audience.
+
+## Running the whole thing from scratch
+
+1. Get `WA_Fn-UseC_-Telco-Customer-Churn.csv` (Kaggle, Telco Customer
+   Churn) into `data/`.
+2. Run the three notebooks in order — EDA, Modeling, Segmentation. The
+   last one exports `data/scored_test.csv`.
+3. Load both CSVs into Postgres and run the two SQL files (see `sql/` for
+   details).
+4. Run the Streamlit app, or open the `.pbix` in Power BI Desktop.
+
+## Stack
+
+pandas, scikit-learn, XGBoost, LightGBM, SHAP, MLflow · PostgreSQL ·
+Streamlit · Power BI
+
+## A note on the data
+
+The raw dataset and trained model aren't committed (see `.gitignore`) —
+the Kaggle CSV isn't mine to redistribute, and a retrained
+`calibrated_model.pkl` is a couple of notebook cells away, not something
+that belongs in git. Everything needed to regenerate both is in
+`notebooks/`.
