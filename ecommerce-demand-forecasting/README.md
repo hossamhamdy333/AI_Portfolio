@@ -26,15 +26,11 @@ notebooks/
   04_inventory_risk.ipynb       safety stock + reorder point from model residuals
 
 src/
-  features.py                   shared feature logic (notebooks + API both import this)
-
-api/
-  serve_api.py                  FastAPI serving layer (see Known limitations - currently
-                                 broken against the final trained model, needs a fix)
+  features.py                   shared feature logic
 
 dashboard/
-  dashboard.pbix                built Power BI file
-  dashboard.pdf                 exported PDF snapshot of all 4 pages
+  ecommerce_dashboard.pbix      built Power BI file
+  ecommerce_dashboard.pdf       exported PDF snapshot of all 4 pages
 
 reports/
   PROJECT_REPORT.md             full project narrative and debugging journey
@@ -70,10 +66,8 @@ The hurdle model uses a hard threshold gate rather than a continuous probability
 
 ## Dashboard
 
-`dashboard/dashboard.pbix` is the built Power BI report, four pages — Executive Overview, Forecast Accuracy, Inventory Risk, and a SKU drill-down. Open it directly in Power BI Desktop. `dashboard/dashboard.pdf` is a static snapshot if you just want to look without installing anything. It reads from the flat exports produced by `sql/09_bi_exports.sql`, plus a small BI-specific export added at the end of `notebooks/03_forecasting_models.ipynb`.
+`dashboard/ecommerce_dashboard.pbix` is the built Power BI report, four pages — Executive Overview, Forecast Accuracy, Inventory Risk, and a SKU drill-down. Open it directly in Power BI Desktop. `dashboard/ecommerce_dashboard.pdf` is a static snapshot if you just want to look without installing anything. It reads from the flat exports produced by `sql/09_bi_exports.sql`, plus a small BI-specific export added at the end of `notebooks/03_forecasting_models.ipynb`.
 
 ## Known limitations
 
 The full list is in `reports/PROJECT_REPORT.md` — category assignment is a heuristic rather than a real taxonomy, cancellation netting only catches same-day cancellations, and there's a genuine ceiling on predicting demand spikes that show up with no lead-in signal in a SKU's own history. Closing that last one would take external data this project doesn't have, like a promotions calendar.
-
-`api/serve_api.py` doesn't work right now and needs a fix before it's used for anything. It predates the gated hurdle model and was never updated to match: it calls `model.predict(feats)`, but the saved model is a `{'clf', 'reg', 'threshold'}` dict rather than a single estimator, so that call fails immediately. It also never calls `add_market_trend_features`, so the feature row it builds is missing three columns `FEATURE_COLUMNS` now expects. The first problem is a quick fix. The second one needs an actual decision, since the category-trend feature depends on a category-wide daily aggregate that a single SKU's request-time history can't produce on its own — most likely fix is a small precomputed lookup table for category trends, refreshed the same way `sku_lookup.csv` already is for SKU-level stats.

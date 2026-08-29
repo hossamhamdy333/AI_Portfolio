@@ -13,12 +13,7 @@ xgboost
 shap
 holidays
 scipy
-
-# API
-fastapi
-uvicorn
 joblib
-pydantic
 
 # DB
 psycopg2-binary

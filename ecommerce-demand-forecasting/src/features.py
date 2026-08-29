@@ -2,10 +2,9 @@
 src/features.py
 
 Shared feature-engineering logic for the demand forecasting project.
-Both notebooks/02_feature_engineering.ipynb (batch, historical data) and
-api/serve_api.py (single-SKU, at request time) import from here — feature
-logic exists in exactly one place, so there is no risk of the API silently
-drifting from what the model was actually trained on.
+Used by notebooks/02_feature_engineering.ipynb to build the training set -
+kept as one module rather than duplicated logic so there's a single
+definition of each feature.
 
 Design rule for every feature below: at row (stock_code, date=t), a feature
 may only use information available up to and including t-1 (or t for
