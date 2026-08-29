@@ -28,8 +28,16 @@ def add_calendar_features(df: pd.DataFrame, date_col: str = "sale_date") -> pd.D
     df["month"] = df[date_col].dt.month
     df["week_of_year"] = df[date_col].dt.isocalendar().week.astype(int)
     df["is_uk_holiday"] = df[date_col].dt.date.isin(uk_holidays).astype(int)
+    # min() against both this year's and last year's Dec 25 -- without the
+    # wraparound, early-January dates measure distance to the UPCOMING
+    # Christmas (11+ months away, clipped to 60) instead of the one that
+    # just happened a few days ago, silently erasing the post-holiday
+    # signal for roughly the first two months of every year
     df["days_to_christmas"] = df[date_col].apply(
-        lambda d: abs((pd.Timestamp(year=d.year, month=12, day=25) - d).days)
+        lambda d: min(
+            abs((pd.Timestamp(year=d.year, month=12, day=25) - d).days),
+            abs((pd.Timestamp(year=d.year - 1, month=12, day=25) - d).days),
+        )
     ).clip(upper=60)
     return df
 
@@ -88,10 +96,10 @@ def add_days_since_last_sale(df: pd.DataFrame, target_col: str = "units_sold",
     different even when their rolling averages happen to match.
 
     Implemented without groupby().apply() — that approach behaves
-    inconsistently when the input has only one group (e.g. building
-    features for a single SKU at API-request time vs. the full historical
-    dataset in the training notebook), a real pandas quirk that broke this
-    exact function when it was written with apply().
+    inconsistently when the input has only one group (a pandas quirk that
+    broke this exact function when it was first written with apply(), and
+    matters here since a single-SKU slice can trigger the same edge case
+    as the full historical dataset does in aggregate).
     """
     df = df.copy()
     had_sale = df.groupby(group_col)[target_col].shift(1).fillna(0) > 0
