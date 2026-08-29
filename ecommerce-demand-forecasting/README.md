@@ -1,8 +1,28 @@
+<div align="center">
+
 # E-Commerce Demand Forecasting
 
 Daily, SKU-level demand forecasting on the Online Retail II dataset (a real UK online retailer, 2009–2011). Covers the full path from raw transaction data through cleaning, feature engineering, and model training, down to inventory reorder recommendations.
 
-The final model comes in at 86.8% WAPE, ahead of both a trivial always-predict-zero baseline (100%) and a seasonal-naive baseline (126.8%). Those numbers are pulled straight from [`reports/model_results_summary.json`](reports/model_results_summary.json), which gets rewritten by `03_forecasting_models.ipynb` on every run — treat that file as the source of truth if it ever disagrees with anything written here. The longer version of how the model got to that number, including two earlier attempts that scored worse than just predicting zero, is in [`reports/PROJECT_REPORT.md`](reports/PROJECT_REPORT.md).
+`Python` `SQL (PostgreSQL)` `scikit-learn` `LightGBM` `XGBoost` `SHAP` `Power BI`
+
+</div>
+
+---
+
+### Contents
+
+- [Results](#results)
+- [Structure](#structure)
+- [Setup](#setup)
+- [Running the pipeline](#running-the-pipeline)
+- [Key design decisions](#key-design-decisions)
+- [Dashboard](#dashboard)
+- [Known limitations](#known-limitations)
+
+## Results
+
+The final model comes in at **86.8% WAPE**, ahead of both a trivial always-predict-zero baseline (100%) and a seasonal-naive baseline (126.8%). Those numbers are pulled straight from [`reports/model_results_summary.json`](reports/model_results_summary.json), which gets rewritten by `03_forecasting_models.ipynb` on every run — treat that file as the source of truth if it ever disagrees with anything written here. The longer version of how the model got to that number, including two earlier attempts that scored worse than just predicting zero, is in [`reports/PROJECT_REPORT.md`](reports/PROJECT_REPORT.md).
 
 ## Structure
 
@@ -40,7 +60,7 @@ reports/
 
 ## Setup
 
-```
+```bash
 python -m venv venv
 source venv/bin/activate        # venv\Scripts\activate on Windows
 pip install -r requirements.txt

@@ -1,6 +1,28 @@
+<div align="center">
+
 # Sentiment Forge
 
 A 5-class sentiment classifier for movie reviews (SST-5), built three separate ways: classical ML, a BiLSTM, and a fine-tuned BERT, benchmarked head-to-head on the exact same test set. The goal was to go beyond just training a model and build the versioning, tracking, and testing around it that you'd actually want in a real setting, ending with a model that's publicly hosted and ready to use.
+
+`Python` `scikit-learn` `PyTorch` `Transformers` `ONNX` `DVC` `MLflow` `GitHub Actions`
+
+</div>
+
+---
+
+### Contents
+
+- [Pipeline](#pipeline)
+- [Why three models instead of one](#why-three-models-instead-of-one)
+- [The dataset](#the-dataset)
+- [The three models](#the-three-models)
+- [Results](#results)
+- [What's in the repo](#whats-in-the-repo)
+- [Try it](#try-it)
+- [The MLOps pieces](#the-mlops-pieces-not-just-the-models)
+- [What I'd improve with more time](#a-few-things-id-improve-with-more-time)
+
+## Pipeline
 
 ```
 Raw SST-5 (HuggingFace)
@@ -16,7 +38,7 @@ Raw SST-5 (HuggingFace)
 
 ## Why three models instead of one
 
-"Which model should I use" is a real engineering question, not just an academic one. It trades off accuracy against latency and deployment size. Rather than picking one architecture and calling it done, I trained all three on identical data splits and evaluated them the same way, so the comparison numbers below are apples-to-apples and not pulled from different papers or setups.
+"Which model should I use" is a real engineering question, not just an academic one. It trades off accuracy against latency and deployment size. Rather than picking one architecture and calling it done, all three were trained on identical data splits and evaluated the same way, so the comparison numbers below are apples-to-apples and not pulled from different papers or setups.
 
 ## The dataset
 
@@ -65,8 +87,8 @@ Per-class, "very positive" is the strongest category for every model (F1 in the 
 |---|---|---|---|
 | "a baffling misfire...the weakest movie woody allen has made" | very negative | negative | very negative |
 | "the editing is chaotic, the photography grainy and badly focused" | very negative | very negative | very negative |
-| "my oh my, is this an invigorating, electric movie" | very negative ❌ | very positive | very positive |
-| "eight crazy nights is a showcase for sandler's many talents" | very negative ❌ | neutral | positive |
+| "my oh my, is this an invigorating, electric movie" | very negative (wrong) | very positive | very positive |
+| "eight crazy nights is a showcase for sandler's many talents" | very negative (wrong) | neutral | positive |
 | "the movie is a blast of educational energy" | very positive | very positive | very positive |
 
 The clearest failure mode shows up on sentences 3 and 4. TF-IDF has no way to know "invigorating, electric" is positive unless those exact words were strongly weighted toward positive during training, and it misses sarcasm-adjacent or backhanded phrasing entirely ("a showcase for [X]'s many talents" reads negative to a bag-of-words model because it can't use word order). BERT and the BiLSTM both do better here since they can use context and word order instead of treating the sentence as an unordered bag of features.

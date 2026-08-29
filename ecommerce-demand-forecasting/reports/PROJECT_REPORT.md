@@ -1,4 +1,20 @@
+<div align="center">
+
 # E-Commerce Demand Forecasting — Project Report
+
+</div>
+
+---
+
+### Contents
+
+- [Overview](#overview)
+- [Data and pipeline](#data-and-pipeline)
+- [Why the first two versions were worse than doing nothing](#why-the-first-two-versions-were-worse-than-doing-nothing)
+- [A dead end worth keeping](#a-dead-end-worth-keeping)
+- [Results](#results)
+- [What this doesn't do](#what-this-doesnt-do)
+- [If this continued](#if-this-continued)
 
 ## Overview
 

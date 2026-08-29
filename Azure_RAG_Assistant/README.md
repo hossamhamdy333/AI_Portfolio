@@ -1,10 +1,26 @@
+<div align="center">
+
 # Azure RAG Assistant
 
-A Retrieval-Augmented Generation chatbot. Upload documents, ask questions
-about them in plain language, and get answers grounded in the actual
-content — built with Gemini, Qdrant, and deployed on Azure.
+A Retrieval-Augmented Generation chatbot. Upload documents, ask questions about them in plain language, and get answers grounded in the actual content — built with Gemini, Qdrant, and deployed on Azure.
 
-**Live demo:** https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net
+**Live demo:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
+
+`Python` `FastAPI` `LangChain` `Gemini API` `Qdrant` `Azure Blob Storage` `Docker` `GitHub Actions`
+
+</div>
+
+---
+
+### Contents
+
+- [Features](#features)
+- [Stack](#stack)
+- [Project structure](#project-structure)
+- [Running locally](#running-locally)
+- [Tests](#tests)
+- [Deployment](#deployment)
+- [Notes](#notes)
 
 ## Features
 
@@ -16,16 +32,17 @@ content — built with Gemini, Qdrant, and deployed on Azure.
 
 ## Stack
 
-- **Backend:** FastAPI (Python)
-- **LLM:** Google Gemini (`gemini-3.1-flash-lite`) via LangChain
-- **Vector search:** Qdrant
-- **Embeddings:** Hugging Face (`all-MiniLM-L6-v2`)
-- **Storage:** Azure Blob Storage
-- **Hosting:** Azure App Service, deployed as a Docker container
-- **CI/CD:** GitHub Actions → Docker Hub → Azure
+| Layer | Tools |
+|---|---|
+| Backend | FastAPI (Python) |
+| LLM | Google Gemini (`gemini-3.1-flash-lite`) via LangChain |
+| Vector search | Qdrant |
+| Embeddings | Hugging Face (`all-MiniLM-L6-v2`) |
+| Storage | Azure Blob Storage |
+| Hosting | Azure App Service, deployed as a Docker container |
+| CI/CD | GitHub Actions → Docker Hub → Azure |
 
-The frontend is a single HTML/JS page served directly by the backend —
-no separate frontend service.
+The frontend is a single HTML/JS page served directly by the backend — no separate frontend service.
 
 ## Project structure
 
@@ -52,8 +69,7 @@ cp .env.example .env   # add your Gemini, Hugging Face, and Qdrant keys
 docker-compose up --build
 ```
 
-Open http://localhost:8000. Local storage uses Azurite as a stand-in for
-Azure Blob Storage.
+Open http://localhost:8000. Local storage uses Azurite as a stand-in for Azure Blob Storage.
 
 ## Tests
 
@@ -65,8 +81,7 @@ pytest -v
 
 ## Deployment
 
-Deploys automatically to Azure App Service on every push to `main` via
-GitHub Actions. Environment variables required in the App Service:
+Deploys automatically to Azure App Service on every push to `main` via GitHub Actions. Environment variables required in the App Service:
 
 ```
 GEMINI_API_KEY
@@ -92,5 +107,4 @@ AZURE_WEBAPP_PUBLISH_PROFILE
 
 - The calculator uses a restricted AST-based evaluator instead of `eval()`.
 - API routes are protected by a shared-secret header (`APP_API_KEY`).
-- If blob storage is unavailable, uploads still succeed and remain
-  searchable — only the raw file backup is skipped.
+- If blob storage is unavailable, uploads still succeed and remain searchable — only the raw file backup is skipped.

@@ -1,15 +1,26 @@
+<div align="center">
+
 # impl_vanilla vs. impl_langchain
+
+</div>
+
+---
+
+### Contents
+
+- [Setup](#setup)
+- [Results](#results)
+- [Metric definitions](#metric-definitions)
+- [Findings](#findings)
+- [Chunking strategy (impl_vanilla)](#chunking-strategy-impl_vanilla)
+- [Not yet measured](#not-yet-measured)
 
 ## Setup
 
-Both implementations use the same corpus (XLSum Arabic), the same 100-question
-eval sample, the same embedding model, the same cross-encoder reranker, and
-the same LLM for generation. The variable under test is retrieval
-architecture:
+Both implementations use the same corpus (XLSum Arabic), the same 100-question eval sample, the same embedding model, the same cross-encoder reranker, and the same LLM for generation. The variable under test is retrieval architecture:
 
 - **impl_vanilla**: flat chunking (fixed-size), direct vector search.
-- **impl_langchain**: `ParentDocumentRetriever`. Small chunks are embedded
-  and searched, but the larger parent chunk is passed to the LLM.
+- **impl_langchain**: `ParentDocumentRetriever`. Small chunks are embedded and searched, but the larger parent chunk is passed to the LLM.
 
 ## Results
 
@@ -35,28 +46,14 @@ architecture:
 
 ## Findings
 
-`impl_langchain` outperforms `impl_vanilla` on retrieval quality (MRR,
-NDCG@10) and answer relevancy. `impl_vanilla` outperforms on citation
-accuracy, faithfulness, and context recall. Neither implementation
-dominates across all metrics.
+`impl_langchain` outperforms `impl_vanilla` on retrieval quality (MRR, NDCG@10) and answer relevancy. `impl_vanilla` outperforms on citation accuracy, faithfulness, and context recall. Neither implementation dominates across all metrics.
 
-`ParentDocumentRetriever`'s higher MRR/NDCG indicates that indexing on
-small chunks while passing larger parent chunks to the LLM improves what
-gets retrieved. Its lower citation accuracy and faithfulness indicate that
-the larger context passed to the LLM does not translate into more
-consistently correct citations or fully grounded answers.
+`ParentDocumentRetriever`'s higher MRR/NDCG indicates that indexing on small chunks while passing larger parent chunks to the LLM improves what gets retrieved. Its lower citation accuracy and faithfulness indicate that the larger context passed to the LLM does not translate into more consistently correct citations or fully grounded answers.
 
 ## Chunking strategy (impl_vanilla)
 
-`fixed` and `sentence` chunking are statistically tied on retrieval
-quality (MRR 0.789 both; NDCG@10 0.822 vs. 0.819). `semantic` chunking
-underperforms both (MRR 0.768, NDCG@10 0.809). `impl_vanilla` uses `fixed`
-chunking, per `configs/config.yaml`.
+`fixed` and `sentence` chunking are statistically tied on retrieval quality (MRR 0.789 both; NDCG@10 0.822 vs. 0.819). `semantic` chunking underperforms both (MRR 0.768, NDCG@10 0.809). `impl_vanilla` uses `fixed` chunking, per `configs/config.yaml`.
 
 ## Not yet measured
 
-Cost and latency per query. Both implementations log per-query cost
-(`impl_vanilla` via `shared/llm_client.py`, `impl_langchain` via
-LangSmith). `ParentDocumentRetriever`'s larger context windows are
-expected to increase input tokens per generation call relative to
-`impl_vanilla`'s flat chunks; not yet quantified.
+Cost and latency per query. Both implementations log per-query cost (`impl_vanilla` via `shared/llm_client.py`, `impl_langchain` via LangSmith). `ParentDocumentRetriever`'s larger context windows are expected to increase input tokens per generation call relative to `impl_vanilla`'s flat chunks; not yet quantified.

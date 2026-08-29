@@ -1,6 +1,17 @@
+<div align="center">
+
 # Model Results Summary
 
+</div>
+
 The numbers below are a human-readable copy of `model_results_summary.json`, which is written automatically by `notebooks/03_forecasting_models.ipynb` every time it runs. This file is not regenerated automatically — if you re-run the notebook and the json changes, update the numbers here to match by hand. If the two ever disagree, trust the json.
+
+---
+
+### Contents
+
+- [Result](#result)
+- [Background, briefly](#background-briefly)
 
 ## Result
 

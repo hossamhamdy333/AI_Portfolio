@@ -1,12 +1,26 @@
+<div align="center">
+
 # Marketing Campaign & A/B Test Analytics
 
 **Does showing ads actually change conversion rate — and does the campaign pay for itself?**
 
 An end-to-end analysis of the Kaggle "Marketing A/B Testing" dataset (588,101 users), comparing an `ad` group (shown the campaign) against a `psa` control group (shown a public service announcement instead).
 
-**Stack:** Python · pandas · statsmodels · DuckDB · Streamlit
+`Python` `pandas` `statsmodels` `DuckDB` `Streamlit`
+
+</div>
 
 ---
+
+### Contents
+
+- [Summary](#summary)
+- [Project layout](#project-layout)
+- [Results at a glance](#results-at-a-glance)
+- [Method](#method)
+- [Tested before trusting it on real data](#tested-before-trusting-it-on-real-data)
+- [Running it](#running-it)
+- [Key findings](#key-findings)
 
 ## Summary
 
@@ -21,19 +35,6 @@ The ads work, but they don't pay for themselves.
 
 Full writeup with all caveats: [`reports/ab_test_summary.md`](reports/ab_test_summary.md)
 
----
-
-## Table of Contents
-
-- [Project layout](#project-layout)
-- [Results at a glance](#results-at-a-glance)
-- [Method](#method)
-- [Tested before trusting it on real data](#tested-before-trusting-it-on-real-data)
-- [Running it](#running-it)
-- [Key findings](#key-findings)
-
----
-
 ## Project layout
 
 | Path | What it does |
@@ -46,8 +47,6 @@ Full writeup with all caveats: [`reports/ab_test_summary.md`](reports/ab_test_su
 | `dashboard/streamlit_app.py` | Interactive version: funnel, significance test, ROI sliders |
 | `reports/ab_test_summary.md` | The final writeup, with real numbers |
 | `tests/` | Checks the stats logic against synthetic data before trusting it on the real dataset |
-
----
 
 ## Results at a glance
 
@@ -86,8 +85,6 @@ Full writeup with all caveats: [`reports/ab_test_summary.md`](reports/ab_test_su
 </tr>
 </table>
 
----
-
 ## Method
 
 Conversion is binary and compared between two independent groups — that calls for a two-proportion z-test, not a t-test (t-tests compare means of continuous data, not proportions). The notebook reports:
@@ -101,8 +98,6 @@ The power analysis matters because at this sample size, even a small, practicall
 
 **Group imbalance:** the split is 96% ad / 4% psa, flagged directly in the EDA notebook. It doesn't invalidate the test, but it does make the smaller group's conversion-rate estimate noisier — visible in the dashboard's confidence-interval chart, where the psa interval is noticeably wider than the ad interval.
 
----
-
 ## Tested before trusting it on real data
 
 A project like this can look right and still hide a subtle bug — a one-tailed test mislabeled as two-tailed, a t-test used on binary data, an underpowered sample mistaken for "no effect." So the core stats logic is validated against three synthetic scenarios before it ever touches the real dataset:
@@ -114,8 +109,6 @@ A project like this can look right and still hide a subtle bug — a one-tailed 
 | `borderline` | Tiny true gap | Could go either way — this is where power matters: a "not significant" result here should come with a low power reading, not get misread as "no effect exists" |
 
 The dashboard is checked with Streamlit's `AppTest`, and the SQL runs against a fixture through DuckDB before ever touching the real CSV.
-
----
 
 ## Running it
 
@@ -160,8 +153,6 @@ cd tests
 python test_ab_analysis.py
 python test_dashboard.py
 ```
-
----
 
 ## Key findings
 

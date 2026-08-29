@@ -1,10 +1,25 @@
+<div align="center">
+
 # DocuMind — RAG Q&A over your own documents
 
 Upload a PDF, TXT, or MD file, ask questions about it, and get answers pulled straight from the text, with the source shown so you can check it's not making things up.
 
-**Live demo:** https://documents-mind.streamlit.app/
+**Live demo:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
 
-Built with FastAPI, ChromaDB, local sentence-transformer embeddings, and Gemini for generating the actual answers.
+`Python` `FastAPI` `ChromaDB` `Sentence-Transformers` `Gemini API` `Streamlit` `Docker`
+
+</div>
+
+---
+
+### Contents
+
+- [How it works](#how-it-works)
+- [Project layout](#project-layout)
+- [Running it](#running-it)
+- [Trying it without the UI](#trying-it-without-the-ui)
+- [Known limitations](#known-limitations)
+- [Things worth adding if I take this further](#things-worth-adding-if-i-take-this-further)
 
 ## How it works
 
@@ -29,7 +44,7 @@ Built with FastAPI, ChromaDB, local sentence-transformer embeddings, and Gemini 
 
 A few things worth knowing about the implementation:
 
-**PDF text extraction is trickier than it sounds.** Some PDFs (LaTeX-generated ones especially) extract with no spaces between words. I handle this with layout-mode extraction plus a dictionary-based fallback (`wordninja`) that fixes any words still stuck together.
+**PDF text extraction is trickier than it sounds.** Some PDFs (LaTeX-generated ones especially) extract with no spaces between words. This is handled with layout-mode extraction plus a dictionary-based fallback (`wordninja`) that fixes any words still stuck together.
 
 **Each visitor gets their own private document set.** On the live demo, everyone who uploads a file gets an isolated Chroma collection, keyed to a random session ID. Nobody sees anyone else's uploads.
 
@@ -151,4 +166,4 @@ Add an `X-Session-Id: your-id` header to any of these to scope them to a private
 - Streaming the answer back token-by-token instead of waiting for the whole thing.
 - Real per-user accounts if uploads should survive across visits, not just within one session.
 - Support for other LLM providers, not just Gemini. `app/llm.py` would need an `LLM_PROVIDER` setting to switch between Gemini/OpenAI/Anthropic without touching `rag.py`.
-- Swapping ChromaDB for something like Pinecone or pgvector, mostly to show I understand the tradeoffs.
+- Swapping ChromaDB for something like Pinecone or pgvector, mostly to show an understanding of the tradeoffs.

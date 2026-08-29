@@ -1,8 +1,32 @@
+<div align="center">
+
 # Semantic Search Engine over ArXiv ML Papers
 
-**Live demo: [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)**
+A search engine over ~50K arXiv machine learning papers, built up in stages — keyword search, then dense embeddings, then a proper vector database, then a cross-encoder reranker on top — with each stage benchmarked on the same eval set to see how much it actually bought, instead of assuming "bigger model = better."
 
-A search engine over ~50K arXiv machine learning papers, built up in stages: keyword search, then dense embeddings, then a proper vector database, then a cross-encoder reranker on top. Each stage gets benchmarked on the same eval set, so I could see how much each layer was actually buying me instead of assuming "bigger model = better" and moving on.
+**Live demo:** [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)
+
+`Python` `rank-bm25` `Sentence-Transformers` `FAISS` `Qdrant` `cross-encoder` `FastAPI` `Streamlit` `DVC`
+
+</div>
+
+---
+
+### Contents
+
+- [Pipeline](#pipeline)
+- [Why build it in stages](#why-build-it-in-stages-instead-of-just-using-the-best-approach)
+- [The dataset](#the-dataset)
+- [Evaluation methodology](#evaluation-methodology)
+- [The four stages](#the-four-stages)
+- [Results](#results)
+- [What's in the repo](#whats-in-the-repo)
+- [Running it yourself](#running-it-yourself)
+- [Deploying your own copy](#deploying-your-own-copy)
+- [The infra pieces](#the-infra-pieces-not-just-the-retrieval-models)
+- [What I'd improve with more time](#a-few-things-id-improve-with-more-time)
+
+## Pipeline
 
 ```
 ArXiv ML papers (HuggingFace, 50K abstracts)
@@ -34,11 +58,11 @@ ArXiv ML papers (HuggingFace, 50K abstracts)
 | Total tokens across corpus | ~8.0M |
 | Unique tokens | ~202K |
 
-EDA (`notebooks/01_eda.ipynb`) also pulls the top topic words in paper titles, unsurprisingly dominated by *learning*, *deep*, *networks*, *neural* - mostly a sanity check that the corpus is what it claims to be before spending compute embedding all of it. The 4.5% of abstracts that exceed the configured chunk size is why chunking exists in the ingest pipeline at all, rather than embedding each abstract as one unbroken block.
+EDA (`notebooks/01_eda.ipynb`) also pulls the top topic words in paper titles, unsurprisingly dominated by *learning*, *deep*, *networks*, *neural* — mostly a sanity check that the corpus is what it claims to be before spending compute embedding all of it. The 4.5% of abstracts that exceed the configured chunk size is why chunking exists in the ingest pipeline at all, rather than embedding each abstract as one unbroken block.
 
 ## Evaluation methodology
 
-There's no labeled query set for "does this paper match this search," so I built one synthetically: 200 papers are sampled at random, and each paper's own title is used as a stand-in query, with that paper's ID as the correct answer. It's not a perfect proxy for how someone actually searches, but it's repeatable and label-free, which is enough to compare retrieval methods against each other on identical footing. The same 200 queries, same random seed, get reused across all four notebooks.
+There's no labeled query set for "does this paper match this search," so one was built synthetically: 200 papers are sampled at random, and each paper's own title is used as a stand-in query, with that paper's ID as the correct answer. It's not a perfect proxy for how someone actually searches, but it's repeatable and label-free, which is enough to compare retrieval methods against each other on identical footing. The same 200 queries, same random seed, get reused across all four notebooks.
 
 Metrics: **MRR**, **Recall@k**, and **NDCG@k** for k ∈ {1, 5, 10} (`src/evaluate.py`).
 
@@ -51,10 +75,10 @@ Classic keyword-matching sparse retrieval (`rank-bm25`) over all 49,969 abstract
 Abstracts encoded with `BAAI/bge-base-en-v1.5` (768-dim, normalized embeddings) on a T4 GPU, indexed with `faiss.IndexFlatIP` (exact inner-product search, i.e. cosine similarity on normalized vectors, no approximation).
 
 **3. Vector database — Qdrant** (`notebooks/04_vector_db.ipynb`)
-Same embeddings, same model, this time upserted into a Qdrant collection (cosine distance, batched upserts) instead of an in-memory FAISS index. The point is to check the retrieval quality holds up on infrastructure that actually looks like production, with a real client/server vector store rather than a flat index loaded into RAM.
+Same embeddings, same model, this time upserted into a Qdrant collection (cosine distance, batched upserts) instead of an in-memory FAISS index — checking that retrieval quality holds up on infrastructure that actually looks like production.
 
 **4. Two-stage retrieval with reranking** (`notebooks/05_reranking.ipynb`)
-The bi-encoder (BGE) retrieves the top 50 candidates, then `cross-encoder/ms-marco-MiniLM-L-6-v2` rescores each (query, abstract) pair directly and re-ranks down to a final top 5. Cross-encoders are slower since they can't be pre-computed the way bi-encoder embeddings can, but they see the query and document together, which catches relevance signals two separately-encoded vectors miss.
+The bi-encoder (BGE) retrieves the top 50 candidates, then `cross-encoder/ms-marco-MiniLM-L-6-v2` rescores each (query, abstract) pair directly and re-ranks down to a final top 5. Cross-encoders are slower since they can't be pre-computed the way bi-encoder embeddings can, but they see the query and document together, catching relevance signals two separately-encoded vectors miss.
 
 ## Results
 
@@ -72,7 +96,7 @@ A few things worth calling out:
 - **Dense retrieval beats keyword search everywhere**, but the gap is real, not massive. BM25 is a genuinely strong baseline on this kind of technical text, where the exact terminology in a paper title (e.g. "convolutional," "reinforcement") tends to also appear in its own abstract, which is exactly the case BM25 is built for.
 - **FAISS and Qdrant post identical numbers.** That's expected and reassuring: same model, same vectors, same similarity metric, just different infrastructure underneath. The swap to production-style infra didn't cost any retrieval quality, which is the whole point of that stage rather than a new finding about search quality itself.
 - **Reranking gives the single biggest jump** in the whole pipeline: MRR goes from 0.753 to 0.818, Recall@1 from 0.670 to 0.760, a bigger lift than swapping BM25 for embeddings in the first place. The cross-encoder's advantage is weighing query and document together instead of comparing two vectors computed in isolation, which matters most when the top candidates are all topically close and the deciding signal is subtle.
-- The trade-off is latency. Reranking means a full transformer forward pass on 50 (query, document) pairs per search instead of one cheap vector lookup, so it's worth it when result quality matters more than shaving milliseconds, which is why it's what's wired into the actual serving endpoint.
+- The trade-off is latency. Reranking means a full transformer forward pass on 50 (query, document) pairs per search instead of one cheap vector lookup, so it's worth it when result quality matters more than shaving milliseconds — which is why it's what's wired into the actual serving endpoint.
 
 ## What's in the repo
 
@@ -93,7 +117,7 @@ semantic-search-arxiv-papers/
 ├── scripts/
 │   └── build_index.py    # populates the persistent Qdrant Cloud collection
 ├── streamlit_app.py       # live demo (Streamlit Community Cloud)
-├── configs/config.yaml    # every hyperparameter - chunk size, top_k, model names
+├── configs/config.yaml    # every hyperparameter — chunk size, top_k, model names
 ├── .env.example            # required env vars (Qdrant URL/key), no secrets committed
 ├── outputs/
 │   ├── figures/    # length distributions, keyword frequency plots
@@ -149,7 +173,7 @@ Each request runs the full pipeline server-side: encode the query, retrieve the 
 
 ## Deploying your own copy
 
-`streamlit_app.py` runs on the exact same retrieval code (`src/retrieval.py`) and the exact same Qdrant Cloud collection as `serve.py` - same models, same config, same index. Deployed on Streamlit Community Cloud, which only needs a GitHub login and never asks for payment details:
+`streamlit_app.py` runs on the exact same retrieval code (`src/retrieval.py`) and the exact same Qdrant Cloud collection as `serve.py` — same models, same config, same index. Deployed on Streamlit Community Cloud, which only needs a GitHub login and never asks for payment details:
 
 1. Fork/push this repo to GitHub
 2. Run `python scripts/build_index.py` (or `notebooks/06_build_index.ipynb`) once so your own Qdrant collection is populated
@@ -167,11 +191,11 @@ The FastAPI app (`src/serve.py`) is also in the repo and works locally or on any
 
 ## The infra pieces, not just the retrieval models
 
-- **DVC** - the 50K-paper parquet and the FAISS index are version-controlled without living in git directly. `.dvc` pointer files are what's committed; the actual binaries live in the DVC remote.
-- **Qdrant Cloud** - a real, persistent, hosted client/server vector database (cosine distance, batched upserts), not an in-memory index or a local container, so the retrieval-quality numbers hold up against something you'd actually deploy.
-- **FastAPI two-stage serving** - `/search` runs bi-encoder retrieval then cross-encoder reranking server-side per request, reading model names and top_k straight from `config.yaml` so serving can't silently drift from what was benchmarked.
-- **Streamlit demo** - same retrieval code, deployed free with zero payment info required.
-- **Config-driven** - chunk size/overlap, model names, top_k vs. rerank_top_k, collection name, all live in one `config.yaml` instead of being hardcoded across notebooks or duplicated in `serve.py`.
+- **DVC** — the 50K-paper parquet and the FAISS index are version-controlled without living in git directly. `.dvc` pointer files are what's committed; the actual binaries live in the DVC remote.
+- **Qdrant Cloud** — a real, persistent, hosted client/server vector database (cosine distance, batched upserts), not an in-memory index or a local container, so the retrieval-quality numbers hold up against something you'd actually deploy.
+- **FastAPI two-stage serving** — `/search` runs bi-encoder retrieval then cross-encoder reranking server-side per request, reading model names and top_k straight from `config.yaml` so serving can't silently drift from what was benchmarked.
+- **Streamlit demo** — same retrieval code, deployed free with zero payment info required.
+- **Config-driven** — chunk size/overlap, model names, top_k vs. rerank_top_k, collection name, all live in one `config.yaml` instead of being hardcoded across notebooks or duplicated in `serve.py`.
 
 ## A few things I'd improve with more time
 

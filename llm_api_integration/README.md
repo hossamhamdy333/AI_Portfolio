@@ -1,6 +1,28 @@
+<div align="center">
+
 # LLM API Integration
 
-A FastAPI service that wraps the Gemini API properly. Not just a `generate_content()` call behind an endpoint, but streaming, tool calling, schema-validated structured output, retry logic, and per-request token/cost tracking: the way you'd actually want an LLM wrapped before other services start depending on it.
+A FastAPI service that wraps the Gemini API properly. Not just a `generate_content()` call behind an endpoint, but streaming, tool calling, schema-validated structured output, retry logic, and per-request token/cost tracking — the way you'd actually want an LLM wrapped before other services start depending on it.
+
+`Python` `FastAPI` `Pydantic` `google-generativeai` `MLflow`
+
+</div>
+
+---
+
+### Contents
+
+- [Pipeline](#pipeline)
+- [Why this project, and why Gemini](#why-this-project-and-why-gemini)
+- [What it actually does](#what-it-actually-does)
+- [Seeing it actually run](#seeing-it-actually-run)
+- [Testing philosophy](#testing-philosophy)
+- [What's in the repo](#whats-in-the-repo)
+- [Try it](#try-it)
+- [Reliability details worth knowing](#reliability-details-worth-knowing)
+- [What I'd improve with more time](#a-few-things-id-improve-with-more-time)
+
+## Pipeline
 
 ```
 Gemini API (google-generativeai)
@@ -14,7 +36,7 @@ Gemini API (google-generativeai)
 
 ## Why this project, and why Gemini
 
-Most "LLM integration" demos are a single happy-path call to an API. The interesting engineering problems show up around that call: what happens when it times out, what happens when the model doesn't return valid JSON, how do you know what a feature is costing you, how do you stream a response when you can't "retry" something the client has already started reading. This project is built around those problems specifically. Gemini was the pick mainly for practical reasons (free tier, no billing setup), but everything here, retries, structured output validation, tool-call routing, is provider-agnostic in shape. Swapping in OpenAI or Anthropic would mean rewriting `client.py`, not the rest of the system.
+Most "LLM integration" demos are a single happy-path call to an API. The interesting engineering problems show up around that call: what happens when it times out, what happens when the model doesn't return valid JSON, how do you know what a feature is costing you, how do you stream a response when you can't "retry" something the client has already started reading. This project is built around those problems specifically. Gemini was the pick mainly for practical reasons (free tier, no billing setup), but everything here — retries, structured output validation, tool-call routing — is provider-agnostic in shape. Swapping in OpenAI or Anthropic would mean rewriting `client.py`, not the rest of the system.
 
 ## What it actually does
 
