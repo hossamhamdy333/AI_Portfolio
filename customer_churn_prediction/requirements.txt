@@ -10,3 +10,4 @@ shap==0.51.0
 mlflow==3.10.1
 joblib==1.5.3
 jupyter
+streamlit==1.61.1
