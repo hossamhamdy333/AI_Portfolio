@@ -48,9 +48,9 @@ dashboard/
   streamlit_app.py                  4-page app: churn overview, calibration
                                      curve, priority matrix, profit-threshold
                                      what-if slider
-  powerbi/
-    churn_dashboard.pbix            2-page Power BI version of the same idea
-    images/                         screenshots, since GitHub can't preview .pbix
+  churn_dashboard.pbix              2-page Power BI version of the same idea
+  churn_dashboard.pdf               static export of both Power BI pages
+  images/                           screenshots, since GitHub can't preview .pbix
 
 reports/
   segment_summary.md                plain-language "who to call this week"
@@ -130,16 +130,16 @@ Two pages, built on the same two CSVs the SQL layer uses.
 **Executive Overview** — KPI cards, churn by contract type, churn by
 tenure band, model performance callout.
 
-![Executive Overview](dashboard/powerbi/images/powerbi_executive_overview.png)
+![Executive Overview](dashboard/images/powerbi_executive_overview.png)
 
 **Retention Priority** — the priority matrix, the filtered call list, and
 the same three what-if sliders as the Streamlit app (threshold, offer
 cost, outreach cost), feeding a live Expected Profit measure written in
 DAX.
 
-![Retention Priority](dashboard/powerbi/images/powerbi_retention_priority.png)
+![Retention Priority](dashboard/images/powerbi_retention_priority.png)
 
-Open `dashboard/powerbi/churn_dashboard.pbix` in Power BI Desktop to
+Open `dashboard/churn_dashboard.pbix` in Power BI Desktop to
 explore it interactively — moving the sliders recalculates Expected
 Profit in real time, same mechanism as the Streamlit version, different
 tool for a different audience.
