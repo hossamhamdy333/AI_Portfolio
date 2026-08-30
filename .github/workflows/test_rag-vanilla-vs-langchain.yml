@@ -14,9 +14,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install dependencies
+      - name: Install shared + impl_vanilla dependencies
         run: |
-          pip install pytest pandas numpy PyYAML pydantic
+          cd rag-vanilla-vs-langchain
+          pip install -r impl_vanilla/requirements.txt
 
       - name: Run shared/ tests
         run: |
@@ -27,6 +28,11 @@ jobs:
         run: |
           cd rag-vanilla-vs-langchain
           PYTHONPATH=impl_vanilla:. pytest impl_vanilla/tests/ -v
+
+      - name: Install impl_langchain dependencies
+        run: |
+          cd rag-vanilla-vs-langchain
+          pip install -r impl_langchain/requirements.txt
 
       - name: Run impl_langchain tests
         run: |
