@@ -193,7 +193,7 @@ Query: {input_guard['redacted_text']}
         final_text = output_guard["text"]
 
         if settings.ENABLE_EVAL:
-            eval_result = evaluate_faithfulness(request.query, context, final_text)
+            eval_result = evaluate_faithfulness(request.query, context, final_text, db)
             if eval_result and not eval_result.get("is_faithful", True):
                 logger.warning("Faithfulness check flagged this response: %s", eval_result.get("reason"))
 
