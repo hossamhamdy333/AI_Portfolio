@@ -64,15 +64,18 @@ allam_finetune/
 │   ├── val.parquet                       # Held-out validation split
 │   └── val_eval_sample.parquet           # 150-row LLM-judge evaluation sample
 ├── notebooks/
-│   ├── 01-eda.ipynb                      # Dataset EDA, split, oversampling, push
-│   ├── 02-baseline-eval.ipynb            # Zero-shot base model evaluation
-│   ├── 03-qlora-fine-tuning.ipynb        # QLoRA fine-tuning + HF Hub push
-│   └── 04-finetuned-eval-allam.ipynb     # Fine-tuned model evaluation + comparison
+│   ├── 01-eda.ipynb                          # Dataset EDA, split, oversampling, push
+│   ├── 02-baseline-eval.ipynb                # Zero-shot base model evaluation
+│   ├── 03-qlora-fine-tuning.ipynb            # QLoRA fine-tuning + HF Hub push
+│   ├── 04-finetuned-eval-allam.ipynb         # Fine-tuned model evaluation + comparison
+│   └── 05_synthetic_data_engineering.ipynb   # Generates distinct synthetic `analysis` examples (replaces 3x duplication)
 ├── outputs/
 │   ├── models/allam_qlora_adapter/       # Adapter config + tokenizer (weights on HF Hub)
 │   ├── results/                          # baseline_results.parquet, finetuned_results.parquet
 │   ├── reports/                          # eda_report.html, finetuned_metrics.json
 │   └── figures/                          # length_distribution.png
+├── src/
+│   └── synthetic_data.py                 # Curation pipeline used by notebook 05 (schema/length/language/PII/near-dup checks)
 ├── requirements.txt
 └── README.md
 ```
