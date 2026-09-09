@@ -2,7 +2,7 @@
 # model via llama.cpp instead of raw transformers -- that's what makes
 # CPU-only inference fast enough to finish within Azure's request timeout.
 # See src/app.py and notebooks/gguf_conversion.ipynb for details.
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
