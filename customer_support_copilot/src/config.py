@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     GGUF_FILENAME: str = "support-copilot-q4.gguf"
     GEMINI_API_KEY: str = ""
     ENABLE_EVAL: bool = False
+    GEMINI_DAILY_LIMIT: int = 50
 
     # Inference backend: "llamacpp" (default, CPU, the quantized GGUF file
     # above) or "vllm" (GPU, higher throughput under concurrent load - the
