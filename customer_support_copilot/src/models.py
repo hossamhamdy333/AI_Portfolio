@@ -1,5 +1,5 @@
 """
-Three tables:
+Four tables:
 
   User         - one row per account. password_hash is nullable because a
                  Google-only account never sets a password.
@@ -11,6 +11,13 @@ Three tables:
                  "see your own chat history" and "admin views a user's
                  transcript" mean something - before this, nothing about
                  a conversation was ever saved anywhere.
+  GeminiUsage  - one row per calendar day, counting how many faithfulness-
+                 check calls have used the shared GEMINI_API_KEY today.
+                 This project uses one shared key rather than a per-user
+                 key (asking every recruiter/visitor to bring their own
+                 API key isn't reasonable for a portfolio demo) - this
+                 table is what keeps that shared key from being run up
+                 by traffic.
 """
 
 from datetime import datetime, timezone
@@ -76,3 +83,14 @@ class ChatMessage(Base):
     created_at = Column(DateTime, nullable=False, default=utcnow)
 
     user = relationship("User", back_populates="messages")
+
+
+class GeminiUsage(Base):
+    """One row per calendar day. Tracks how many faithfulness-check calls
+    have used the shared GEMINI_API_KEY today, so a single portfolio demo
+    can't run up an unbounded bill if it gets real traffic."""
+    __tablename__ = "gemini_usage"
+
+    id = Column(Integer, primary_key=True)
+    date = Column(String(10), nullable=False, unique=True, index=True)  # "2026-09-09"
+    count = Column(Integer, nullable=False, default=0)
