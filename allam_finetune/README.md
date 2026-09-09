@@ -2,7 +2,7 @@
 
 # Fine-Tuning ALLaM-7B for Arabic Legal Instruction Following
 
-QLoRA fine-tuning of **ALLaM-7B-Instruct-preview** for Egyptian/Saudi legal instruction-following across three task types: article analysis, plain-language legal simplification, and judgment prediction. Built to run entirely on free-tier Kaggle GPUs (T4, 16GB, 4-bit quantized).
+QLoRA fine-tuning of **ALLaM-7B-Instruct-preview** for Egyptian/Saudi legal instruction-following across three task types: article analysis, plain-language legal simplification, and judgment prediction. Built to run entirely on free-tier GPUs (T4, 16GB, 4-bit quantized) — developed on Kaggle, notebooks are Colab-compatible too.
 
 [![Hugging Face](https://img.shields.io/badge/Adapter-hossam3759180%2Fallam--qlora--legal--adapter-yellow)](https://huggingface.co/hossam3759180/allam-qlora-legal-adapter)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
