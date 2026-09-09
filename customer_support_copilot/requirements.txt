@@ -1,0 +1,40 @@
+# --- Data prep / EDA ---
+datasets
+pandas
+matplotlib
+seaborn
+jupyter
+ipykernel
+
+# --- API / serving ---
+fastapi
+uvicorn[standard]
+pydantic
+pydantic[email]
+pydantic-settings
+requests
+httpx
+
+# --- Model inference (CPU-fast, quantized GGUF) ---
+llama-cpp-python
+huggingface_hub
+
+# --- RAG retrieval ---
+chromadb
+sentence-transformers
+
+# --- Evaluation (Gemini faithfulness check) ---
+google-genai
+
+# --- Auth + database ---
+sqlalchemy
+bcrypt
+pyjwt
+# SQL Server driver for Azure SQL (production). Needs the Microsoft ODBC
+# Driver 18 installed on the machine/container too - the Dockerfile in
+# this project installs it. Not needed for local dev (sqlite works with
+# no extra driver).
+pyodbc
+
+# --- Tests ---
+pytest
