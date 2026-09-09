@@ -27,6 +27,15 @@
   .panel h2 { font-size: 1rem; margin: 0 0 10px; }
 
   input[type="file"] { display: block; margin-bottom: 10px; font-size: 0.85rem; }
+  input[type="email"], input[type="password"] {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 0.9rem;
+  }
   button {
     background: #111;
     color: white;
@@ -38,10 +47,16 @@
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   button:hover:not(:disabled) { background: #333; }
+  button.secondary { background: white; color: #111; border: 1px solid #ccc; }
+  button.secondary:hover:not(:disabled) { background: #f0f0f0; }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; }
 
-  #status { font-size: 0.85rem; margin-top: 8px; color: #555; }
-  #status.error { color: #c0392b; }
-  #status.success { color: #1e8e3e; }
+  #auth-status, #status { font-size: 0.85rem; margin-top: 8px; color: #555; }
+  #auth-status.error, #status.error { color: #c0392b; }
+  #auth-status.success, #status.success { color: #1e8e3e; }
+
+  #user-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 0.85rem; color: #444; }
 
   #chat {
     display: flex;
@@ -79,40 +94,180 @@
     border: 1px solid #ccc;
     font-size: 0.95rem;
   }
+
+  #app { display: none; }
 </style>
 </head>
 <body>
   <h1>☁️ Azure RAG Assistant</h1>
   <div class="subtitle">Upload a document, then ask questions about it or do some math.</div>
 
-  <div class="panel">
-    <h2>Upload a document</h2>
-    <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.txt,.md" />
-    <button id="upload-btn">Upload &amp; Index</button>
-    <div id="status"></div>
+  <div id="auth" class="panel">
+    <h2>Log in</h2>
+    <input type="email" id="email" placeholder="you@example.com" autocomplete="username" />
+    <input type="password" id="password" placeholder="Password (8+ characters)" autocomplete="current-password" />
+    <div class="row">
+      <button id="login-btn">Log in</button>
+      <button id="register-btn" class="secondary">Register</button>
+    </div>
+    <button id="google-btn" class="secondary" style="width:100%; margin-top:8px;">Continue with Google</button>
+    <div id="auth-status"></div>
   </div>
 
-  <div id="chat"></div>
-  <form id="chat-form">
-    <input id="query" type="text" placeholder="Ask a question or try: what is 55 * 3" autocomplete="off" />
-    <button type="submit">Send</button>
-  </form>
+  <div id="app">
+    <div id="user-bar">
+      <span id="user-email"></span>
+      <button id="logout-btn" class="secondary">Log out</button>
+    </div>
+
+    <div class="panel">
+      <h2>Upload a document</h2>
+      <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.txt,.md" />
+      <button id="upload-btn">Upload &amp; Index</button>
+      <div id="status"></div>
+    </div>
+
+    <div id="chat"></div>
+    <form id="chat-form">
+      <input id="query" type="text" placeholder="Ask a question or try: what is 55 * 3" autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
 
 <script>
-  const API_KEY = "{{ app_api_key }}";
-  const headers = API_KEY ? { "X-API-Key": API_KEY } : {};
+  // Access token lives only in memory - lost on page refresh, which is
+  // the point (keeps it out of localStorage, where an XSS bug could read
+  // it). The refresh token DOES go in localStorage, so a page reload can
+  // silently get a new access token instead of forcing a full re-login
+  // every time - see refreshAccessToken() below.
+  let accessToken = null;
 
+  function saveRefreshToken(token) { localStorage.setItem("refresh_token", token); }
+  function getRefreshToken() { return localStorage.getItem("refresh_token"); }
+  function clearRefreshToken() { localStorage.removeItem("refresh_token"); }
+
+  const authEl = document.getElementById("auth");
+  const appEl = document.getElementById("app");
+  const authStatusEl = document.getElementById("auth-status");
   const statusEl = document.getElementById("status");
-  const uploadBtn = document.getElementById("upload-btn");
-  const fileInput = document.getElementById("file-input");
-  const chatEl = document.getElementById("chat");
-  const form = document.getElementById("chat-form");
-  const queryInput = document.getElementById("query");
+  const userEmailEl = document.getElementById("user-email");
+
+  function setAuthStatus(text, cls) {
+    authStatusEl.textContent = text;
+    authStatusEl.className = cls || "";
+  }
 
   function setStatus(text, cls) {
     statusEl.textContent = text;
     statusEl.className = cls || "";
   }
+
+  async function showLoggedIn() {
+    const res = await fetch("/auth/me", { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new Error("token rejected");
+    const me = await res.json();
+    userEmailEl.textContent = me.email + (me.role === "admin" ? " (admin)" : "");
+    authEl.style.display = "none";
+    appEl.style.display = "block";
+  }
+
+  async function refreshAccessToken() {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    const res = await fetch("/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) { clearRefreshToken(); return false; }
+
+    const data = await res.json();
+    accessToken = data.access_token;
+    return true;
+  }
+
+  async function handleAuthSuccess(data) {
+    accessToken = data.access_token;
+    saveRefreshToken(data.refresh_token);
+    await showLoggedIn();
+  }
+
+  document.getElementById("login-btn").addEventListener("click", async () => {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    setAuthStatus("Logging in...");
+    try {
+      const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAuthStatus(data.detail || "Login failed", "error"); return; }
+      await handleAuthSuccess(data);
+    } catch (e) {
+      setAuthStatus("Could not reach backend: " + e.message, "error");
+    }
+  });
+
+  document.getElementById("register-btn").addEventListener("click", async () => {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    setAuthStatus("Creating account...");
+    try {
+      const res = await fetch("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAuthStatus(data.detail || "Registration failed", "error"); return; }
+      await handleAuthSuccess(data);
+    } catch (e) {
+      setAuthStatus("Could not reach backend: " + e.message, "error");
+    }
+  });
+
+  document.getElementById("google-btn").addEventListener("click", () => {
+    window.location.href = "/auth/google/login";
+  });
+
+  document.getElementById("logout-btn").addEventListener("click", async () => {
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      await fetch("/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }).catch(() => {});
+    }
+    clearRefreshToken();
+    accessToken = null;
+    location.reload();
+  });
+
+  // Wraps fetch with the Authorization header, and retries exactly once
+  // after a silent token refresh if the server says the access token is
+  // no longer valid (it naturally expires every 20 minutes).
+  async function authedFetch(url, options = {}) {
+    options.headers = { ...(options.headers || {}), Authorization: `Bearer ${accessToken}` };
+    let res = await fetch(url, options);
+    if (res.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        options.headers.Authorization = `Bearer ${accessToken}`;
+        res = await fetch(url, options);
+      }
+    }
+    return res;
+  }
+
+  const uploadBtn = document.getElementById("upload-btn");
+  const fileInput = document.getElementById("file-input");
+  const chatEl = document.getElementById("chat");
+  const form = document.getElementById("chat-form");
+  const queryInput = document.getElementById("query");
 
   uploadBtn.addEventListener("click", async () => {
     const file = fileInput.files[0];
@@ -125,7 +280,7 @@
     formData.append("file", file);
 
     try {
-      const res = await fetch("/upload", { method: "POST", headers, body: formData });
+      const res = await authedFetch("/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (res.ok) {
         let msg = `Indexed ${data.chunks} chunks.`;
@@ -161,9 +316,9 @@
     const pending = addMessage("assistant pending", "Thinking...");
 
     try {
-      const res = await fetch("/chat", {
+      const res = await authedFetch("/chat", {
         method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
       const data = await res.json();
@@ -174,6 +329,26 @@
       pending.textContent = "Connection to backend failed: " + err.message;
     }
   });
+
+  // On load: either we just got redirected back from Google (tokens are
+  // in the URL - see oauth.py's callback), or there's a refresh token
+  // from a previous visit to silently resume, or neither and the login
+  // form just stays showing.
+  (async function init() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("access_token") && params.has("refresh_token")) {
+      accessToken = params.get("access_token");
+      saveRefreshToken(params.get("refresh_token"));
+      window.history.replaceState({}, "", window.location.pathname);  // scrub tokens out of the visible URL
+      await showLoggedIn();
+      return;
+    }
+
+    if (getRefreshToken()) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) { await showLoggedIn(); return; }
+    }
+  })();
 </script>
 </body>
 </html>

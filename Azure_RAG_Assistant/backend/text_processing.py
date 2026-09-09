@@ -29,7 +29,7 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
     return text
 
 
-def process_and_upsert(file_bytes: bytes, filename: str) -> int:
+def process_and_upsert(file_bytes: bytes, filename: str, user_id: int) -> int:
     text = extract_text(file_bytes, filename)
 
     if not text.strip():
@@ -37,7 +37,11 @@ def process_and_upsert(file_bytes: bytes, filename: str) -> int:
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_text(text)
-    docs = [Document(page_content=c, metadata={"source": filename}) for c in chunks]
+    # user_id in the metadata is what makes per-user isolation possible -
+    # agent.py's retriever filters on this field, so one user's documents
+    # are never returned for another user's question, not just hidden by
+    # the UI.
+    docs = [Document(page_content=c, metadata={"source": filename, "user_id": user_id}) for c in chunks]
 
     QdrantVectorStore.from_documents(
         docs,
@@ -46,5 +50,5 @@ def process_and_upsert(file_bytes: bytes, filename: str) -> int:
         api_key=settings.QDRANT_API_KEY,
         collection_name=settings.QDRANT_COLLECTION_NAME,
     )
-    logger.info("Indexed %d chunks from %s", len(docs), filename)
+    logger.info("Indexed %d chunks from %s for user %d", len(docs), filename, user_id)
     return len(docs)

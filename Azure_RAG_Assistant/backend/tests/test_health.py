@@ -8,6 +8,7 @@ os.environ.setdefault("GEMINI_API_KEY", "test")
 os.environ.setdefault("HF_TOKEN", "test")
 os.environ.setdefault("QDRANT_URL", "http://test:6333")
 os.environ.setdefault("QDRANT_API_KEY", "test")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_health.db")
 
 from fastapi.testclient import TestClient
 from main import app
@@ -38,9 +39,9 @@ def test_health_check():
     assert response.json() == {"status": "ok"}
 
 
-def test_chat_rejects_empty_query_when_auth_disabled():
-    response = client.post("/chat", json={"query": ""})
-    assert response.status_code == 400
+def test_chat_requires_login():
+    response = client.post("/chat", json={"query": "hello"})
+    assert response.status_code in (401, 403)  # FastAPI's HTTPBearer returns 403 when the header is missing entirely
 
 
 def test_root_serves_html_ui():

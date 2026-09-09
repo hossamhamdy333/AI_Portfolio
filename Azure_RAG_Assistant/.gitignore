@@ -11,6 +11,11 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# Local database - never commit this (contains real user data once you
+# register accounts locally: emails, password hashes, refresh token hashes)
+*.db
+*.db-journal
+
 # Docker
 *.log
 

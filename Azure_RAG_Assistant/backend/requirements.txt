@@ -1,7 +1,7 @@
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 python-multipart==0.0.19
-pydantic>=2.11,<3.0
+pydantic[email]>=2.11,<3.0
 pydantic-settings>=2.7.0,<3.0
 jinja2==3.1.5
 
@@ -13,6 +13,10 @@ langchain-qdrant==1.1.0
 langchain-huggingface==1.2.2
 qdrant-client==1.19.0
 
+# Self-hosted LLM backend option (LLM_BACKEND=local) — talks to Ollama's
+# OpenAI-compatible endpoint (http://localhost:11434/v1)
+langchain-openai>=1.0.0,<2.0
+
 # Document processing
 pdfplumber==0.11.5
 pytesseract==0.3.13
@@ -21,6 +25,20 @@ Pillow==11.0.0
 python-dotenv==1.0.1
 azure-storage-blob==12.30.0
 
-# Tests
+# Observability (ENABLE_OBSERVABILITY=true)
+arize-phoenix-otel>=0.8.0
+openinference-instrumentation-langchain>=0.1.40
+
+# Auth + database
+sqlalchemy>=2.0,<3.0
+bcrypt>=4.0,<5.0
+pyjwt>=2.9,<3.0
+# SQL Server driver for production (Azure SQL). Needs the Microsoft ODBC
+# Driver 18 installed on the machine/container too - pip install alone
+# isn't enough. Not needed for local dev (sqlite:///./dev.db needs nothing
+# extra) - install this only when DATABASE_URL points at mssql+pyodbc://
+# pyodbc>=5.1,<6.0
+
+# Tests + load testing
 pytest==8.3.4
 httpx==0.28.1

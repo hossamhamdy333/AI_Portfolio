@@ -3,7 +3,7 @@ from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance
+from qdrant_client.models import VectorParams, Distance, Filter, FieldCondition, MatchValue
 from langchain_core.tools.retriever import create_retriever_tool
 from config import settings, embeddings
 from safe_math import safe_calculate
@@ -27,35 +27,79 @@ def calculator(expression: str) -> str:
     return safe_calculate(expression)
 
 
-def build_agent():
-    llm = ChatGoogleGenerativeAI(
+def get_llm():
+    """Picks the LLM backend. Gemini by default; set LLM_BACKEND=local to
+    point at Ollama instead (`ollama serve`, then `ollama pull llama3.1`) -
+    see the load test in scripts/load_test.py for comparing the two on
+    latency and cost."""
+    if settings.LLM_BACKEND == "local":
+        from langchain_openai import ChatOpenAI
+
+        return ChatOpenAI(
+            base_url=settings.LOCAL_LLM_BASE_URL,
+            api_key="not-needed",  # Ollama doesn't check this
+            model=settings.LOCAL_LLM_MODEL,
+            temperature=0.1,
+        )
+    return ChatGoogleGenerativeAI(
         model=settings.GEMINI_MODEL,
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0.1,
     )
 
-    client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
 
-    # The collection is normally created on first document upload
-    # (text_processing.py). If someone chats before uploading anything, it
-    # won't exist yet - create an empty one here so the agent doesn't crash
-    # on startup with no documents indexed.
-    if not client.collection_exists(settings.QDRANT_COLLECTION_NAME):
-        client.create_collection(
-            collection_name=settings.QDRANT_COLLECTION_NAME,
-            vectors_config=VectorParams(size=EMBEDDING_DIMENSIONS, distance=Distance.COSINE),
-        )
+# The Qdrant client is stateless and thread-safe, so one shared instance
+# is reused across every request instead of reconnecting each time. The
+# retriever itself is NOT shared, though - see build_agent below - because
+# it's what carries the per-user filter, and that has to be different for
+# every user.
+_qdrant_client = None
 
+
+def get_qdrant_client():
+    global _qdrant_client
+    if _qdrant_client is None:
+        _qdrant_client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+        if not _qdrant_client.collection_exists(settings.QDRANT_COLLECTION_NAME):
+            # The collection is normally created on first document upload
+            # (text_processing.py). If someone chats before uploading
+            # anything, it won't exist yet - create an empty one here so
+            # the agent doesn't crash on startup with no documents indexed.
+            _qdrant_client.create_collection(
+                collection_name=settings.QDRANT_COLLECTION_NAME,
+                vectors_config=VectorParams(size=EMBEDDING_DIMENSIONS, distance=Distance.COSINE),
+            )
+    return _qdrant_client
+
+
+def build_agent(user_id: int, top_k=3):
+    """A fresh agent per call, scoped to one user's documents. Rebuilding
+    this per request is cheap (it's just wiring together already-built
+    pieces, not loading anything) - the real cost is the LLM call itself,
+    which this doesn't add to.
+
+    top_k is exposed as a parameter (not just an internal constant) so
+    scripts/regression_demo.py can deliberately degrade retrieval (top_k=1)
+    and show the difference in the observability trace.
+    """
+    llm = get_llm()
     vectorstore = QdrantVectorStore(
-        client=client,
+        client=get_qdrant_client(),
         collection_name=settings.QDRANT_COLLECTION_NAME,
         embedding=embeddings,
     )
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+    # This filter is the actual security boundary - it's checked by
+    # Qdrant itself on every search, not just something the UI happens to
+    # respect. See tests/test_agent_isolation.py for proof this can't be
+    # bypassed by asking about "all documents" or similar.
+    user_filter = Filter(must=[FieldCondition(key="metadata.user_id", match=MatchValue(value=user_id))])
+    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k, "filter": user_filter})
+
     retriever_tool = create_retriever_tool(
         retriever,
         "company_knowledge_base",
-        "Search previously uploaded company documents for relevant context.",
+        "Search this user's previously uploaded documents for relevant context.",
     )
 
     return create_agent(
@@ -63,19 +107,6 @@ def build_agent():
         tools=[retriever_tool, calculator],
         system_prompt=SYSTEM_PROMPT,
     )
-
-
-# Built lazily on first use (not at import time) so importing this module -
-# e.g. from a test that only checks the /health endpoint - never requires
-# live Gemini/Qdrant credentials or network access.
-_agent_graph = None
-
-
-def get_agent():
-    global _agent_graph
-    if _agent_graph is None:
-        _agent_graph = build_agent()
-    return _agent_graph
 
 
 def _extract_text(content) -> str:
@@ -99,6 +130,7 @@ def _extract_text(content) -> str:
     return str(content)
 
 
-def run_agent(query: str) -> str:
-    result = get_agent().invoke({"messages": [{"role": "user", "content": query}]})
+def run_agent(query: str, user_id: int) -> str:
+    agent = build_agent(user_id)
+    result = agent.invoke({"messages": [{"role": "user", "content": query}]})
     return _extract_text(result["messages"][-1].content)
