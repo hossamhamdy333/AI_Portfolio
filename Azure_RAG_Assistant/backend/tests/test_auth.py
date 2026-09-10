@@ -8,6 +8,9 @@ os.environ.setdefault("HF_TOKEN", "test")
 os.environ.setdefault("QDRANT_URL", "http://test:6333")
 os.environ.setdefault("QDRANT_API_KEY", "test")
 os.environ["DATABASE_URL"] = "sqlite:///./test_auth.db"  # a dedicated file, not shared with other test modules
+# Rate limiting is off by default for the whole test suite - see
+# tests/conftest.py's autouse fixture for why this isn't just an
+# os.environ assignment here.
 
 from fastapi.testclient import TestClient
 from main import app

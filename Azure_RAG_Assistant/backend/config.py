@@ -39,9 +39,25 @@ class Settings(BaseSettings):
     GEMINI_OUTPUT_COST_PER_MILLION: float = 0.30
 
     # Database. sqlite:///./dev.db for local dev/testing (zero setup);
-    # mssql+pyodbc://... for Azure SQL in production - see database.py
+    # mssql+pymssql://... for Azure SQL in production - see database.py
     # and README's "Setting up Azure SQL" section.
     DATABASE_URL: str = "sqlite:///./dev.db"
+
+    # Rate limits, enforced per-user (chat/upload) or per-IP (auth, since
+    # there's no logged-in user yet at that point) - see rate_limit.py.
+    # Defaults are deliberately conservative since every user shares one
+    # Gemini API key/quota; there is no per-user billing to fall back on.
+    # Off by default in tests (set RATE_LIMIT_ENABLED=false) since a test
+    # suite that legitimately calls /auth/register a dozen times in a row
+    # would otherwise trip the same limit meant to catch real abuse - and
+    # for the same reason, many real users sharing one IP (behind a
+    # corporate NAT/VPN) should not be penalized as if they were one
+    # attacker; per-account limits (chat/upload) don't have this problem.
+    RATE_LIMIT_ENABLED: bool = True
+    CHAT_RATE_LIMIT_PER_HOUR: int = 30
+    UPLOAD_RATE_LIMIT_PER_HOUR: int = 10
+    LOGIN_RATE_LIMIT_PER_15MIN: int = 10
+    REGISTER_RATE_LIMIT_PER_HOUR: int = 5
 
     # Auth. JWT_SECRET_KEY MUST be a real random secret in production -
     # generate one with `python -c "import secrets; print(secrets.token_hex(32))"`

@@ -33,11 +33,11 @@ openinference-instrumentation-langchain>=0.1.40
 sqlalchemy>=2.0,<3.0
 bcrypt>=4.0,<5.0
 pyjwt>=2.9,<3.0
-# SQL Server driver for production (Azure SQL). Needs the Microsoft ODBC
-# Driver 18 installed on the machine/container too - pip install alone
-# isn't enough. Not needed for local dev (sqlite:///./dev.db needs nothing
-# extra) - install this only when DATABASE_URL points at mssql+pyodbc://
-# pyodbc>=5.1,<6.0
+# SQL Server driver for production (Azure SQL). pymssql ships with its
+# native dependencies bundled in the wheel, so no extra system packages
+# or container setup needed - just this pip install. Used when
+# DATABASE_URL points at mssql+pymssql://... (see database.py).
+pymssql>=2.3,<3.0
 
 # Tests + load testing
 pytest==8.3.4

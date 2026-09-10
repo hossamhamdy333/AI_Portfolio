@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from azure_storage import upload_to_blob_storage
-from text_processing import process_and_upsert
-from agent import run_agent
+from text_processing import process_and_upsert, delete_document_chunks
+from agent import run_agent, get_qdrant_client
 from guardrails import guard_input, guard_output
 from config import settings, logger
 from database import get_db, init_db
@@ -23,6 +23,7 @@ from auth import (
     verify_refresh_token, revoke_refresh_token,
     get_current_user, require_admin,
 )
+from rate_limit import enforce_rate_limit, client_ip
 import oauth
 
 
@@ -94,7 +95,12 @@ async def health():
 # ---------------------------------------------------------------- auth
 
 @app.post("/auth/register", status_code=201)
-def register(body: RegisterRequest, db: Session = Depends(get_db)):
+def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    enforce_rate_limit(
+        db, key=f"ip:{client_ip(request)}", endpoint="register",
+        max_requests=settings.REGISTER_RATE_LIMIT_PER_HOUR, window_minutes=60,
+    )
+
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
 
@@ -113,7 +119,12 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/auth/login")
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    enforce_rate_limit(
+        db, key=f"ip:{client_ip(request)}", endpoint="login",
+        max_requests=settings.LOGIN_RATE_LIMIT_PER_15MIN, window_minutes=15,
+    )
+
     unauthorized = HTTPException(401, "Incorrect email or password")
 
     user = db.query(User).filter(User.email == body.email).first()
@@ -156,7 +167,12 @@ def me(user: User = Depends(get_current_user)):
 # ---------------------------------------------------------------- chat + upload (per-user)
 
 @app.post("/chat")
-async def chat(request: ChatRequest, user: User = Depends(get_current_user)):
+async def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    enforce_rate_limit(
+        db, key=f"user:{user.id}", endpoint="chat",
+        max_requests=settings.CHAT_RATE_LIMIT_PER_HOUR, window_minutes=60,
+    )
+
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
@@ -187,23 +203,42 @@ async def upload_document(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    enforce_rate_limit(
+        db, key=f"user:{user.id}", endpoint="upload",
+        max_requests=settings.UPLOAD_RATE_LIMIT_PER_HOUR, window_minutes=60,
+    )
+
+    document = None
     try:
         file_bytes = await file.read()
         if not file_bytes:
             raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
-        chunks = process_and_upsert(file_bytes, file.filename, user_id=user.id)
+        # Created (and flushed, not yet committed) before indexing so its id
+        # exists to tag each vector chunk with - that's what lets a single
+        # document be found and deleted later without touching a different
+        # upload that happens to share the same filename. If anything below
+        # fails, this row is never committed, so it never actually persists.
+        document = Document(user_id=user.id, filename=file.filename, blob_url=None, chunks_indexed=0)
+        db.add(document)
+        db.flush()
+
+        chunks = process_and_upsert(file_bytes, file.filename, user_id=user.id, document_id=document.id)
         blob_url = upload_to_blob_storage(file_bytes, file.filename)  # best-effort, may be None
 
-        db.add(Document(user_id=user.id, filename=file.filename, blob_url=blob_url, chunks_indexed=chunks))
+        document.blob_url = blob_url
+        document.chunks_indexed = chunks
         db.commit()
 
-        return {"status": "success", "blob_url": blob_url, "chunks": chunks}
+        return {"status": "success", "document_id": document.id, "blob_url": blob_url, "chunks": chunks}
     except ValueError as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
+        db.rollback()
         logger.exception("Upload failed for user %d", user.id)
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -214,6 +249,26 @@ def list_my_documents(user: User = Depends(get_current_user), db: Session = Depe
     the same user_id filter as /chat and /upload above."""
     docs = db.query(Document).filter(Document.user_id == user.id).order_by(Document.uploaded_at.desc()).all()
     return [{"id": d.id, "filename": d.filename, "uploaded_at": d.uploaded_at.isoformat(), "chunks_indexed": d.chunks_indexed} for d in docs]
+
+
+@app.delete("/documents/{document_id}")
+def delete_document(document_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Removes a document's vector chunks from Qdrant and its row from the
+    database. Owner-only (or admin) - checked explicitly here rather than
+    relying on the query filter alone, so a non-owner gets a clear 403
+    instead of a misleading 404 that could be mistaken for "already
+    deleted" during debugging."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if document is None:
+        raise HTTPException(404, "Document not found")
+    if document.user_id != user.id and user.role != Role.admin:
+        raise HTTPException(403, "You don't own this document")
+
+    delete_document_chunks(get_qdrant_client(), document_id=document_id, user_id=document.user_id)
+
+    db.delete(document)
+    db.commit()
+    return {"status": "deleted", "document_id": document_id}
 
 
 # ---------------------------------------------------------------- admin only

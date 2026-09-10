@@ -27,8 +27,11 @@ A Retrieval-Augmented Generation chatbot. Upload documents, ask questions about 
 - Upload PDFs, images, or text files
 - Documents are chunked, embedded, and indexed for semantic search
 - Chat interface that retrieves relevant context before answering
+- Delete a previously uploaded document (removes it from both the database and the vector index)
 - Built-in calculator for arithmetic queries
 - Uploaded files are archived to Azure Blob Storage
+- Real accounts (email+password or "Continue with Google"), JWT auth, and per-user document isolation enforced at the retrieval layer
+- Per-user and per-IP rate limiting on chat, upload, login, and registration
 
 ## Stack
 
@@ -51,13 +54,21 @@ Azure_RAG_Assistant/
 ├── backend/
 │   ├── main.py              # API routes
 │   ├── agent.py             # LangChain agent + tools
-│   ├── text_processing.py   # document parsing and chunking
+│   ├── text_processing.py   # document parsing, chunking, deletion
 │   ├── azure_storage.py     # blob storage upload
 │   ├── safe_math.py         # calculator tool
+│   ├── auth.py              # password hashing, JWT, refresh tokens
+│   ├── oauth.py             # Google OAuth login
+│   ├── database.py          # SQLAlchemy engine/session
+│   ├── models.py            # User, Document, RefreshToken, RequestLog
+│   ├── rate_limit.py        # per-user / per-IP rate limiting
+│   ├── guardrails.py        # prompt-injection and PII checks
+│   ├── observability.py     # optional tracing hook
 │   ├── config.py            # settings
 │   ├── static/index.html    # frontend
 │   ├── tests/
 │   └── Dockerfile
+├── scripts/                  # load testing, adversarial testing, demos
 ├── docker-compose.yml        # local dev only
 └── .env.example
 ```
@@ -81,7 +92,16 @@ pytest -v
 
 ## Deployment
 
-Deploys automatically to Azure App Service on every push to `main` via GitHub Actions. Environment variables required in the App Service:
+Deploys automatically to Azure App Service on every push to `main` via GitHub Actions.
+
+**App Service plan tier matters for anything beyond a personal demo.** The
+Free F1 tier caps the whole app at 60 CPU-minutes/day, shared across every
+user - once that's used up, Azure stops serving requests until the next
+day, regardless of how correct the code is. Move to a paid tier (B1 or
+higher) before sharing this with real users; F1 is fine for testing and
+your own use, not for anything meant to stay reliably up.
+
+Environment variables required in the App Service:
 
 ```
 GEMINI_API_KEY
@@ -98,6 +118,16 @@ GOOGLE_CLIENT_SECRET
 GOOGLE_REDIRECT_URI
 FRONTEND_URL
 WEBSITES_PORT=8000
+```
+
+Optional - all have sensible defaults, only set these to override them:
+
+```
+RATE_LIMIT_ENABLED       # default true
+CHAT_RATE_LIMIT_PER_HOUR     # default 30
+UPLOAD_RATE_LIMIT_PER_HOUR   # default 10
+LOGIN_RATE_LIMIT_PER_15MIN   # default 10
+REGISTER_RATE_LIMIT_PER_HOUR # default 5
 ```
 
 GitHub repository secrets required for the workflow:
@@ -117,24 +147,30 @@ database instead of no persistence at all.
 
 ### Setting up Azure SQL (production)
 
-1. In the Azure Portal: **Create a resource → Azure SQL Database**. Pick the
-   serverless compute tier for a demo (scales to near-zero cost when idle).
-2. Under the server's **Networking** settings, allow Azure services to access
-   the server (needed for App Service to reach it), and add your own IP for
-   running migrations locally.
+**Data persistence matters here:** `DATABASE_URL` defaults to
+`sqlite:///./dev.db`, which lives inside the container's own filesystem -
+fine for local dev, but on Azure App Service that file resets to empty on
+every redeploy (a fresh container image = a fresh, empty filesystem).
+Every registered account and document record would be wiped on every push
+to `main`. Set up Azure SQL before relying on this for anything real.
+
+1. In the Azure Portal: **Create a resource → Azure SQL Database**. Pick
+   the serverless compute tier for a demo (scales to near-zero cost when
+   idle) - there's also a genuine free tier (one per subscription) if
+   you're on Azure for Students.
+2. Under the server's **Networking** settings, allow Azure services to
+   access the server (needed for App Service to reach it).
 3. Set `DATABASE_URL` to:
    ```
-   mssql+pyodbc://<user>:<password>@<server>.database.windows.net:1433/<db>?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes
+   mssql+pymssql://<user>:<password>@<server>.database.windows.net:1433/<db>
    ```
-4. Install the driver: `pip install pyodbc` **and** the Microsoft ODBC Driver
-   18 itself (`pip install` alone does not install this - see
-   [Microsoft's install docs](https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server)
-   for your OS/container base image; the existing `Dockerfile` here is
-   Debian-based, so it needs the `msodbcsql18` apt package added).
-5. Uncomment `pyodbc` in `requirements.txt`.
+4. That's it - `pymssql` (already in `requirements.txt`) ships as a
+   self-contained wheel with its native dependencies bundled in, so unlike
+   `pyodbc` it needs no separate driver installed in the container or any
+   Dockerfile changes.
 
-For local dev, skip all of this - the default `DATABASE_URL` is
-`sqlite:///./dev.db`, which needs zero setup and is what the test suite uses.
+For local dev, skip all of this - the default `sqlite:///./dev.db` needs
+zero setup and is what the test suite uses.
 
 ### Setting up Google OAuth
 
@@ -198,10 +234,17 @@ minutes by default, so this resolves itself quickly either way).
 - `/admin/stats` reports account/document counts, not real per-request API
   cost - that needs the LLM call itself to report token usage back, which
   isn't wired in yet.
+- Rate limiting caps *request counts* (e.g. 30 chats/hour), not actual
+  Gemini token spend - a user could still send unusually long messages
+  within that count and cost more than a typical one. A real per-account
+  dollar cap would need the LLM call to report token usage back per
+  request, same gap as the `/admin/stats` point above.
 
 ## Notes
 
 - The calculator uses a restricted AST-based evaluator instead of `eval()`.
 - If blob storage is unavailable, uploads still succeed and remain searchable — only the raw file backup is skipped.
+- Deleting a document removes its vector chunks from Qdrant (filtered by a document id tagged onto each chunk, not by filename, so two uploads that happen to share a name can't collide) and its row from the database.
+- Rate limiting (`rate_limit.py`) is database-backed rather than in-memory, so limits are enforced correctly even if this ever runs as more than one instance. Chat and upload are limited per-account; login and registration are limited per-IP, since there's no logged-in user yet at that point. Disable entirely with `RATE_LIMIT_ENABLED=false` (used by the test suite, since it legitimately calls these endpoints many times in a row).
 - Guardrails (`guardrails.py`) redact PII and block a heuristic set of prompt-injection patterns before a query reaches the LLM - see `scripts/adversarial_report.py` for the honest catch-rate against a real adversarial test set (19/20, with the one miss listed).
 - Observability (Arize Phoenix) is off by default - set `ENABLE_OBSERVABILITY=true` and see `scripts/regression_demo.py` for proof it actually catches a quality regression, not just happy-path traffic.

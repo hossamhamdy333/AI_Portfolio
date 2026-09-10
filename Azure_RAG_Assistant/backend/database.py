@@ -1,14 +1,16 @@
 """
 Database connection. One connection string, two engines it can point at:
 
-  Local dev / testing:  sqlite:///./dev.db   (zero setup, what the tests use)
-  Production (Azure):   mssql+pyodbc://<user>:<password>@<server>.database.windows.net/<db>?driver=ODBC+Driver+18+for+SQL+Server
+  Local dev / testing:  sqlite:///./dev.db
+  Production (Azure):   mssql+pymssql://<user>:<password>@<server>.database.windows.net:1433/<db>
 
-Swapping between them is just changing DATABASE_URL in .env - nothing else
-in the code needs to change, since SQLAlchemy's Core/ORM layer is the same
-either way. To actually deploy against SQL Server, install the ODBC driver
-first (see README's "Setting up Azure SQL" section) - `pyodbc` alone isn't
-enough, it needs the Microsoft ODBC Driver installed on the machine/container.
+Swapping between them is just changing DATABASE_URL - nothing else in the
+code needs to change, since SQLAlchemy's Core/ORM layer is the same either
+way. pymssql ships as a self-contained wheel with its native dependencies
+bundled in, so no extra system packages need installing in the container
+for this to work (unlike pyodbc, which needs Microsoft's ODBC driver
+installed separately) - see the README's "Setting up Azure SQL" section
+for the actual account setup.
 """
 
 from sqlalchemy import create_engine

@@ -78,3 +78,24 @@ class RefreshToken(Base):
     expires_at = Column(DateTime, nullable=False)
     revoked = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=utcnow)
+
+
+class RequestLog(Base):
+    """
+    One row per rate-limited request. Counting recent rows here (instead of
+    tracking counters in memory) is what makes rate limiting correct even
+    if the app ever runs as more than one instance - separate in-memory
+    counters per instance would each have their own wrong view of "how many
+    requests has this user made." A shared database does not have that
+    problem. See rate_limit.py for the enforcement logic that uses this.
+
+    `key` is either "user:<id>" (for authenticated endpoints like /chat)
+    or "ip:<address>" (for /auth/login and /auth/register, where there's
+    no logged-in user yet to key on).
+    """
+    __tablename__ = "request_log"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(255), nullable=False, index=True)
+    endpoint = Column(String(50), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
