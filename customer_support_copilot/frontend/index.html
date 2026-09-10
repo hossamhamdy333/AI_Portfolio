@@ -8,6 +8,7 @@
   :root {
     --bg: #0f1117;
     --panel: #161a23;
+    --sidebar: #12141c;
     --accent: #6366f1;
     --accent-2: #22d3ee;
     --text: #e6e8ef;
@@ -21,27 +22,28 @@
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(circle at top, #1a1e2b 0%, var(--bg) 60%);
+    background: var(--bg);
     color: var(--text);
     height: 100vh;
     display: flex;
     flex-direction: column;
   }
   header {
-    padding: 20px 28px;
+    padding: 16px 24px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     gap: 14px;
   }
   header .logo {
-    width: 40px; height: 40px;
+    width: 38px; height: 38px;
     border-radius: 10px;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
+    font-size: 18px;
+    flex-shrink: 0;
   }
-  header h1 { font-size: 17px; margin: 0; }
+  header h1 { font-size: 16px; margin: 0; }
   header p { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
   .status { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
   .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); }
@@ -82,6 +84,63 @@
   .auth-row button { flex: 1; padding: 10px; font-size: 13.5px; }
   #auth-status { font-size: 12.5px; margin-top: 10px; color: var(--muted); }
   #auth-status.error { color: var(--error); }
+
+  /* --- main layout: sidebar + chat --- */
+  #app { display: none; flex: 1; overflow: hidden; }
+
+  #sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    overflow-y: auto;
+  }
+  #new-chat-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 13.5px;
+    margin-bottom: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    text-align: left;
+  }
+  #new-chat-btn:hover { border-color: var(--accent); }
+  .convo-item {
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .convo-item:hover { background: var(--panel); }
+  .convo-item.active { background: var(--panel); color: var(--text); }
+  .convo-item .del-btn {
+    opacity: 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: 2px 6px;
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .convo-item:hover .del-btn { opacity: 1; }
+  .convo-item .del-btn:hover { color: var(--error); }
+
+  #chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
   main {
     flex: 1;
@@ -156,6 +215,17 @@
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  #empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+    padding: 24px;
+  }
+
   .typing { display: flex; gap: 4px; padding: 6px 0; }
   .typing span {
     width: 6px; height: 6px; border-radius: 50%;
@@ -165,8 +235,6 @@
   .typing span:nth-child(2) { animation-delay: 0.2s; }
   .typing span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
-
-  #app { display: none; flex: 1; flex-direction: column; }
 </style>
 </head>
 <body>
@@ -175,7 +243,7 @@
   <div class="logo">🎧</div>
   <div>
     <h1>AI Support Copilot</h1>
-    <p>Fine-tuned Llama-3 (QLoRA) &middot; RAG-grounded responses</p>
+    <p>Your assistant for orders, refunds, accounts &amp; shipping &middot; powered by a fine-tuned Llama-3 (QLoRA) model</p>
   </div>
   <div class="status" id="status-bar">
     <span class="dot"></span> <span id="user-email"></span>
@@ -197,19 +265,23 @@
 </div>
 
 <div id="app">
-  <main id="chat"></main>
-  <form id="chat-form">
-    <input type="text" id="chat-input" placeholder="e.g. Where is my refund?" autocomplete="off" />
-    <button type="submit" id="send-btn">Send</button>
-  </form>
+  <div id="sidebar">
+    <button id="new-chat-btn">+ New chat</button>
+    <div id="convo-list"></div>
+  </div>
+  <div id="chat-area">
+    <main id="chat"></main>
+    <form id="chat-form">
+      <input type="text" id="chat-input" placeholder="e.g. Where is my refund?" autocomplete="off" />
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </div>
 </div>
 
 <script>
-  // Access token lives only in memory - lost on page refresh (kept out of
-  // localStorage so an XSS bug can't read it). The refresh token DOES go
-  // in localStorage, so reloading the page can silently get a new access
-  // token instead of forcing a full re-login every time.
   let accessToken = null;
+  let activeConvoId = null;
+
   function saveRefreshToken(t) { localStorage.setItem("refresh_token", t); }
   function getRefreshToken() { return localStorage.getItem("refresh_token"); }
   function clearRefreshToken() { localStorage.removeItem("refresh_token"); }
@@ -219,6 +291,11 @@
   const authStatusEl = document.getElementById("auth-status");
   const userEmailEl = document.getElementById("user-email");
   const logoutBtn = document.getElementById("logout-btn");
+  const convoListEl = document.getElementById("convo-list");
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-input");
+  const sendBtn = document.getElementById("send-btn");
 
   function setAuthStatus(text, cls) {
     authStatusEl.textContent = text;
@@ -250,14 +327,73 @@
     return res;
   }
 
-  async function loadHistory() {
-    const res = await authedFetch("/chat/history");
-    if (!res.ok) return;
-    const history = await res.json();
-    for (const m of history) {
-      addMessage(m.role === "assistant" ? "bot" : "user", m.content);
+  // ---------------------------------------------------------- conversations
+
+  async function loadConversations() {
+    const res = await authedFetch("/conversations");
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  function renderConvoList(convos) {
+    convoListEl.innerHTML = "";
+    for (const c of convos) {
+      const item = document.createElement("div");
+      item.className = "convo-item" + (c.id === activeConvoId ? " active" : "");
+      item.dataset.id = c.id;
+
+      const label = document.createElement("span");
+      label.textContent = c.title;
+      label.style.overflow = "hidden";
+      label.style.textOverflow = "ellipsis";
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "del-btn";
+      delBtn.textContent = "✕";
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await authedFetch(`/conversations/${c.id}`, { method: "DELETE" });
+        if (activeConvoId === c.id) {
+          const remaining = await loadConversations();
+          if (remaining.length > 0) {
+            await openConversation(remaining[0].id);
+          } else {
+            await startNewConversation();
+          }
+        }
+        renderConvoList(await loadConversations());
+      };
+
+      item.appendChild(label);
+      item.appendChild(delBtn);
+      item.onclick = () => openConversation(c.id);
+      convoListEl.appendChild(item);
     }
   }
+
+  async function openConversation(id) {
+    activeConvoId = id;
+    chat.innerHTML = "";
+    const res = await authedFetch(`/conversations/${id}/messages`);
+    const messages = res.ok ? await res.json() : [];
+    if (messages.length === 0) {
+      chat.innerHTML = '<div id="empty-state">Ask about orders, refunds, accounts, or shipping to get started.</div>';
+    } else {
+      for (const m of messages) addMessage(m.role === "assistant" ? "bot" : "user", m.content);
+    }
+    renderConvoList(await loadConversations());
+  }
+
+  async function startNewConversation() {
+    const res = await authedFetch("/conversations", { method: "POST" });
+    if (!res.ok) return;
+    const convo = await res.json();
+    await openConversation(convo.id);
+  }
+
+  document.getElementById("new-chat-btn").addEventListener("click", startNewConversation);
+
+  // ---------------------------------------------------------- auth flow
 
   async function showLoggedIn() {
     const res = await authedFetch("/auth/me");
@@ -268,13 +404,11 @@
     authWrap.style.display = "none";
     appEl.style.display = "flex";
 
-    if (chat.children.length === 0) {
-      const history = await authedFetch("/chat/history").then(r => r.ok ? r.json() : []);
-      if (history.length > 0) {
-        for (const m of history) addMessage(m.role === "assistant" ? "bot" : "user", m.content);
-      } else {
-        addMessage("bot", "Hello! I'm your AI Support Copilot. How can I help?");
-      }
+    const convos = await loadConversations();
+    if (convos.length > 0) {
+      await openConversation(convos[0].id);
+    } else {
+      await startNewConversation();
     }
   }
 
@@ -334,12 +468,12 @@
     location.reload();
   });
 
-  const chat = document.getElementById("chat");
-  const form = document.getElementById("chat-form");
-  const input = document.getElementById("chat-input");
-  const sendBtn = document.getElementById("send-btn");
+  // ---------------------------------------------------------- chat rendering
 
   function addMessage(role, text, context) {
+    const empty = document.getElementById("empty-state");
+    if (empty) empty.remove();
+
     const wrap = document.createElement("div");
     wrap.className = "msg " + role;
 
@@ -387,7 +521,7 @@
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const query = input.value.trim();
-    if (!query) return;
+    if (!query || activeConvoId === null) return;
 
     addMessage("user", query);
     input.value = "";
@@ -398,12 +532,13 @@
       const res = await authedFetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, conversation_id: activeConvoId }),
       });
       if (!res.ok) throw new Error(`Server responded ${res.status}`);
       const data = await res.json();
       removeTyping();
       addMessage("bot", data.response, data.context);
+      renderConvoList(await loadConversations()); // picks up auto-generated title
     } catch (err) {
       removeTyping();
       addMessage("bot", "⚠️ System error: " + err.message);
@@ -413,8 +548,6 @@
     }
   });
 
-  // On load: resume a session with the stored refresh token if there is
-  // one, otherwise the login form just stays showing.
   (async function init() {
     if (getRefreshToken()) {
       if (await refreshAccessToken()) { await showLoggedIn(); return; }
