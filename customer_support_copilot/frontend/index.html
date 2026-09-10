@@ -80,12 +80,6 @@
   #auth-panel input:focus { border-color: var(--accent); }
   .auth-row { display: flex; gap: 8px; margin-bottom: 10px; }
   .auth-row button { flex: 1; padding: 10px; font-size: 13.5px; }
-  #google-btn {
-    width: 100%;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-  }
   #auth-status { font-size: 12.5px; margin-top: 10px; color: var(--muted); }
   #auth-status.error { color: var(--error); }
 
@@ -198,7 +192,6 @@
       <button id="login-btn">Log in</button>
       <button id="register-btn" style="background: transparent; border: 1px solid var(--border); color: var(--text);">Register</button>
     </div>
-    <button id="google-btn">Continue with Google</button>
     <div id="auth-status"></div>
   </div>
 </div>
@@ -327,10 +320,6 @@
     }
   });
 
-  document.getElementById("google-btn").addEventListener("click", () => {
-    window.location.href = "/auth/google/login";
-  });
-
   logoutBtn.addEventListener("click", async () => {
     const refreshToken = getRefreshToken();
     if (refreshToken) {
@@ -424,19 +413,9 @@
     }
   });
 
-  // On load: either we just got redirected back from Google (tokens are
-  // in the URL - see oauth.py's callback), or there's a refresh token
-  // from a previous visit to silently resume, or neither and the login
-  // form just stays showing.
+  // On load: resume a session with the stored refresh token if there is
+  // one, otherwise the login form just stays showing.
   (async function init() {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("access_token") && params.has("refresh_token")) {
-      accessToken = params.get("access_token");
-      saveRefreshToken(params.get("refresh_token"));
-      window.history.replaceState({}, "", window.location.pathname);
-      await showLoggedIn();
-      return;
-    }
     if (getRefreshToken()) {
       if (await refreshAccessToken()) { await showLoggedIn(); return; }
     }
