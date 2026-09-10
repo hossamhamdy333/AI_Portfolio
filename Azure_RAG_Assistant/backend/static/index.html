@@ -110,7 +110,6 @@
       <button id="login-btn">Log in</button>
       <button id="register-btn" class="secondary">Register</button>
     </div>
-    <button id="google-btn" class="secondary" style="width:100%; margin-top:8px;">Continue with Google</button>
     <div id="auth-status"></div>
   </div>
 
@@ -227,10 +226,6 @@
     } catch (e) {
       setAuthStatus("Could not reach backend: " + e.message, "error");
     }
-  });
-
-  document.getElementById("google-btn").addEventListener("click", () => {
-    window.location.href = "/auth/google/login";
   });
 
   document.getElementById("logout-btn").addEventListener("click", async () => {
