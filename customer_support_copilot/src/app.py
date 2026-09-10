@@ -1,10 +1,8 @@
 """
 FastAPI backend for the AI Support Copilot.
 
-This is the app that's actually deployed -- a container on Azure
-Container Apps. Generation goes through src/llm_backend.py, which can be
-either the original CPU-only llama.cpp GGUF setup or vLLM (see that
-module's docstring for when each makes sense).
+Supports multiple named conversations per user, like Claude's chat
+sidebar, instead of one endless thread per account.
 """
 
 import logging
@@ -13,7 +11,6 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -25,7 +22,7 @@ from src import llm_backend
 from src.guardrails import guard_input, guard_output
 from src.config import settings
 from src.database import get_db, init_db
-from src.models import User, ChatMessage, MessageRole, Role
+from src.models import User, Conversation, ChatMessage, MessageRole, Role
 from src.auth import (
     hash_password, verify_password,
     create_access_token, create_refresh_token,
@@ -43,24 +40,19 @@ SYSTEM_PROMPT = (
     "ONLY on the provided context."
 )
 
-# Populated at startup (see lifespan below).
 _retriever = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _retriever
-
     init_db()
-
     logger.info("Loading LLM backend (%s)...", settings.LLM_BACKEND)
     llm_backend.load_model()
     logger.info("LLM backend ready.")
-
     logger.info("Building KB retriever...")
     _retriever = KBRetriever()
     logger.info("Retriever ready.")
-
     yield
 
 
@@ -86,6 +78,7 @@ class RefreshRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str
+    conversation_id: int
 
 
 class ChatResponse(BaseModel):
@@ -94,15 +87,18 @@ class ChatResponse(BaseModel):
     blocked: bool = False
 
 
+class NewConversationResponse(BaseModel):
+    id: int
+    title: str
+
+
 # ---------------------------------------------------------------- auth
 
 @app.post("/auth/register", status_code=201)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
-
-    existing = db.query(User).filter(User.email == body.email).first()
-    if existing is not None:
+    if db.query(User).filter(User.email == body.email).first() is not None:
         raise HTTPException(409, "An account with this email already exists")
 
     user = User(email=body.email, password_hash=hash_password(body.password), role=Role.user)
@@ -118,7 +114,6 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 @app.post("/auth/login")
 def login(body: LoginRequest, db: Session = Depends(get_db)):
     unauthorized = HTTPException(401, "Incorrect email or password")
-
     user = db.query(User).filter(User.email == body.email).first()
     if user is None or user.password_hash is None:
         raise unauthorized
@@ -137,11 +132,9 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     record = verify_refresh_token(db, body.refresh_token)
     if record is None:
         raise HTTPException(401, "Invalid, expired, or already-used refresh token")
-
     user = db.query(User).filter(User.id == record.user_id).first()
     if user is None or not user.is_active:
         raise HTTPException(401, "Account no longer active")
-
     return {"access_token": create_access_token(user.id, user.role.value)}
 
 
@@ -156,7 +149,53 @@ def me(user: User = Depends(get_current_user)):
     return {"id": user.id, "email": user.email, "role": user.role.value}
 
 
-# ---------------------------------------------------------------- chat (per-user, persisted)
+# ---------------------------------------------------------------- conversations
+
+@app.post("/conversations", response_model=NewConversationResponse, status_code=201)
+def create_conversation(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    convo = Conversation(user_id=user.id, title="New chat")
+    db.add(convo)
+    db.commit()
+    db.refresh(convo)
+    return NewConversationResponse(id=convo.id, title=convo.title)
+
+
+@app.get("/conversations")
+def list_conversations(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    convos = (
+        db.query(Conversation)
+        .filter(Conversation.user_id == user.id)
+        .order_by(Conversation.updated_at.desc())
+        .all()
+    )
+    return [{"id": c.id, "title": c.title, "updated_at": c.updated_at.isoformat()} for c in convos]
+
+
+@app.get("/conversations/{conversation_id}/messages")
+def get_conversation_messages(conversation_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    convo = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == user.id).first()
+    if convo is None:
+        raise HTTPException(404, "Conversation not found")
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.conversation_id == conversation_id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    return [{"role": m.role.value, "content": m.content, "created_at": m.created_at.isoformat()} for m in messages]
+
+
+@app.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    convo = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == user.id).first()
+    if convo is None:
+        raise HTTPException(404, "Conversation not found")
+    db.delete(convo)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ---------------------------------------------------------------- chat
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(
@@ -166,6 +205,10 @@ async def chat_endpoint(
 ):
     if not llm_backend.is_ready() or _retriever is None:
         raise HTTPException(status_code=503, detail="Model is still loading, try again shortly.")
+
+    convo = db.query(Conversation).filter(Conversation.id == request.conversation_id, Conversation.user_id == user.id).first()
+    if convo is None:
+        raise HTTPException(404, "Conversation not found")
 
     input_guard = guard_input(request.query)
     if input_guard["blocked"]:
@@ -197,8 +240,14 @@ Query: {input_guard['redacted_text']}
             if eval_result and not eval_result.get("is_faithful", True):
                 logger.warning("Faithfulness check flagged this response: %s", eval_result.get("reason"))
 
-        db.add(ChatMessage(user_id=user.id, role=MessageRole.user, content=request.query))
-        db.add(ChatMessage(user_id=user.id, role=MessageRole.assistant, content=final_text))
+        db.add(ChatMessage(conversation_id=convo.id, user_id=user.id, role=MessageRole.user, content=request.query))
+        db.add(ChatMessage(conversation_id=convo.id, user_id=user.id, role=MessageRole.assistant, content=final_text))
+        convo.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        # Auto-title a fresh conversation from its first message.
+        if convo.title == "New chat":
+            convo.title = request.query.strip()[:50]
+
         db.commit()
 
         return ChatResponse(response=final_text, context=context, blocked=output_guard["blocked"])
@@ -206,18 +255,6 @@ Query: {input_guard['redacted_text']}
     except Exception as e:
         logger.exception("Chat generation failed for user %d", user.id)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/chat/history")
-def my_chat_history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """A user's own conversation history - not anyone else's."""
-    messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.user_id == user.id)
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
-    return [{"role": m.role.value, "content": m.content, "created_at": m.created_at.isoformat()} for m in messages]
 
 
 @app.get("/health")
@@ -238,13 +275,9 @@ def admin_list_users(admin: User = Depends(require_admin), db: Session = Depends
 
 @app.get("/admin/users/{user_id}/transcript")
 def admin_view_transcript(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """The full conversation history for one user - for support/QA
-    purposes, not something a regular user can see about anyone but
-    themselves (see /chat/history above)."""
     target = db.query(User).filter(User.id == user_id).first()
     if target is None:
         raise HTTPException(404, "User not found")
-
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.user_id == user_id)
@@ -261,7 +294,6 @@ def admin_ban_user(user_id: int, admin: User = Depends(require_admin), db: Sessi
         raise HTTPException(404, "User not found")
     if target.id == admin.id:
         raise HTTPException(400, "Can't ban your own account")
-
     target.is_active = 0
     db.commit()
     return {"status": "banned", "user_id": user_id}
