@@ -25,14 +25,13 @@ import requests
 
 from src.config import settings
 
-MAX_NEW_TOKENS = 150
+MAX_NEW_TOKENS = 100
 
 _model = None  # only used by the llamacpp backend
 
 
 def load_llamacpp_model():
-    """Downloads the GGUF file once and loads it - this is the existing
-    behavior from before this file existed, moved here unchanged."""
+    """Downloads the GGUF file once and loads it."""
     global _model
     from huggingface_hub import hf_hub_download
     from llama_cpp import Llama
@@ -41,7 +40,12 @@ def load_llamacpp_model():
     _model = Llama(
         model_path=model_path,
         n_ctx=1024,
-        n_threads=os.cpu_count() or 4,
+        n_threads=4,        # matches the Container App's actual CPU allocation --
+                             # os.cpu_count() reads the HOST's core count, not
+                             # what this container is limited to, which was
+                             # oversubscribing threads and slowing things down.
+        n_threads_batch=4,  # threads used during prompt processing specifically
+        n_batch=512,        # larger prompt-processing batch = faster prompt ingestion
         verbose=False,
     )
 
