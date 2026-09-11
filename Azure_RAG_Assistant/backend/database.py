@@ -24,7 +24,19 @@ from config import settings, logger
 # check_same_thread=False is only needed for SQLite (FastAPI can call the
 # same connection from different threads); SQL Server doesn't need this
 # argument at all, so it's added conditionally instead of always.
-connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+#
+# For SQL Server specifically: pymssql's query timeout defaults to 0,
+# meaning *unlimited* - if Azure SQL's serverless tier is mid-wake-up from
+# auto-pause, a query can hang indefinitely with no error at all, which is
+# worse than a clear failure the frontend can show and let the user retry.
+# 30s comfortably covers a normal serverless wake-up while still failing
+# fast if something is actually wrong, rather than hanging forever.
+if settings.DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+elif settings.DATABASE_URL.startswith("mssql"):
+    connect_args = {"timeout": 30, "login_timeout": 30}
+else:
+    connect_args = {}
 
 engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
