@@ -4,7 +4,7 @@
 
 Your assistant for orders, refunds, accounts & shipping — a fine-tuned Llama-3 (QLoRA) model, grounded with RAG retrieval, behind real accounts and per-user chat history. Deployed on Azure Container Apps, running entirely on CPU.
 
-**Live demo:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
+**Live Application:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
 
 `Python` `FastAPI` `llama.cpp` `QLoRA` `SQLAlchemy` `Azure SQL` `JWT Auth` `Docker` `GitHub Actions`
 
