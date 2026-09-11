@@ -13,10 +13,13 @@ installed separately) - see the README's "Setting up Azure SQL" section
 for the actual account setup.
 """
 
+import time
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.exc import OperationalError
 
-from config import settings
+from config import settings, logger
 
 # check_same_thread=False is only needed for SQLite (FastAPI can call the
 # same connection from different threads); SQL Server doesn't need this
@@ -38,11 +41,38 @@ def get_db():
         db.close()
 
 
-def init_db():
-    """Creates every table that doesn't exist yet. Safe to call on every
-    app startup - it's a no-op for tables that already exist. Fine for a
+def init_db(max_attempts: int = 5, initial_delay_seconds: float = 3.0) -> None:
+    """
+    Creates every table that doesn't exist yet. Safe to call on every app
+    startup - it's a no-op for tables that already exist. Fine for a
     project this size; a real production system with an evolving schema
     would use Alembic migrations instead of this, so schema changes don't
-    require manually diffing what create_all() would do."""
+    require manually diffing what create_all() would do.
+
+    Retries with exponential backoff on connection failures rather than
+    crashing the whole container on the first attempt. This matters
+    specifically for Azure SQL's serverless tier, which auto-pauses when
+    idle and takes some seconds to wake back up on the next connection -
+    without a retry here, a container that starts right as the database
+    is waking up would crash before the database ever became reachable,
+    even though it would have connected fine a few seconds later. Also
+    covers any other transient network hiccup at startup.
+    """
     import models  # noqa: F401 - importing registers the models with Base
-    Base.metadata.create_all(bind=engine)
+
+    delay = initial_delay_seconds
+    for attempt in range(1, max_attempts + 1):
+        try:
+            Base.metadata.create_all(bind=engine)
+            return
+        except OperationalError:
+            if attempt == max_attempts:
+                logger.exception("Database still unreachable after %d attempts - giving up", max_attempts)
+                raise
+            logger.warning(
+                "Database not reachable yet (attempt %d/%d) - retrying in %.0fs. "
+                "Normal on first startup after Azure SQL serverless auto-pause.",
+                attempt, max_attempts, delay,
+            )
+            time.sleep(delay)
+            delay *= 2
