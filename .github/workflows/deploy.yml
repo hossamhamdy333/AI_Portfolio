@@ -16,17 +16,28 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Tagged with the commit SHA, not just :latest. Azure's container
+      # config update can silently no-op when the image *reference string*
+      # is identical to the previous deploy (":latest" every time), even
+      # though the actual image underneath changed - this was an observed,
+      # repeated real bug, not a hypothetical. A SHA tag is guaranteed
+      # unique per push, so Azure always sees a genuinely new reference and
+      # is forced to pull it. :latest is also pushed alongside it, purely
+      # for convenience (e.g. manually running `docker pull ...:latest`
+      # locally) - it's never what gets deployed.
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/azure-rag-assistant:latest
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/azure-rag-assistant:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/azure-rag-assistant:${{ github.sha }}
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: azure-rag-assistant
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/azure-rag-assistant:latest
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/azure-rag-assistant:${{ github.sha }}
