@@ -4,7 +4,7 @@
 
 A production-shaped customer support chatbot: a self fine-tuned Llama-3 model, grounded with RAG so it answers from real policy instead of guessing, sitting behind real accounts, per-user chat history, and role-based access control — not a chatbot demo bolted onto a script.
 
-**Live demo:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
+**Live Application:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
 
 `Python` `FastAPI` `QLoRA` `llama.cpp` `RAG` `SQLAlchemy` `Azure SQL` `JWT Auth` `Docker` `GitHub Actions`
 
