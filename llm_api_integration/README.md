@@ -56,12 +56,12 @@ Most "LLM integration" demos are a single happy-path call to an API. The interes
 
 `notebooks/01_demo.ipynb` spins up the FastAPI server and hits every endpoint for real. A few things worth pointing out from that run:
 
-**`/analyze` on five test sentences** correctly separated clear positive/negative cases (confidence 1.00 both ways) from genuinely mixed ones: *"It was okay, nothing special but not bad either"* landed as neutral (0.95), and *"The acting was good but the plot made no sense whatsoever"* landed as neutral too, but at lower confidence (0.85), which fits the real ambiguity of a mixed review better than forcing it into positive or negative.
+**`/analyze` on five test sentences** correctly separated clear positive/negative cases (confidence 1.00 both ways) from genuinely mixed ones: *"It was okay, nothing special but not bad either"* landed as neutral (0.95), and *"The acting was good but the plot made no sense whatsoever"* landed as neutral too, but at lower confidence (0.90), which fits the real ambiguity of a mixed review better than forcing it into positive or negative.
 
 **`/chat/tools` on three prompts** is where the demo is most honest about reliability, not just the happy path:
 - *"What is the weather like in Cairo right now?"* correctly routed to `get_current_weather` and answered using the tool's output.
 - *"What is 2 + 2?"* correctly skipped the tools and answered directly.
-- *"How does function calling work with language models?"* was supposed to route to `search_documents`, since it's a question the in-memory doc corpus can actually answer, but the model answered directly from its own knowledge instead and skipped the tool entirely. Routing decisions are the model's judgment call, not a deterministic function, and that's worth knowing going in rather than only demoing the cases that worked.
+- *"How does function calling work with language models?"* correctly routed to `search_documents` — but the in-memory doc corpus doesn't actually contain anything on that topic, so the tool came back with "no matching documents found" and the model reported that honestly instead of making something up. Routing is the model's judgment call, not a deterministic function, so this is worth showing alongside the cases that had a real answer waiting: correct routing plus an honest "I don't know" beats a wrong answer delivered confidently.
 
 ## Switching backends
 
