@@ -38,7 +38,19 @@ elif settings.DATABASE_URL.startswith("mssql"):
 else:
     connect_args = {}
 
-engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+# pool_pre_ping: issues a cheap "is this connection still alive" check
+# before handing it to a request. Without this, a connection that was
+# opened before Azure SQL auto-paused (and is now dead) can sit in the
+# pool and get reused, causing the *next* request through it to hang or
+# fail strangely instead of transparently reconnecting.
+# pool_recycle: forces connections older than this to be discarded and
+# reopened, as a second safety net against the same class of staleness.
+engine = create_engine(
+    settings.DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=True,
+    pool_recycle=280,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

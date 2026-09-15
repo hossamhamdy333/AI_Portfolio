@@ -89,7 +89,22 @@ async def index(request: Request):
 
 @app.get("/health")
 async def health():
+    """Cheap liveness check - deliberately does NOT touch the database, so
+    Azure's own health probe can't be taken down by a slow/paused DB and
+    restart-loop the whole container over something that isn't a crash."""
     return {"status": "ok"}
+
+
+@app.get("/health/db")
+def health_db(db: Session = Depends(get_db)):
+    """Separate, explicit readiness check for the database itself. Hit
+    this directly when debugging - if it hangs or errors, the problem is
+    DB connectivity/credentials, not the app. If it returns fast, login
+    hanging is something else."""
+    from sqlalchemy import text
+
+    db.execute(text("SELECT 1"))
+    return {"status": "ok", "database_url_scheme": settings.DATABASE_URL.split("://")[0]}
 
 
 # ---------------------------------------------------------------- auth
