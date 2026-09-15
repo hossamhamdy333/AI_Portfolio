@@ -4,7 +4,7 @@
 
 Upload a PDF, TXT, or MD file, ask questions about it, and get answers pulled straight from the text, with the source shown so you can check it's not making things up.
 
-**Live demo:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
+**Live Application:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
 
 `Python` `FastAPI` `ChromaDB` `Sentence-Transformers` `Gemini API` `Streamlit` `Docker`
 
@@ -49,7 +49,7 @@ A few things worth knowing about the implementation:
 
 **Every user gets their own private document set, tied to a real account.** Log in (email+password, or Google on the FastAPI backend) and your uploads are private to you — isolated at the Chroma collection level, keyed to your account ID rather than a random URL parameter the old version used. See "Accounts and a real database" below.
 
-**Each visitor uses their own Gemini API key.** The public deployment doesn't ship with a shared key. Visitors paste their own free key into the sidebar, and it's kept only in their browser session's memory, never saved server-side or shared with other visitors. There's no shared quota to protect, so there's no access gate for the *Gemini key* — logging in is still required, though, since that's what protects each user's own document set from every other user, not the API quota.
+**One shared Gemini key, with a daily cap per account.** Earlier versions had every visitor paste in their own free Gemini key before they could ask anything — fine for a personal tool, but a real barrier for a recruiter clicking through a portfolio project who isn't going to go set up an API key first. Now the deployment carries one key (mine), and each logged-in account gets a fixed number of questions per day, tracked in the same `users` table that already exists for accounts (`daily_query_count` / `daily_query_date`, reset when the date rolls over). That's what stops the shared quota from getting drained by one heavy user instead of everyone who wants to try it.
 
 **There are two versions of the front end.** `ui/streamlit_app.py` talks to the FastAPI backend over HTTP (JWT bearer tokens), which is the setup for local dev (two terminals) or Docker (two services). `streamlit_app.py` at the repo root calls the pipeline directly in-process instead (checking the same password-hash database directly, no tokens issued), which is what Streamlit Community Cloud needs since it only runs one process with no separate server to hold a token-issuing conversation with.
 
@@ -140,13 +140,17 @@ Streamlit Community Cloud works well for this and doesn't ask for a card.
 1. Push this repo to GitHub.
 2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with GitHub, click **Create app**.
 3. Repository: your repo. Branch: `main`. Main file path: `rag_qa_documind/streamlit_app.py` (the standalone one at the repo root, not the one in `ui/`).
-4. Secrets required now that there are real accounts:
+4. Secrets required:
    ```toml
+   GEMINI_API_KEY = "..."   # the shared key every visitor's questions run on -
+                            # see "One shared Gemini key" above for the daily
+                            # cap that protects it
    JWT_SECRET_KEY = "..."   # generate with: python -c "import secrets; print(secrets.token_hex(32))"
    DATABASE_URL = "..."     # a real Azure SQL connection string - see "Accounts
                             # and a real database" below. Without this, accounts
-                            # are stored in a local SQLite file that will NOT
-                            # survive a Streamlit Cloud redeploy.
+                            # (and everyone's daily question count) live in a
+                            # local SQLite file that will NOT survive a
+                            # Streamlit Cloud redeploy.
    GEMINI_MODEL = "gemini-3.1-flash-lite"   # optional, only if you want a non-default model
    ```
 5. Deploy. You'll get a URL like `https://your-app.streamlit.app`.
@@ -237,7 +241,8 @@ free win.
 - **Scanned PDFs won't work.** If a PDF is just images of text with no real text layer, there's nothing to extract. The app warns you when this happens instead of failing silently.
 - **Accounts isolate uploads between different users, not between unrelated documents you upload yourself.** If you upload several different documents to your own account, they all go into the same private index together, and retrieval precision for questions about any one of them can drop. Clear your index before switching topics.
 - **A hard page reload logs you out** (see "Accounts and a real database" above for why this is the right trade-off, not an oversight).
-- **Each visitor is subject to their own free-tier Gemini rate limits** since they bring their own key, so there's no shared quota to run out.
+- **The daily question cap counts questions, not tokens.** A long, complex answer and a one-word answer cost the same "1" toward the limit - good enough to stop abuse of a shared free-tier key, not a real metered-billing system.
+- **The cap is per account, tracked in the database - which means it resets to zero for everyone if the SQLite database gets wiped** (see "Accounts and a real database" for when that happens on Streamlit Cloud specifically).
 - **Guardrails are regex heuristics**, not a trained moderation model (see `app/guardrails.py` and Azure RAG Assistant's `scripts/adversarial_report.py` for the honest catch rate on the same approach - 19/20, one listed miss).
 
 ## Things worth adding if I take this further
@@ -248,3 +253,4 @@ free win.
 - A "remember me" option that survives a page reload without going back to the old URL-parameter scheme's security hole (e.g. a short-lived signed cookie).
 - Support for other LLM providers, not just Gemini. `app/llm.py` would need an `LLM_PROVIDER` setting to switch between Gemini/OpenAI/Anthropic without touching `rag.py`.
 - Swapping ChromaDB for something like Pinecone or pgvector, mostly to show an understanding of the tradeoffs.
+- Metering the daily cap by actual Gemini token usage instead of raw question count, so one huge document dump doesn't cost the same as one short question.
