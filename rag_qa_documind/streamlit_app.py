@@ -8,25 +8,44 @@ backend process. So this version imports the RAG pipeline functions
 directly and calls them in-process instead of making HTTP requests.
 
 Since this is the file actually deployed publicly (documents-mind.streamlit.app),
-it adds things ui/streamlit_app.py doesn't need:
-  1. Per-session document isolation -- each visitor gets a private Chroma
-     collection, keyed by a random ID, so concurrent strangers never see
-     each other's uploaded documents.
-  2. Bring-your-own Gemini API key -- each visitor pastes in their own free
-     Gemini key in the sidebar, and it's used only for their own requests.
-     Nothing is shared across visitors, so there's no shared quota to
-     protect and no need for an access gate.
+it needs real accounts, not just an anonymous per-visitor session:
+  1. Real login (email + password, checked against the same User table the
+     FastAPI backend uses) instead of a random session ID stashed in the
+     URL. The old scheme meant anyone who saw/guessed a "?sid=..." URL
+     could open someone else's document set - a real account fixes that.
+     Isolation itself still reuses the exact same mechanism as before
+     (per-session Chroma collections, app/vectorstore.py) - only the
+     source of the identifier changed, from a URL param to a verified
+     login.
+  2. Bring-your-own Gemini API key -- unchanged from before, each visitor
+     pastes in their own free Gemini key in the sidebar, used only for
+     their own requests.
+
+No Google OAuth here (see app/oauth.py's docstring for why) - Streamlit
+Community Cloud has no separate server for Google to redirect back to
+over HTTP the way the FastAPI backend does; this stays email+password.
+
+Trade-off worth naming: since login lives in st.session_state, not a URL
+param, a hard page reload logs you out (session state doesn't survive
+that) - the old URL-based scheme survived reloads but was also exactly
+the security hole this fixes, so this is the right trade to make.
 
 To deploy: point Streamlit Community Cloud's "Main file path" at
     rag_qa_documind/streamlit_app.py
-and (optionally) set GEMINI_MODEL in the app's Secrets if you want a
-different default model than gemini-3.1-flash-lite:
+Required Secrets:
+    JWT_SECRET_KEY = "..."   (only used indirectly, via app.auth's password
+                              hashing - no tokens are actually issued here,
+                              see the login form below)
+    DATABASE_URL = "..."     (optional - defaults to a local SQLite file,
+                              which will NOT persist across Streamlit Cloud
+                              redeploys; use a real Azure SQL DATABASE_URL
+                              for accounts that actually persist - see
+                              README's "Accounts and a real database")
+and optionally:
     GEMINI_MODEL = "gemini-3.1-flash-lite"
 """
 import os
 import sys
-import tempfile
-import uuid
 
 import streamlit as st
 
@@ -34,34 +53,83 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 if "GEMINI_MODEL" in st.secrets:
     os.environ["GEMINI_MODEL"] = st.secrets["GEMINI_MODEL"]
+if "DATABASE_URL" in st.secrets:
+    os.environ["DATABASE_URL"] = st.secrets["DATABASE_URL"]
+if "JWT_SECRET_KEY" in st.secrets:
+    os.environ["JWT_SECRET_KEY"] = st.secrets["JWT_SECRET_KEY"]
 
 from app.config import settings
 from app.ingest import ingest_file, load_text
 from app.rag import answer_question
 from app.vectorstore import reset_collection, get_collection
+from app.guardrails import guard_input, guard_output
+from app.database import SessionLocal, init_db
+from app.models import User
+from app.auth import hash_password, verify_password
+
+init_db()
 
 st.set_page_config(page_title="DocuMind", page_icon="📚")
-
-params = st.query_params
-
-# --- Per-session document isolation, persisted via the URL ---------------
-# Each visitor gets their own private collection. The session ID is also
-# stashed in the URL query string (not a cookie), so reloading the same
-# URL keeps using the same collection instead of starting a fresh one.
-# Opening the bare share link (no ?sid=... in the URL) always starts a
-# brand-new, empty, isolated session -- this doesn't let visitors see or
-# guess into each other's document sets.
-if "session_id" not in st.session_state:
-    if "sid" in params:
-        st.session_state.session_id = params["sid"]
-    else:
-        st.session_state.session_id = uuid.uuid4().hex
-        params["sid"] = st.session_state.session_id
-session_id = st.session_state.session_id
-
 st.title("📚 DocuMind — Ask your documents")
 
+
+# ------------------------------------------------------------ login screen
+
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+    st.session_state.user_email = None
+
+if not st.session_state.user_id:
+    st.subheader("Log in")
+    email = st.text_input("Email")
+    password = st.text_input("Password (8+ characters)", type="password")
+
+    col1, col2 = st.columns(2)
+    db = SessionLocal()
+
+    if col1.button("Log in", use_container_width=True):
+        user = db.query(User).filter(User.email == email).first()
+        if user is None or user.password_hash is None or not verify_password(password, user.password_hash):
+            st.error("Incorrect email or password")
+        elif not user.is_active:
+            st.error("This account has been deactivated")
+        else:
+            st.session_state.user_id = user.id
+            st.session_state.user_email = user.email
+            st.rerun()
+
+    if col2.button("Register", use_container_width=True):
+        if len(password) < 8:
+            st.error("Password must be at least 8 characters")
+        elif db.query(User).filter(User.email == email).first() is not None:
+            st.error("An account with this email already exists")
+        else:
+            user = User(email=email, password_hash=hash_password(password))
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            st.session_state.user_id = user.id
+            st.session_state.user_email = user.email
+            st.rerun()
+
+    db.close()
+    st.stop()  # don't render the rest of the app until logged in
+
+
+# ------------------------------------------------------------ logged in
+
+session_id = str(st.session_state.user_id)  # same identifier concept as
+# before (app/vectorstore.py's session-keyed Chroma collections), just
+# sourced from a verified account now instead of a URL parameter.
+
 with st.sidebar:
+    st.caption(f"Logged in as **{st.session_state.user_email}**")
+    if st.button("Log out"):
+        for key in ("user_id", "user_email", "messages"):
+            st.session_state.pop(key, None)
+        st.rerun()
+
+    st.divider()
     st.header("Your Gemini API key")
     api_key = st.text_input(
         "Gemini API key",
@@ -81,17 +149,11 @@ with st.sidebar:
         )
     st.caption(
         "Your key is kept only in this browser session's memory — it's "
-        "never saved on the server, logged, or shared with other "
-        "visitors. Each visitor uses their own key and their own free "
-        "Gemini quota."
+        "never saved on the server, logged, or shared with other users."
     )
 
     st.divider()
-    st.caption(
-        "Documents you upload are private to your session and aren't "
-        "visible to other visitors. Bookmark this exact page URL to keep "
-        "the same session next time."
-    )
+    st.caption("Documents you upload are private to your account.")
 
     st.header("Upload documents")
     uploaded = st.file_uploader(
@@ -99,6 +161,7 @@ with st.sidebar:
     )
     if uploaded and st.button("Ingest files"):
         for f in uploaded:
+            import tempfile
             suffix = os.path.splitext(f.name)[1]
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(f.getvalue())
@@ -128,7 +191,7 @@ with st.sidebar:
     except Exception as e:
         st.caption(f"⚠️ {e}")
 
-    if st.button("Clear index"):
+    if st.button("Clear my index"):
         reset_collection(session_id)
         st.rerun()
 
@@ -152,18 +215,24 @@ if question := st.chat_input(
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            try:
-                result = answer_question(question, session_id=session_id, api_key=api_key)
-                st.markdown(result["answer"])
-                if result["sources"]:
-                    with st.expander("📄 View source passages"):
-                        for s in result["sources"]:
-                            st.write(f"**{s['source']}** · relevance {s['score']}")
-                            preview = s["text"][:300].strip()
-                            st.code(preview if preview else "(empty chunk)")
-                answer_text = result["answer"]
-            except Exception as e:
-                answer_text = f"Error: {e}"
-                st.error(answer_text)
+            input_guard = guard_input(question)
+            if input_guard["blocked"]:
+                answer_text = "I can't process that request."
+                st.warning(answer_text)
+            else:
+                try:
+                    result = answer_question(input_guard["redacted_text"], session_id=session_id, api_key=api_key)
+                    output_guard = guard_output(result["answer"])
+                    answer_text = output_guard["text"]
+                    st.markdown(answer_text)
+                    if result["sources"]:
+                        with st.expander("📄 View source passages"):
+                            for s in result["sources"]:
+                                st.write(f"**{s['source']}** · relevance {s['score']}")
+                                preview = s["text"][:300].strip()
+                                st.code(preview if preview else "(empty chunk)")
+                except Exception as e:
+                    answer_text = f"Error: {e}"
+                    st.error(answer_text)
 
     st.session_state.messages.append({"role": "assistant", "content": answer_text})

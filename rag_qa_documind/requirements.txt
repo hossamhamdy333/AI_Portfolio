@@ -11,3 +11,15 @@ wordninja==2.0.0
 python-multipart==0.0.9
 streamlit==1.38.0
 pytest==8.3.2
+
+# Auth + database
+sqlalchemy
+bcrypt
+pyjwt
+pydantic[email]
+pydantic-settings
+httpx
+# SQL Server driver for production (Azure SQL). Needs the Microsoft ODBC
+# Driver 18 installed on the machine/container too - pip install alone
+# isn't enough. Not needed for local dev.
+# pyodbc
