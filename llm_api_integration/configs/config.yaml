@@ -6,6 +6,19 @@ retry:
   max_attempts: 3
   backoff_seconds: 2
 
+# Which backend actually serves requests: "gemini" (default, API) or
+# "ollama"/"vllm" (self-hosted, OpenAI-compatible endpoint - see
+# local_client.py). Only the provider's own sub-section below is read;
+# the others just sit there ready for whichever you switch to next.
+backend:
+  provider: "gemini"
+  ollama:
+    base_url: "http://localhost:11434/v1"
+    model: "llama3.1"
+  vllm:
+    base_url: "http://localhost:8001/v1"
+    model: "hossam3759180/support-copilot-merged"
+
 serving:
   host: "0.0.0.0"
   port: 8000

@@ -16,6 +16,7 @@ A FastAPI service that wraps the Gemini API properly. Not just a `generate_conte
 - [Why this project, and why Gemini](#why-this-project-and-why-gemini)
 - [What it actually does](#what-it-actually-does)
 - [Seeing it actually run](#seeing-it-actually-run)
+- [Switching backends](#switching-backends)
 - [Testing philosophy](#testing-philosophy)
 - [What's in the repo](#whats-in-the-repo)
 - [Try it](#try-it)
@@ -25,18 +26,19 @@ A FastAPI service that wraps the Gemini API properly. Not just a `generate_conte
 ## Pipeline
 
 ```
-Gemini API (google-generativeai)
-    → client.py   [build_model, call_gemini w/ retry+backoff, stream_gemini]
+Gemini API (google-generativeai) ─┐
+Ollama / vLLM (OpenAI-compatible) ─┴─→ backend_selection.py  [picks one, based on config.yaml]
+    → client.py / local_client.py   [build_model, call_*, stream_* — same shapes either way]
     → tools.py    [tool registry + dispatcher]
     → schemas.py  [Pydantic validation on everything the model returns]
     → tracking.py [token counts + cost logged to MLflow per request]
     → app.py      [FastAPI routes — thin, no business logic]
-    → 19 unit tests covering retries, schema validation, tool dispatch, cost math
+    → 27 unit tests covering retries, schema validation, tool dispatch, cost math, backend selection
 ```
 
 ## Why this project, and why Gemini
 
-Most "LLM integration" demos are a single happy-path call to an API. The interesting engineering problems show up around that call: what happens when it times out, what happens when the model doesn't return valid JSON, how do you know what a feature is costing you, how do you stream a response when you can't "retry" something the client has already started reading. This project is built around those problems specifically. Gemini was the pick mainly for practical reasons (free tier, no billing setup), but everything here — retries, structured output validation, tool-call routing — is provider-agnostic in shape. Swapping in OpenAI or Anthropic would mean rewriting `client.py`, not the rest of the system.
+Most "LLM integration" demos are a single happy-path call to an API. The interesting engineering problems show up around that call: what happens when it times out, what happens when the model doesn't return valid JSON, how do you know what a feature is costing you, how do you stream a response when you can't "retry" something the client has already started reading. This project is built around those problems specifically. Gemini was the pick mainly for practical reasons (free tier, no billing setup), but everything here — retries, structured output validation, tool-call routing — is provider-agnostic in shape. That claim used to be untested; it's proven now — `local_client.py` adds Ollama and vLLM as real, switchable backends (see "Switching backends" below), and not one line in `tools.py`, `schemas.py`, or `tracking.py` had to change to make that work. Only `client.py` gained a sibling, exactly as this section originally predicted.
 
 ## What it actually does
 
@@ -61,14 +63,53 @@ Most "LLM integration" demos are a single happy-path call to an API. The interes
 - *"What is 2 + 2?"* correctly skipped the tools and answered directly.
 - *"How does function calling work with language models?"* was supposed to route to `search_documents`, since it's a question the in-memory doc corpus can actually answer, but the model answered directly from its own knowledge instead and skipped the tool entirely. Routing decisions are the model's judgment call, not a deterministic function, and that's worth knowing going in rather than only demoing the cases that worked.
 
+## Switching backends
+
+`config.yaml`'s `backend.provider` picks one of three: `gemini` (default, API),
+`ollama`, or `vllm` (both self-hosted, both speak the same OpenAI-compatible
+protocol — that's why one `local_client.py` covers both instead of two
+near-identical files).
+
+**Ollama** — simplest to set up, right-sized for trying this out locally:
+```bash
+ollama serve
+ollama pull llama3.1
+# configs/config.yaml: backend.provider: "ollama"
+```
+
+**vLLM** — needs a GPU and the model in native HF/safetensors format (not
+GGUF — vLLM runs its own PagedAttention scheduler over the original weights).
+If you have a merged fine-tuned checkpoint from another project (e.g.
+`customer_support_copilot`'s `notebooks/gguf_conversion.ipynb` produces one
+as an intermediate step before quantizing further), point vLLM at that:
+```bash
+pip install vllm
+vllm serve hossam3759180/support-copilot-merged --port 8001
+# configs/config.yaml: backend.provider: "vllm"
+```
+
+**Comparing them** — restart the app between each `backend.provider` change,
+then run the same benchmark against each:
+```bash
+python scripts/benchmark_backends.py --concurrency 1 5 10 20 --total-requests 40
+```
+Reports p50/p95 latency and throughput per concurrency level, plus which
+backend/model actually answered (from `/health`). Gemini's token cost is
+already tracked in MLflow via `tracking.py`; a self-hosted backend's cost is
+whatever the serving hardware costs per hour, which this script doesn't
+estimate — the honest comparison here is latency/throughput, not a dollar
+figure.
+
 ## Testing philosophy
 
-19 unit tests across `tests/`, deliberately scoped to what's actually deterministic:
+27 unit tests across `tests/`, deliberately scoped to what's actually deterministic:
 
 | File | What it covers |
 |---|---|
 | `test_client.py` | retry succeeds first try / succeeds after retries / raises after max attempts exhausted |
 | `test_client_json_parsing.py` | markdown-fence stripping (`json` fence, plain fence, already-clean JSON) |
+| `test_local_client.py` | call_local/stream_local against a real local HTTP server speaking the OpenAI-compatible protocol (not a mocked `requests.post` — the actual JSON/SSE parsing is genuinely exercised), plus the retry contract matching call_gemini's |
+| `test_backend_selection.py` | each `backend.provider` value picks the right functions/model/kwargs, Ollama and vLLM share the same functions, an unknown provider raises a clear error |
 | `test_schemas.py` | valid `SentimentResult` parses, out-of-range confidence rejected, missing field rejected, valid tool call parses, null tool name is valid, missing arguments defaults to `{}` |
 | `test_streaming.py` | `stream_gemini` yields raw chunks (so callers can read `usage_metadata`), not `.text` |
 | `test_tools.py` | weather tool runs, document search finds a match, unknown tool name raises |
@@ -84,14 +125,17 @@ llm_api_integration/
 │   ├── 00_setup.ipynb   # environment/repo setup
 │   └── 01_demo.ipynb    # live server, hits every endpoint, MLflow dashboard, runs the test suite
 ├── src/
-│   ├── config.py     # loads config.yaml into a dict
-│   ├── client.py     # Gemini wrapper: build_model, call_gemini (retry), stream_gemini
+│   ├── config.py            # loads config.yaml into a dict
+│   ├── client.py             # Gemini wrapper: build_model, call_gemini (retry), stream_gemini
+│   ├── local_client.py       # Ollama/vLLM wrapper - same shapes as client.py, one HTTP protocol
+│   ├── backend_selection.py  # picks gemini vs ollama vs vllm based on config.yaml
 │   ├── tools.py      # tool definitions + TOOL_REGISTRY + dispatcher
 │   ├── schemas.py    # Pydantic models: SentimentResult, ToolCallRequest
 │   ├── tracking.py   # MLflow token/cost logging
 │   └── app.py        # FastAPI routes — /analyze, /chat/stream, /chat/tools, /health
-├── tests/            # 19 tests, see table above
-├── configs/config.yaml   # model name, temperature, retry policy, pricing, ports — nothing hardcoded
+├── scripts/benchmark_backends.py  # p50/p95/throughput comparison across whichever backend is active
+├── tests/            # 27 tests, see table above
+├── configs/config.yaml   # model name, backend selection, temperature, retry policy, pricing, ports
 └── requirements.txt
 ```
 
@@ -144,3 +188,4 @@ Retry settings are passed explicitly on every one of the three LLM call sites in
 - Add a lightweight eval set for the tool-routing decision specifically, since that's the one place in this system where "did it do the right thing" doesn't reduce to a schema check
 - Swap `search_documents`' in-memory keyword match for the real Qdrant retrieval built in the semantic-search project, now that the interface already matches
 - Add request-level rate limiting on the FastAPI side, not just retry-on-failure against Gemini's own limits
+- Migrate off `google-generativeai` to `google-genai` — the old SDK now raises a `FutureWarning` on every import (`pip install` still works, it's not broken yet, but Google's own deprecation notice says it won't support new Gemini models much longer). Found this while adding the Ollama/vLLM backends; didn't fix it here since swapping SDKs is a separate, bigger change deserving its own careful pass, not something to bundle into a backend-switching change.

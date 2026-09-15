@@ -1,8 +1,12 @@
 """Thin wrapper around the Gemini API.
 
-Deliberately not a class hierarchy or an abstract "LLMProvider" interface —
-this project talks to exactly one provider. Adding an abstraction layer for
-a single implementation is speculative generality, not good design.
+Kept as plain functions, not a class hierarchy or an abstract "LLMProvider"
+interface — even now that local_client.py exists alongside this file for
+Ollama/vLLM, there are exactly two shapes of backend (Gemini's SDK object,
+and everything else's plain HTTP), and app.py picks between them with one
+`if config["backend"]["provider"] == "gemini"` rather than needing a shared
+base class. See local_client.py's docstring for how the two stay
+interchangeable from app.py's point of view without one.
 """
 
 import logging

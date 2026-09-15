@@ -20,7 +20,8 @@ from pydantic import BaseModel
 # "key not set" error despite the file existing right next to it.
 load_dotenv()
 
-from src.client import build_model, call_gemini, stream_gemini, strip_markdown_fences
+from src.client import strip_markdown_fences
+from src.backend_selection import select_backend
 from src.config import load_config
 from src.schemas import SentimentResult, ToolCallRequest
 from src.tools import run_tool
@@ -36,26 +37,42 @@ config = load_config()
 # "Default" experiment, ignoring the config entirely.
 init_tracking(config["mlflow"]["tracking_uri"], config["mlflow"]["experiment_name"])
 
+# Picks the backend ONCE, here, based on config.yaml's backend.provider -
+# every route below calls call_model()/stream_model() the same way no
+# matter which backend is actually active. local_client.py's response
+# objects duck-type Gemini's shape closely enough that nothing else in
+# this file needs an if-statement for this. See src/backend_selection.py
+# for the selection logic itself and its own tests.
+BACKEND = config["backend"]["provider"]
+backend = select_backend(config)
+build_model_fn = backend.build_model_fn
+call_model = backend.call_model
+stream_model = backend.stream_model
+model_name = backend.model_name
+model_kwargs = backend.model_kwargs
+
 # Two model instances: one free-text (streaming, natural prose), one forced
 # into JSON mode (structured output, tool routing). Mixing json_mode into a
 # single instance would make every prose response come back as JSON too.
-model = build_model(
-    model_name=config["model"]["name"],
+model = build_model_fn(
+    model_name=model_name,
     temperature=config["model"]["temperature"],
     max_output_tokens=config["model"]["max_output_tokens"],
+    **model_kwargs,
 )
-json_model = build_model(
-    model_name=config["model"]["name"],
+json_model = build_model_fn(
+    model_name=model_name,
     temperature=config["model"]["temperature"],
     max_output_tokens=config["model"]["max_output_tokens"],
     json_mode=True,
+    **model_kwargs,
 )
 
 app = FastAPI(title="LLM API Integration")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": config["model"]["name"]}
+    return {"status": "ok", "backend": BACKEND, "model": model_name}
 
 class AnalyzeRequest(BaseModel):
     text: str
@@ -78,7 +95,7 @@ def analyze(request: AnalyzeRequest) -> SentimentResult:
         '{"sentiment": "positive|negative|neutral", "confidence": 0.0-1.0, "reasoning": "..."}. '
         f"Text: {request.text}"
     )
-    response = call_gemini(
+    response = call_model(
         json_model,
         instruction,
         max_attempts=config["retry"]["max_attempts"],
@@ -117,7 +134,7 @@ def chat_stream(request: ChatRequest):
     def token_generator():
         last_chunk = None
         try:
-            for chunk in stream_gemini(model, request.prompt):
+            for chunk in stream_model(model, request.prompt):
                 last_chunk = chunk
                 if chunk.text:
                     yield chunk.text
@@ -159,7 +176,7 @@ def chat_with_tools(request: ToolChatRequest):
         'If no tool is needed, respond ONLY with JSON: {"tool_name": null, "arguments": {}}. '
         f"User request: {request.prompt}"
     )
-    routing_response = call_gemini(
+    routing_response = call_model(
         json_model,
         routing_prompt,
         max_attempts=config["retry"]["max_attempts"],
@@ -188,7 +205,7 @@ def chat_with_tools(request: ToolChatRequest):
         raise HTTPException(status_code=502, detail=f"Model returned invalid routing decision: {e}")
 
     if not decision.tool_name:
-        direct_response = call_gemini(
+        direct_response = call_model(
             model,
             request.prompt,
             max_attempts=config["retry"]["max_attempts"],
@@ -217,7 +234,7 @@ def chat_with_tools(request: ToolChatRequest):
         f"Tool '{decision.tool_name}' returned: {tool_result}\n"
         "Answer the user's request using this information."
     )
-    final_response = call_gemini(
+    final_response = call_model(
         model,
         final_prompt,
         max_attempts=config["retry"]["max_attempts"],
