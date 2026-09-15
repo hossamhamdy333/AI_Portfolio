@@ -17,9 +17,10 @@ it needs real accounts, not just an anonymous per-visitor session:
      (per-session Chroma collections, app/vectorstore.py) - only the
      source of the identifier changed, from a URL param to a verified
      login.
-  2. Bring-your-own Gemini API key -- unchanged from before, each visitor
-     pastes in their own free Gemini key in the sidebar, used only for
-     their own requests.
+  2. Shared Gemini API key -- the deployer's own key (set via
+     GEMINI_API_KEY in secrets/.env), used for every visitor's requests.
+     A per-account daily question limit (DAILY_QUERY_LIMIT) protects the
+     shared quota from being drained by any one visitor.
 
 No Google OAuth here (see app/oauth.py's docstring for why) - Streamlit
 Community Cloud has no separate server for Google to redirect back to
@@ -36,6 +37,9 @@ Required Secrets:
     JWT_SECRET_KEY = "..."   (only used indirectly, via app.auth's password
                               hashing - no tokens are actually issued here,
                               see the login form below)
+    GEMINI_API_KEY = "..."   (shared key used for every visitor's requests
+                              - see DAILY_QUERY_LIMIT below for the abuse
+                              guard on this)
     DATABASE_URL = "..."     (optional - defaults to a local SQLite file,
                               which will NOT persist across Streamlit Cloud
                               redeploys; use a real Azure SQL DATABASE_URL
@@ -51,6 +55,8 @@ import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+if "GEMINI_API_KEY" in st.secrets:
+    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
 if "GEMINI_MODEL" in st.secrets:
     os.environ["GEMINI_MODEL"] = st.secrets["GEMINI_MODEL"]
 if "DATABASE_URL" in st.secrets:
@@ -68,6 +74,18 @@ from app.models import User
 from app.auth import hash_password, verify_password
 
 init_db()
+
+DAILY_QUERY_LIMIT = 15
+
+
+def get_remaining_queries(db, user):
+    from datetime import date
+    today = date.today().isoformat()
+    if user.daily_query_date != today:
+        user.daily_query_count = 0
+        user.daily_query_date = today
+        db.commit()
+    return DAILY_QUERY_LIMIT - user.daily_query_count
 
 st.set_page_config(page_title="DocuMind", page_icon="📚")
 st.title("📚 DocuMind — Ask your documents")
@@ -130,27 +148,12 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    st.header("Your Gemini API key")
-    api_key = st.text_input(
-        "Gemini API key",
-        type="password",
-        key="gemini_api_key",
-        label_visibility="collapsed",
-        placeholder="Paste your Gemini API key",
-        help="Get a free key at https://aistudio.google.com/apikey",
-    )
-    if api_key:
-        st.success(f"🟢 Using your key with **{settings.gemini_model}**")
-    else:
-        st.info(
-            "🔑 Paste a free Gemini API key to ask questions. "
-            "Get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) "
-            "— no credit card needed."
-        )
-    st.caption(
-        "Your key is kept only in this browser session's memory — it's "
-        "never saved on the server, logged, or shared with other users."
-    )
+    api_key = None  # shared server-side key, see app/config.py
+    db_check = SessionLocal()
+    user_row = db_check.query(User).filter(User.id == st.session_state.user_id).first()
+    remaining = get_remaining_queries(db_check, user_row)
+    db_check.close()
+    st.caption(f"Questions left today: **{remaining}/{DAILY_QUERY_LIMIT}**")
 
     st.divider()
     st.caption("Documents you upload are private to your account.")
@@ -202,13 +205,13 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if not api_key:
-    st.info("👈 Enter your Gemini API key in the sidebar to start asking questions.")
-
 if question := st.chat_input(
     "Ask a question about your documents...",
-    disabled=not api_key,
+    disabled=remaining <= 0,
 ):
+    if remaining <= 0:
+        st.warning("Daily question limit reached. Try again tomorrow.")
+        st.stop()
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
         st.markdown(question)
@@ -225,6 +228,11 @@ if question := st.chat_input(
                     output_guard = guard_output(result["answer"])
                     answer_text = output_guard["text"]
                     st.markdown(answer_text)
+                    db2 = SessionLocal()
+                    u = db2.query(User).filter(User.id == st.session_state.user_id).first()
+                    u.daily_query_count += 1
+                    db2.commit()
+                    db2.close()
                     if result["sources"]:
                         with st.expander("📄 View source passages"):
                             for s in result["sources"]:

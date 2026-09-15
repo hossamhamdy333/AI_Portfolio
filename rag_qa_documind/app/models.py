@@ -47,6 +47,8 @@ class User(Base):
     role = Column(Enum(Role), nullable=False, default=Role.user)
     is_active = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, nullable=False, default=utcnow)
+    daily_query_count = Column(Integer, nullable=False, default=0)
+    daily_query_date = Column(String(10), nullable=True)
 
     documents = relationship("Document", back_populates="owner")
 
