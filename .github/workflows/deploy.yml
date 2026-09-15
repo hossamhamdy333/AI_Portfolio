@@ -38,6 +38,12 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: azure-rag-assistant
+          # Reads from Settings -> Secrets and variables -> Actions ->
+          # Variables tab (AZURE_WEBAPP_NAME). Falls back to the old name
+          # if that variable isn't set, so this doesn't break anything
+          # for a repo that hasn't added it yet. Set the variable to a
+          # NEW, never-used-before name to get a fresh, unflagged Azure
+          # URL without touching this file again.
+          app-name: ${{ vars.AZURE_WEBAPP_NAME || 'azure-rag-assistant' }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/azure-rag-assistant:${{ github.sha }}
