@@ -2,11 +2,11 @@
 
 # DocuMind — RAG Q&A over your own documents
 
-Upload a PDF, TXT, or MD file, ask questions about it, and get answers pulled straight from the text, with the source shown so you can check it's not making things up.
+Upload a PDF, TXT, or MD file and ask questions about it. Answers are grounded in the actual text — every answer is shown with the source passage it came from, so you can check it isn't making things up.
 
 **Live Application:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
 
-`Python` `FastAPI` `ChromaDB` `Sentence-Transformers` `Gemini API` `Streamlit` `Docker`
+`Python` `FastAPI` `ChromaDB` `Sentence-Transformers` `Gemini API` `SQLAlchemy` `JWT Auth` `Streamlit` `Docker`
 
 </div>
 
@@ -14,243 +14,102 @@ Upload a PDF, TXT, or MD file, ask questions about it, and get answers pulled st
 
 ### Contents
 
-- [How it works](#how-it-works)
-- [Project layout](#project-layout)
+- [What it does](#what-it-does)
+- [What this demonstrates](#what-this-demonstrates)
+- [Architecture](#architecture)
+- [Stack](#stack)
+- [Project structure](#project-structure)
 - [Running it](#running-it)
-- [Trying it without the UI](#trying-it-without-the-ui)
-- [Accounts and a real database](#accounts-and-a-real-database)
-- [Known limitations](#known-limitations)
-- [Things worth adding if I take this further](#things-worth-adding-if-i-take-this-further)
+- [What's genuinely not done](#whats-genuinely-not-done)
 
-## How it works
+## What it does
 
-1. Upload a document. It gets split into chunks and turned into embeddings using a small model that runs locally, no API key needed for this part.
-2. Those embeddings go into ChromaDB, a lightweight vector database, stored on disk.
-3. When you ask a question, it gets embedded too, and the system finds the chunks whose meaning is closest to it.
-4. Those chunks get sent to Gemini along with your question, and Gemini answers using only that context.
-5. You get the answer back with the source file named.
+Upload a document, it gets chunked and embedded locally, and stored in a private, per-account vector index. Ask a question and it's answered using only the chunks retrieved from that index — not the model's general knowledge — with the source file cited. Every account has its own private document set, and the whole thing runs behind real login, not a shared open URL.
+
+## What this demonstrates
+
+- **RAG grounded in real retrieval, not just a prompt template** — Chroma + `sentence-transformers` embeddings retrieve the relevant chunks before generation, and every answer is traceable back to the source passage it came from
+- **Real auth, not a login form for show** — JWT access + refresh tokens and Google OAuth on the FastAPI backend, bcrypt password hashing, and per-account document isolation enforced at the Chroma collection level, not a client-supplied ID
+- **Handling messy real-world PDFs** — LaTeX-exported PDFs extract with words glued together with no spaces; fixed with layout-mode extraction plus a dictionary-based fallback (`wordninja`) that catches whatever's still stuck together
+- **Guardrails with a measured catch rate** — PII redaction and prompt-injection detection, benchmarked against an adversarial test set rather than assumed to work
+- **Cost-aware infrastructure** — one shared Gemini key for the public deployment, metered against a daily per-account cap tracked in the database, so a portfolio demo can't be drained by one visitor or run up an open-ended bill
+- **Two deployment shapes for one codebase** — a FastAPI backend + separate Streamlit UI for local dev and Docker, and a second standalone entrypoint that runs the same pipeline in-process for Streamlit Community Cloud, which only supports a single process
+
+## Architecture
 
 ```
- upload doc                    ask question
-     │                              │
-     ▼                              ▼
- chunk + embed  ──────────►  ChromaDB  ◄────────── embed the question
-                                  │
-                          top-k relevant chunks
-                                  │
-                                  ▼
-                          Gemini generates
-                          an answer from them
+upload doc                              ask question
+    │                                        │
+    ▼                                        ▼
+chunk + embed  ──────────►   Chroma   ◄────────── embed the question
+(sentence-transformers)     (per-account            │
+                              collection)    top-k relevant chunks
+                                                     │
+                                                     ▼
+                                          Gemini generates the answer
+                                          from those chunks only
 ```
 
-A few things worth knowing about the implementation:
+## Stack
 
-**PDF text extraction is trickier than it sounds.** Some PDFs (LaTeX-generated ones especially) extract with no spaces between words. This is handled with layout-mode extraction plus a dictionary-based fallback (`wordninja`) that fixes any words still stuck together.
+| Layer | Tools |
+|---|---|
+| Retrieval | ChromaDB + `sentence-transformers` (`all-MiniLM-L6-v2`) |
+| LLM | Gemini API, one shared key metered by a daily per-account cap |
+| Backend | FastAPI |
+| Database | SQLite (local dev) / Azure SQL (production) via SQLAlchemy |
+| Auth | JWT access + refresh tokens, bcrypt, Google OAuth |
+| Frontend | Streamlit — two entrypoints, see Architecture |
+| Hosting | Streamlit Community Cloud |
 
-**Every user gets their own private document set, tied to a real account.** Log in (email+password, or Google on the FastAPI backend) and your uploads are private to you — isolated at the Chroma collection level, keyed to your account ID rather than a random URL parameter the old version used. See "Accounts and a real database" below.
-
-**One shared Gemini key, with a daily cap per account.** Earlier versions had every visitor paste in their own free Gemini key before they could ask anything — fine for a personal tool, but a real barrier for a recruiter clicking through a portfolio project who isn't going to go set up an API key first. Now the deployment carries one key (mine), and each logged-in account gets a fixed number of questions per day, tracked in the same `users` table that already exists for accounts (`daily_query_count` / `daily_query_date`, reset when the date rolls over). That's what stops the shared quota from getting drained by one heavy user instead of everyone who wants to try it.
-
-**There are two versions of the front end.** `ui/streamlit_app.py` talks to the FastAPI backend over HTTP (JWT bearer tokens), which is the setup for local dev (two terminals) or Docker (two services). `streamlit_app.py` at the repo root calls the pipeline directly in-process instead (checking the same password-hash database directly, no tokens issued), which is what Streamlit Community Cloud needs since it only runs one process with no separate server to hold a token-issuing conversation with.
-
-## Project layout
+## Project structure
 
 ```
 rag_qa_documind/
 ├── app/
-│   ├── config.py          # settings, loaded from .env
-│   ├── ingest.py          # loads, chunks, and embeds documents
-│   ├── vectorstore.py     # talks to ChromaDB, handles per-user isolation
-│   ├── llm.py             # calls Gemini to generate the answer
-│   ├── rag.py             # ties retrieval + generation together
-│   ├── database.py, models.py   # SQLAlchemy - users, refresh tokens, document log
-│   ├── auth.py, oauth.py  # password hashing, JWT, Google OAuth (FastAPI backend)
-│   ├── guardrails.py      # PII redaction + prompt-injection detection
-│   └── main.py            # the FastAPI app - auth, per-user ingest/query, admin routes
-├── ui/streamlit_app.py    # chat UI (talks to the FastAPI backend, JWT bearer tokens)
-├── streamlit_app.py       # standalone chat UI (Streamlit Cloud, session-state login)
-├── scripts/run_ingest.py  # command-line bulk-ingest helper
-├── data/sample_docs/      # a sample file to try immediately
-├── tests/
-│   ├── test_rag.py           # tests for the chunking logic
-│   ├── test_vectorstore.py   # tests for collection-naming logic
-│   ├── test_auth.py          # register/login/refresh/logout/admin-gating
-│   ├── test_oauth.py         # Google OAuth redirect + state validation
-│   ├── test_isolation.py     # proves one user's documents can't leak to another
-│   └── test_guardrails.py    # PII redaction + prompt-injection detection
-├── notebooks/walkthrough.ipynb  # step-by-step notebook
+│   ├── ingest.py           # load, chunk, embed documents
+│   ├── vectorstore.py      # Chroma, per-account isolation
+│   ├── llm.py               # calls Gemini
+│   ├── rag.py                # retrieval + generation
+│   ├── database.py, models.py   # SQLAlchemy - users, tokens, documents
+│   ├── auth.py, oauth.py    # password hashing, JWT, Google OAuth
+│   ├── guardrails.py        # PII redaction + prompt-injection detection
+│   └── main.py               # FastAPI app - auth, ingest, query, admin
+├── ui/streamlit_app.py     # chat UI, talks to the FastAPI backend
+├── streamlit_app.py        # standalone entrypoint (Streamlit Cloud)
+├── scripts/run_ingest.py   # command-line bulk-ingest helper
+├── tests/                  # auth, isolation, guardrails, retrieval
+├── notebooks/walkthrough.ipynb
 ├── requirements.txt
-├── .env.example
-├── .streamlit/secrets.toml.example
-├── Dockerfile
-└── docker-compose.yml
+├── Dockerfile / docker-compose.yml
+└── .env.example
 ```
 
 ## Running it
 
-**1. Install everything**
 ```bash
-cd rag_qa_documind
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-```
-
-**2. Add your Gemini key**
-```bash
-cp .env.example .env
-```
-Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), no credit card needed, and paste it into `.env` as `GEMINI_API_KEY`.
-
-**3. Load the sample document**
-```bash
+cp .env.example .env          # add your Gemini key - free at aistudio.google.com/apikey
 python scripts/run_ingest.py data/sample_docs
-```
-First run downloads a small embedding model (~90MB). That's normal and only happens once.
-
-**4. Start the backend**
-```bash
 uvicorn app.main:app --reload --port 8000
 ```
-Leave this running. Check it worked at [localhost:8000/health](http://localhost:8000/health).
-
-**5. Start the interface** (new terminal, same venv)
-```bash
-streamlit run ui/streamlit_app.py
-```
-Opens at `localhost:8501`. Upload your own files from the sidebar and ask questions in the chat box. Both terminals need to stay open while you're using it.
-
-**6. Run the tests** (optional)
-```bash
-pytest tests/ -v
-```
-
-### Or with Docker, if you'd rather skip the setup
 
 ```bash
-cp .env.example .env   # add your key first
-docker compose up --build
+streamlit run ui/streamlit_app.py   # new terminal, same venv - opens at localhost:8501
 ```
-API on port 8000, UI on port 8501.
-
-### Deploying it for free (public link, no credit card)
-
-Streamlit Community Cloud works well for this and doesn't ask for a card.
-
-1. Push this repo to GitHub.
-2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with GitHub, click **Create app**.
-3. Repository: your repo. Branch: `main`. Main file path: `rag_qa_documind/streamlit_app.py` (the standalone one at the repo root, not the one in `ui/`).
-4. Secrets required:
-   ```toml
-   GEMINI_API_KEY = "..."   # the shared key every visitor's questions run on -
-                            # see "One shared Gemini key" above for the daily
-                            # cap that protects it
-   JWT_SECRET_KEY = "..."   # generate with: python -c "import secrets; print(secrets.token_hex(32))"
-   DATABASE_URL = "..."     # a real Azure SQL connection string - see "Accounts
-                            # and a real database" below. Without this, accounts
-                            # (and everyone's daily question count) live in a
-                            # local SQLite file that will NOT survive a
-                            # Streamlit Cloud redeploy.
-   GEMINI_MODEL = "gemini-3.1-flash-lite"   # optional, only if you want a non-default model
-   ```
-5. Deploy. You'll get a URL like `https://your-app.streamlit.app`.
-
-## Trying it without the UI
 
 ```bash
-# register + log in first, everything below needs the access token
-curl -X POST http://localhost:8000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "password": "a-real-password-123"}'
-# -> {"access_token": "...", "refresh_token": "..."}
-
-TOKEN="paste the access_token here"
-
-curl http://localhost:8000/health -H "Authorization: Bearer $TOKEN"
-
-curl -X POST http://localhost:8000/ingest \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@data/sample_docs/sample.txt"
-
-curl -X POST http://localhost:8000/query \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"question": "How does this project decide what text is relevant?"}'
+pytest tests/ -v   # auth, guardrails, and the property that matters most:
+                    # one account's documents never leak into another's
 ```
 
-## Accounts and a real database
+Or skip the setup: `cp .env.example .env` then `docker compose up --build`.
 
-Real accounts (email+password everywhere, plus Google OAuth on the FastAPI
-backend specifically), JWT access+refresh tokens for the FastAPI backend, and
-per-user document isolation - reusing the exact same session-keyed Chroma
-collection mechanism that was already in `app/vectorstore.py`, just keyed by
-a verified account ID instead of a client-supplied header or URL parameter.
+## What's genuinely not done
 
-### Setting up Azure SQL (production)
-
-Same steps as the other two projects: Azure Portal → Create a resource →
-Azure SQL Database (serverless tier for a demo), allow Azure services through
-the firewall, then:
-```
-DATABASE_URL=mssql+pyodbc://<user>:<password>@<server>.database.windows.net:1433/<db>?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes
-```
-`pip install pyodbc` (uncomment it in `requirements.txt`) and install the
-Microsoft ODBC Driver 18 in the container - `pip install` alone isn't enough.
-
-Local dev needs none of this - `sqlite:///./dev.db` is the default.
-
-**Important for the Streamlit Community Cloud deployment specifically:**
-without a real `DATABASE_URL` secret, accounts live in a local SQLite file
-that gets wiped on every redeploy - set this to a real Azure SQL string in
-Secrets if accounts should actually persist.
-
-### Setting up Google OAuth (FastAPI backend only)
-
-Same as the other two projects: [Google Cloud Console](https://console.cloud.google.com)
-→ Credentials → OAuth client ID → redirect URI
-`http://localhost:8000/auth/google/callback`. Not available on the standalone
-Streamlit Cloud deployment - see that file's docstring for why.
-
-### Promoting a user to admin
-
-```bash
-python -c "
-from app.database import SessionLocal
-from app.models import User, Role
-db = SessionLocal()
-user = db.query(User).filter(User.email == 'you@example.com').first()
-user.role = Role.admin
-db.commit()
-"
-```
-
-### What changed, and one real trade-off worth naming
-
-The old version's random-session-ID-in-the-URL scheme survived a page reload
-(the ID lived in the URL, not memory) but meant anyone who saw or guessed a
-`?sid=...` link could open a stranger's document set - a real weakness for a
-public deployment. Real accounts fix that, but login now lives in
-`st.session_state`, which does NOT survive a hard page reload the way the URL
-parameter did - you'll need to log in again after a refresh. That's the
-correct trade to make (the old scheme's "survives a reload" was also its
-security hole), but it's a genuine UX regression worth knowing about, not a
-free win.
-
-## Known limitations
-
-- **Scanned PDFs won't work.** If a PDF is just images of text with no real text layer, there's nothing to extract. The app warns you when this happens instead of failing silently.
-- **Accounts isolate uploads between different users, not between unrelated documents you upload yourself.** If you upload several different documents to your own account, they all go into the same private index together, and retrieval precision for questions about any one of them can drop. Clear your index before switching topics.
-- **A hard page reload logs you out** (see "Accounts and a real database" above for why this is the right trade-off, not an oversight).
-- **The daily question cap counts questions, not tokens.** A long, complex answer and a one-word answer cost the same "1" toward the limit - good enough to stop abuse of a shared free-tier key, not a real metered-billing system.
-- **The cap is per account, tracked in the database - which means it resets to zero for everyone if the SQLite database gets wiped** (see "Accounts and a real database" for when that happens on Streamlit Cloud specifically).
-- **Guardrails are regex heuristics**, not a trained moderation model (see `app/guardrails.py` and Azure RAG Assistant's `scripts/adversarial_report.py` for the honest catch rate on the same approach - 19/20, one listed miss).
-
-## Things worth adding if I take this further
-
-- A proper eval script. The notebook has a tiny precision@k example that's worth building into a real regression suite.
-- Reranking after retrieval to improve which chunks actually get used.
-- Streaming the answer back token-by-token instead of waiting for the whole thing.
-- A "remember me" option that survives a page reload without going back to the old URL-parameter scheme's security hole (e.g. a short-lived signed cookie).
-- Support for other LLM providers, not just Gemini. `app/llm.py` would need an `LLM_PROVIDER` setting to switch between Gemini/OpenAI/Anthropic without touching `rag.py`.
-- Swapping ChromaDB for something like Pinecone or pgvector, mostly to show an understanding of the tradeoffs.
-- Metering the daily cap by actual Gemini token usage instead of raw question count, so one huge document dump doesn't cost the same as one short question.
+- Scanned PDFs (images with no real text layer) don't extract — the app warns instead of failing silently
+- A hard page reload logs you out on the standalone deployment — login lives in `st.session_state`, not a URL, which is the correct trade for account security but a real UX cost
+- The daily Gemini cap meters question count, not actual token spend
+- Guardrails are regex heuristics, not a trained moderation model
+- Google Sign-In is wired for the FastAPI backend only — the standalone Streamlit Cloud app has no separate server to complete the OAuth redirect, so it stays email + password there
