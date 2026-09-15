@@ -4,7 +4,7 @@
 
 End-to-end fraud detection on a highly imbalanced (0.17% fraud) credit card transaction dataset — sampling strategy, threshold tuning, and metrics chosen for imbalance, not accuracy.
 
-`Python 3.12` `scikit-learn 1.8` `XGBoost 3.2` `LightGBM 4.6` `imbalanced-learn` `SHAP` `MLflow 3.10`
+`Python 3.12` `scikit-learn 1.8` `XGBoost 3.2` `LightGBM 4.6` `imbalanced-learn` `SHAP` `MLflow 3.10` `SQL (Oracle)`
 
 </div>
 
@@ -16,6 +16,7 @@ End-to-end fraud detection on a highly imbalanced (0.17% fraud) credit card tran
 - [Results](#results)
 - [Key findings](#key-findings)
 - [Project structure](#project-structure)
+- [SQL layer (Oracle)](#sql-layer-oracle)
 - [Tech stack](#tech-stack)
 - [How to run](#how-to-run)
 - [Key visualizations](#key-visualizations)
@@ -54,6 +55,10 @@ Credit_Fraud_Detection/
 │   ├── preprocessing.ipynb    # Cleaning, feature engineering, sampling
 │   ├── modeling.ipynb         # Model training, comparison, threshold tuning
 │   └── explainability.ipynb   # SHAP and MLflow tracking
+├── sql/
+│   ├── 01_create_tables_oracle.sql          # staging table matching creditcard.csv's schema
+│   ├── transactions_raw.ctl                 # SQL*Loader control file to bulk-load the CSV
+│   └── 02_fraud_analysis_queries_oracle.sql # fraud rate by hour / by amount bucket / both combined
 ├── results/
 │   ├── shap_summary.png              # SHAP feature importance
 │   ├── model_comparison.png          # Model comparison chart
@@ -65,6 +70,30 @@ Credit_Fraud_Detection/
 ├── requirements.txt
 └── README.md
 ```
+
+## SQL layer (Oracle)
+
+Independent, SQL-only fraud-rate analysis straight from the raw CSV — no model needed, same idea as the SQL layers in `customer_churn_prediction`/`ecommerce-demand-forecasting`/`employee-attrition`, Oracle instead of Postgres this time.
+
+**Why Oracle specifically, not Postgres again:** fraud detection is one of the most common real-world Oracle domains — transaction systems of record in banking/fintech very often run on it. Repeating Postgres a fourth time would've said less about range than picking the engine that's actually the industry default for exactly this kind of data.
+
+Three things live here:
+1. **Fraud rate by hour-of-day** — independently recreates `EDA.ipynb`'s own hour derivation (`Hour = (Time/3600) % 24`) in SQL, then goes further than the notebook's plot with an actual rate and a window function comparing each hour to the overall average.
+2. **Fraud rate by amount bucket** — new analysis, not in the notebook (which only plots amount as a histogram/boxplot, no discrete buckets).
+3. **Both combined** — the 10 riskiest hour × amount-bucket combinations together, to see whether the two risk factors compound or are independent.
+
+**Setup:**
+```bash
+# Oracle XE (free, official Docker image) if you don't have an Oracle
+# instance already:
+docker run -d -p 1521:1521 -e ORACLE_PASSWORD=<a-real-password> gvenzl/oracle-xe:21-slim
+
+sqlplus <user>/<password>@localhost:1521/XEPDB1 @sql/01_create_tables_oracle.sql
+sqlldr userid=<user>/<password>@localhost:1521/XEPDB1 control=sql/transactions_raw.ctl log=load.log
+sqlplus <user>/<password>@localhost:1521/XEPDB1 @sql/02_fraud_analysis_queries_oracle.sql
+```
+
+**Honest limitation, stated plainly:** unlike the Postgres SQL layers elsewhere in this portfolio, these queries haven't been run against a live Oracle instance — there's no in-memory Oracle equivalent to SQLite to test against without standing up a real server first. What *was* verified: the hour-bucketing arithmetic (`FLOOR(MOD(time_seconds/3600, 24))`) against several boundary values (0, 3599, 3600, 86399) to confirm it matches pandas' `int((Time/3600) % 24)` exactly, and the overall grouping/bucketing approach against a synthetic dataset with an injected fraud signal at night hours and small amounts — both correctly surfaced by the same logic these queries use. Standard Oracle SQL syntax throughout (no exotic features), so the risk of an actual syntax error is low, but "verified logic, unexecuted against real Oracle" is a real gap from "tested," not the same claim.
 
 ## Tech stack
 
