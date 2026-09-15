@@ -1,0 +1,17 @@
+# data
+data/*.csv
+
+# mlflow
+mlflow.db
+mlruns/
+
+# python
+__pycache__/
+*.pyc
+
+# jupyter
+.ipynb_checkpoints/
+
+# env
+.venv/
+venv/
