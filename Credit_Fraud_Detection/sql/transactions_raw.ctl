@@ -2,10 +2,6 @@
 -- direct equivalent of the \copy command the Postgres projects in this
 -- portfolio use via pgAdmin's import wizard. Run with:
 --   sqlldr userid=<user>/<password>@<connect_string> control=transactions_raw.ctl log=load.log
---
--- Expects data/creditcard.csv with its original header row
--- (Time,V1,V2,...,V28,Amount,Class) sitting next to this file, or edit
--- the INFILE path below to point at it directly.
 
 LOAD DATA
 INFILE 'data/creditcard.csv'
@@ -13,7 +9,7 @@ APPEND
 INTO TABLE transactions_raw
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 TRAILING NULLCOLS
-SKIP 1                                  -- the CSV's own header row (Time,V1,V2,...,Amount,Class)
+
 (
     time_seconds,
     v1, v2, v3, v4, v5, v6, v7, v8, v9, v10,
