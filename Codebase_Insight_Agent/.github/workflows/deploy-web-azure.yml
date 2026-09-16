@@ -1,0 +1,78 @@
+# ============================================================================
+# IMPORTANT if this project is nested inside another repo (e.g. AI_Portfolio):
+# Move this file to the repo's real top-level .github/workflows/, same as
+# deploy-azure.yml (the MCP server's workflow) -- GitHub Actions only reads
+# workflow files from the repo's real root, never from a subfolder.
+# ============================================================================
+
+name: Deploy Codebase Insight Agent website to Azure Container Apps
+
+# Manual trigger only, on purpose -- this deploys a real, billed Azure
+# resource, separate from the MCP server's own container app (see
+# deploy-azure.yml). They share the same source code (portfolio.py) but
+# are two different services with two different jobs, so they get two
+# separate deployments rather than trying to make one container do both.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build and deploy Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}/Codebase_Insight_Agent
+          # Points at Dockerfile.web specifically, NOT the MCP server's
+          # plain "Dockerfile" -- these are two different images built
+          # from the same source folder.
+          dockerfilePath: Dockerfile.web
+          acrName: ${{ secrets.ACR_NAME }}
+          containerAppName: ${{ secrets.WEB_CONTAINER_APP_NAME }}
+          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+# --- SETUP REQUIRED before this workflow can run ---
+#
+# 1. A SEPARATE Container App from the MCP server's one (same Container
+#    Registry and resource group are fine to reuse - see deploy-azure.yml
+#    for creating those if they don't exist yet):
+#      az containerapp create --name codebase-insight-website \
+#        --resource-group <RESOURCE_GROUP> --environment <ENV_NAME> \
+#        --image mcr.microsoft.com/k8se/quickstart:latest \
+#        --target-port 8000 --ingress external
+#
+# 2. Add ONE more repo secret alongside the ones deploy-azure.yml already
+#    needs (AZURE_CREDENTIALS, ACR_NAME, AZURE_RESOURCE_GROUP are shared):
+#      WEB_CONTAINER_APP_NAME   (the name from step 1, e.g. codebase-insight-website)
+#
+# 3. This container needs its own environment variables set - NOT the
+#    MCP server's (MCP_ACCESS_TOKEN etc. mean nothing here):
+#      GOOGLE_API_KEY       (same Gemini key as everywhere else)
+#      DATABASE_URL         (see README's "The public website" section -
+#                            Azure SQL if you want the query log and admin
+#                            account to survive a redeploy, otherwise it's
+#                            a local SQLite file that gets wiped each time)
+#      JWT_SECRET_KEY        (generate with:
+#                            python -c "import secrets; print(secrets.token_hex(32))")
+#      RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS  (optional, sane
+#                            defaults already set - see config.py)
+#
+#      az containerapp update --name codebase-insight-website \
+#        --resource-group <RESOURCE_GROUP> \
+#        --set-env-vars GOOGLE_API_KEY=secretref:google-api-key \
+#                       DATABASE_URL=secretref:database-url \
+#                       JWT_SECRET_KEY=secretref:jwt-secret-key
+#
+# 4. Create your one admin account AFTER the first deploy, against the
+#    real production database - see README's "The public website" section:
+#      DATABASE_URL=<the real production value> python scripts/create_admin.py you@example.com
+#
+# 5. Cost control: same budget alert advice as deploy-azure.yml - set one
+#    on the resource group before running this the first time.

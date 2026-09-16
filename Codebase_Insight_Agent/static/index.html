@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ask about this portfolio</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 32px 16px 100px;
+    background: #f7f7f8;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: #666; font-size: 0.92rem; margin-bottom: 24px; }
+
+  #chat { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+  .msg {
+    padding: 12px 16px;
+    border-radius: 14px;
+    max-width: 85%;
+    line-height: 1.5;
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+  }
+  .msg.user { align-self: flex-end; background: #111; color: white; }
+  .msg.bot { align-self: flex-start; background: white; border: 1px solid #e5e5e5; }
+  .msg.bot .projects { font-size: 0.75rem; color: #888; margin-top: 6px; }
+  .msg.bot.pending { color: #999; font-style: italic; }
+
+  form#chat-form {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #f7f7f8;
+    border-top: 1px solid #e5e5e5;
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  input[type="text"], input[type="email"], input[type="password"] {
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 0.95rem;
+  }
+  button {
+    background: #111;
+    color: white;
+    border: none;
+    padding: 0 18px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary { background: white; color: #111; border: 1px solid #ccc; }
+
+  #admin-toggle {
+    position: fixed;
+    top: 16px; right: 16px;
+    font-size: 0.78rem;
+    color: #999;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 4px 8px;
+  }
+
+  #admin-panel {
+    display: none;
+    position: fixed;
+    top: 50px; right: 16px;
+    width: 320px;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    z-index: 10;
+  }
+  #admin-panel.open { display: block; }
+  #admin-panel h2 { font-size: 0.95rem; margin: 0 0 12px; }
+  #admin-panel input { width: 100%; margin-bottom: 8px; }
+  .stat-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+  .log-entry { font-size: 0.75rem; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+  .log-entry .q { font-weight: 600; }
+  .log-entry .blocked { color: #c0392b; }
+  #admin-status { font-size: 0.78rem; color: #c0392b; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<button id="admin-toggle">Admin</button>
+
+<div id="admin-panel">
+  <div id="admin-login">
+    <h2>Admin login</h2>
+    <input type="email" id="admin-email" placeholder="Email" />
+    <input type="password" id="admin-password" placeholder="Password" />
+    <button id="admin-login-btn" style="width:100%;">Log in</button>
+    <div id="admin-status"></div>
+  </div>
+  <div id="admin-dashboard" style="display:none;">
+    <h2>Usage</h2>
+    <div id="stats"></div>
+    <h2 style="margin-top:14px;">Recent questions</h2>
+    <div id="logs"></div>
+    <button id="admin-logout-btn" class="secondary" style="width:100%; margin-top:12px;">Log out</button>
+  </div>
+</div>
+
+<h1>💬 Ask about this portfolio</h1>
+<div class="subtitle">An agent that knows Hossam's AI/ML projects — ask it anything.</div>
+
+<div id="chat"></div>
+
+<form id="chat-form">
+  <input type="text" id="question" placeholder="e.g. Which project uses LangGraph?" autocomplete="off" />
+  <button type="submit">Ask</button>
+</form>
+
+<script>
+  const chatEl = document.getElementById("chat");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("question");
+
+  function addMessage(role, text, projects) {
+    const div = document.createElement("div");
+    div.className = "msg " + role;
+    div.textContent = text;
+    if (projects && projects.length) {
+      const p = document.createElement("div");
+      p.className = "projects";
+      p.textContent = "From: " + projects.join(", ");
+      div.appendChild(p);
+    }
+    chatEl.appendChild(div);
+    window.scrollTo(0, document.body.scrollHeight);
+    return div;
+  }
+
+  addMessage("bot", "Hi! Ask me anything about this portfolio — the projects, the tech stack, how something was built.");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (!question) return;
+
+    addMessage("user", question);
+    input.value = "";
+    const pending = addMessage("bot pending", "Thinking...");
+
+    try {
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      const data = await res.json();
+      pending.classList.remove("pending");
+      if (res.status === 429) {
+        pending.textContent = data.detail;
+      } else if (!res.ok) {
+        pending.textContent = "Error: " + (data.detail || res.statusText);
+      } else {
+        pending.textContent = data.answer;
+        if (data.projects && data.projects.length) {
+          const p = document.createElement("div");
+          p.className = "projects";
+          p.textContent = "From: " + data.projects.join(", ");
+          pending.appendChild(p);
+        }
+      }
+    } catch (err) {
+      pending.classList.remove("pending");
+      pending.textContent = "Connection failed: " + err.message;
+    }
+  });
+
+  // ---------------------------------------------------------- admin panel
+
+  let adminAccessToken = null;
+  const adminPanel = document.getElementById("admin-panel");
+  const adminLoginView = document.getElementById("admin-login");
+  const adminDashboard = document.getElementById("admin-dashboard");
+  const adminStatus = document.getElementById("admin-status");
+
+  document.getElementById("admin-toggle").addEventListener("click", () => {
+    adminPanel.classList.toggle("open");
+  });
+
+  document.getElementById("admin-login-btn").addEventListener("click", async () => {
+    const email = document.getElementById("admin-email").value.trim();
+    const password = document.getElementById("admin-password").value;
+    adminStatus.textContent = "Logging in...";
+    try {
+      const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { adminStatus.textContent = data.detail || "Login failed"; return; }
+      adminAccessToken = data.access_token;
+      localStorage.setItem("admin_refresh_token", data.refresh_token);
+      adminStatus.textContent = "";
+      await showDashboard();
+    } catch (err) {
+      adminStatus.textContent = "Could not reach backend: " + err.message;
+    }
+  });
+
+  document.getElementById("admin-logout-btn").addEventListener("click", async () => {
+    const refreshToken = localStorage.getItem("admin_refresh_token");
+    if (refreshToken) {
+      await fetch("/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }).catch(() => {});
+    }
+    localStorage.removeItem("admin_refresh_token");
+    adminAccessToken = null;
+    adminDashboard.style.display = "none";
+    adminLoginView.style.display = "block";
+  });
+
+  async function showDashboard() {
+    adminLoginView.style.display = "none";
+    adminDashboard.style.display = "block";
+
+    const statsRes = await fetch("/admin/stats", { headers: { Authorization: `Bearer ${adminAccessToken}` } });
+    const stats = await statsRes.json();
+    document.getElementById("stats").innerHTML = `
+      <div class="stat-row"><span>Total questions</span><span>${stats.total_questions}</span></div>
+      <div class="stat-row"><span>Blocked</span><span>${stats.blocked_count}</span></div>
+      <div class="stat-row"><span>Rate-limited</span><span>${stats.rate_limited_count}</span></div>
+      <div class="stat-row"><span>Unique visitors</span><span>${stats.unique_visitors}</span></div>
+    `;
+
+    const logsRes = await fetch("/admin/logs?limit=20", { headers: { Authorization: `Bearer ${adminAccessToken}` } });
+    const logs = await logsRes.json();
+    document.getElementById("logs").innerHTML = logs.map(l => `
+      <div class="log-entry">
+        <div class="q">${l.question}</div>
+        <div>${l.answer ? l.answer.slice(0, 100) : ""}</div>
+        ${l.blocked ? '<div class="blocked">blocked: ' + (l.block_reason || '') + '</div>' : ''}
+        ${l.rate_limited ? '<div class="blocked">rate limited</div>' : ''}
+      </div>
+    `).join("");
+  }
+
+  // silently resume an admin session if a refresh token is already saved
+  (async function initAdmin() {
+    const refreshToken = localStorage.getItem("admin_refresh_token");
+    if (!refreshToken) return;
+    const res = await fetch("/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (res.ok) {
+      adminAccessToken = (await res.json()).access_token;
+      await showDashboard();
+    } else {
+      localStorage.removeItem("admin_refresh_token");
+    }
+  })();
+</script>
+
+</body>
+</html>
