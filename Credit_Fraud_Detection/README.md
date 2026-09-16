@@ -84,16 +84,18 @@ Three things live here:
 
 **Setup:**
 ```bash
-# Oracle XE (free, official Docker image) if you don't have an Oracle
-# instance already:
-docker run -d -p 1521:1521 -e ORACLE_PASSWORD=<a-real-password> gvenzl/oracle-xe:21-slim
+# Oracle XE (free Docker image) if you don't have an Oracle instance already:
+docker run -d --name oracle-xe -p 1521:1521 -e ORACLE_PASSWORD=<a-real-password> gvenzl/oracle-xe:latest
 
 sqlplus <user>/<password>@localhost:1521/XEPDB1 @sql/01_create_tables_oracle.sql
-sqlldr userid=<user>/<password>@localhost:1521/XEPDB1 control=sql/transactions_raw.ctl log=load.log
+
+# place creditcard.csv in a data/ folder next to the .ctl file, then:
+sqlldr userid=<user>/<password>@localhost:1521/XEPDB1 control=sql/transactions_raw.ctl log=load.log skip=1
+
 sqlplus <user>/<password>@localhost:1521/XEPDB1 @sql/02_fraud_analysis_queries_oracle.sql
 ```
 
-**Honest limitation, stated plainly:** unlike the Postgres SQL layers elsewhere in this portfolio, these queries haven't been run against a live Oracle instance — there's no in-memory Oracle equivalent to SQLite to test against without standing up a real server first. What *was* verified: the hour-bucketing arithmetic (`FLOOR(MOD(time_seconds/3600, 24))`) against several boundary values (0, 3599, 3600, 86399) to confirm it matches pandas' `int((Time/3600) % 24)` exactly, and the overall grouping/bucketing approach against a synthetic dataset with an injected fraud signal at night hours and small amounts — both correctly surfaced by the same logic these queries use. Standard Oracle SQL syntax throughout (no exotic features), so the risk of an actual syntax error is low, but "verified logic, unexecuted against real Oracle" is a real gap from "tested," not the same claim.
+**Actually run, not just logic-checked:** this was executed end to end against a real Oracle XE instance — all 284,807 rows loaded with zero rejects, and all three queries ran clean against the live table. The hour-bucketing arithmetic (`FLOOR(MOD(time_seconds/3600, 24))`) was also independently checked against pandas' `int((Time/3600) % 24)` on boundary values (0, 3599, 3600, 86399) beforehand to confirm the two match exactly.
 
 ## Tech stack
 
@@ -144,3 +146,4 @@ pip install -r requirements.txt
 - Resampling is not always the answer — class weights on the original data outperformed every SMOTE variant here
 - The right decision threshold depends on the actual cost of a missed fraud vs. a false alarm, not just on the model's metrics
 - V14 stands out as important in both the EDA analysis and the SHAP importance, though the two rankings differ beyond that — EDA and SHAP are measuring different things (raw separation vs. actual contribution to the trained model's predictions)
+- `SKIP` in a SQL*Loader control file has to be a load-level clause, not inside the table block — mine was in the wrong spot and Oracle rejected it until I moved it to a command-line `skip=1` instead
