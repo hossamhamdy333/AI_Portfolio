@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -136,7 +137,13 @@ async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db))
     if agent is None:
         raise HTTPException(503, "Still starting up, try again in a moment.")
 
-    result = portfolio.ask(agent, input_guard["redacted_text"])
+    # portfolio.ask() is synchronous and ends up calling llama_index's
+    # Gemini client, which internally does asyncio.run() - that blows up
+    # if called directly from here, since this endpoint is already
+    # running inside uvicorn's event loop. run_in_threadpool moves the
+    # whole blocking call to a worker thread, which has no event loop of
+    # its own, so llama_index's asyncio.run() works fine there.
+    result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
 
     output_guard = guard_output(result["answer"])
 
