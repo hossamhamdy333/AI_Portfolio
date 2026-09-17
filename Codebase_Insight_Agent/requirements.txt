@@ -23,6 +23,8 @@ matplotlib
 google-genai   # notebook 03's LLM-judge cell (from google import genai)
 
 # Website (web_app.py) - auth + database
+fastapi
+uvicorn[standard]
 sqlalchemy
 bcrypt
 pyjwt
