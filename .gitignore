@@ -82,3 +82,8 @@ runs/
 # project-specific
 allam_finetune/mlflow.db
 sentiment_forge/outputs/models/bert_onnx/
+**/data/*.csv
+!Codebase_Insight_Agent/data/eval_set_starter.csv
+
+.env.*
+!.env.example
