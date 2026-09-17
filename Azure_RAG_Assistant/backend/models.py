@@ -13,7 +13,7 @@ Two tables:
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Index, text
 from sqlalchemy.orm import relationship
 import enum
 
@@ -41,12 +41,33 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)
-    google_id = Column(String(255), unique=True, nullable=True, index=True)
+    # Deliberately NOT unique=True here - see __table_args__ below for why.
+    google_id = Column(String(255), nullable=True)
     role = Column(Enum(Role), nullable=False, default=Role.user)
     is_active = Column(Integer, nullable=False, default=1)  # 0/1, not a real bool column in every DB dialect
     created_at = Column(DateTime, nullable=False, default=utcnow)
 
     documents = relationship("Document", back_populates="owner")
+
+    __table_args__ = (
+        # A plain unique index on google_id breaks on SQL Server: unlike
+        # SQLite/Postgres, SQL Server treats every NULL as equal to every
+        # other NULL for uniqueness purposes, so a second user who signs
+        # up with email/password (google_id left NULL) collides with the
+        # first one and the INSERT is rejected with a raw, uncaught
+        # IntegrityError - every registration after the very first one
+        # fails. mssql_where restricts the *index* to non-NULL values on
+        # SQL Server only, so Google accounts still can't collide with
+        # each other, but any number of NULLs (regular signups) are fine.
+        # Ignored on other dialects, where a normal unique index already
+        # handles NULLs the way this app needs.
+        Index(
+            "ix_users_google_id",
+            "google_id",
+            unique=True,
+            mssql_where=text("google_id IS NOT NULL"),
+        ),
+    )
 
 
 class Document(Base):
