@@ -3,7 +3,7 @@ from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, Filter, FieldCondition, MatchValue
+from qdrant_client.models import VectorParams, Distance, Filter, FieldCondition, MatchValue, PayloadSchemaType
 from langchain_core.tools.retriever import create_retriever_tool
 from config import settings, embeddings
 from safe_math import safe_calculate
@@ -68,6 +68,17 @@ def get_qdrant_client():
             _qdrant_client.create_collection(
                 collection_name=settings.QDRANT_COLLECTION_NAME,
                 vectors_config=VectorParams(size=EMBEDDING_DIMENSIONS, distance=Distance.COSINE),
+            )
+            # Every search in build_agent() below filters on this field to
+            # keep users' documents isolated from each other. Qdrant
+            # refuses to filter on a field with no index, so without this
+            # line every chat request fails with "Index required but not
+            # found for metadata.user_id" the moment a second user (or the
+            # first query on a fresh collection) shows up.
+            _qdrant_client.create_payload_index(
+                collection_name=settings.QDRANT_COLLECTION_NAME,
+                field_name="metadata.user_id",
+                field_schema=PayloadSchemaType.INTEGER,
             )
     return _qdrant_client
 
