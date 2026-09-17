@@ -4,7 +4,7 @@
 
 A document Q&A chatbot: upload a file, ask questions about it in plain language, and get answers grounded in what's actually in the document — not a chatbot demo that happens to have a file upload button next to it.
 
-**Live demo:** [rag-assistant-hossam...azurewebsites.net](https://rag-assistant-hossam-dhfjgrfwcaf6g9e6.francecentral-01.azurewebsites.net)
+**Live Application:** [rag-assistant-hossam...azurewebsites.net](https://rag-assistant-hossam-dhfjgrfwcaf6g9e6.francecentral-01.azurewebsites.net)
 
 `Python` `FastAPI` `LangChain` `Gemini API` `Qdrant` `Azure SQL` `Azure Blob Storage` `Docker` `GitHub Actions`
 
