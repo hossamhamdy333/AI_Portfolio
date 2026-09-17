@@ -5,7 +5,7 @@ GITHUB_ORG = "hossamhamdy333"
 GITHUB_REPO = "AI_Portfolio"
 GITHUB_BRANCH = "main"
 
-LLM_MODEL = "gemini-3.6-flash"
+LLM_MODEL = "gemini-3.1-flash-lite"
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 CHUNK_SIZE = 512
