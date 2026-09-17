@@ -39,6 +39,28 @@ def configure_llama_index():
     _llama_index_configured = True
 
 
+def _extract_text(response):
+    """Normalizes an LLM response's .content into plain text.
+
+    Some Gemini models return .content as a plain string; others return
+    a list of structured parts (e.g. [{"type": "text", "text": "..."}]).
+    Every caller in this file needs plain text, so this is the one place
+    that knows how to handle both shapes.
+    """
+    content = response.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                parts.append(part["text"])
+        return "".join(parts)
+    return str(content)
+
+
 def get_readme(project_name):
     """Get a project's real README from GitHub. Falls back to a saved
     copy in data/ if GitHub can't be reached."""
@@ -273,7 +295,7 @@ def build_agent(indexes, router):
             "say so instead of guessing.\n\n"
             f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
         )
-        draft = llm.invoke(prompt).content
+        draft = _extract_text(llm.invoke(prompt))
         return {"context": context, "draft": draft}
 
     def critique(state):
@@ -283,7 +305,7 @@ def build_agent(indexes, router):
             f"Context:\n{state['context']}\n\nAnswer:\n{state['draft']}\n\n"
             "Reply with exactly one line: PASS or FAIL: <reason>"
         )
-        result = llm.invoke(prompt).content
+        result = _extract_text(llm.invoke(prompt))
         passed = result.strip().upper().startswith("PASS")
         feedback = None if passed else (result.split(":", 1)[1].strip() if ":" in result else result)
         return {
