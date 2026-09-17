@@ -4,7 +4,7 @@
 
 A Retrieval-Augmented Generation chatbot. Upload documents, ask questions about them in plain language, and get answers grounded in the actual content — built with Gemini, Qdrant, and deployed on Azure.
 
-**Live demo:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
+**Live demo:** [rag-assistant-hossam...azurewebsites.net](https://rag-assistant-hossam-dhfjgrfwcaf6g9e6.francecentral-01.azurewebsites.net)
 
 `Python` `FastAPI` `LangChain` `Gemini API` `Qdrant` `Azure Blob Storage` `Docker` `GitHub Actions`
 
@@ -242,6 +242,10 @@ minutes by default, so this resolves itself quickly either way).
 
 ## Notes
 
+- `/health` is a pure liveness check (no DB call) so Azure's own health probe never restart-loops the app over a slow database. `/health/db` actually runs a query - hit this one directly when debugging login/register issues to immediately tell apart a DB problem from anything else.
+- The connection pool uses `pool_pre_ping` and `pool_recycle` - without these, a connection that was opened before Azure SQL's serverless tier auto-paused sits in the pool looking fine and then fails or hangs the moment it's reused.
+- **SQL Server gotcha that cost real debugging time:** a plain unique index on a nullable column (`google_id`, null for every non-Google account) works fine on SQLite/Postgres but not SQL Server - it treats every `NULL` as equal to every other `NULL`, so the second person to register with email+password ever collides with the first and gets a raw 500. Fixed with a filtered index (`mssql_where=google_id IS NOT NULL`) in `models.py`, scoped to the mssql dialect only. Worth knowing if you're moving anything from SQLite to Azure SQL - the test suite (SQLite) can't catch this class of bug at all, it only shows up against the real database.
+- Qdrant needs an explicit payload index on `metadata.user_id` before it can filter by it - `agent.py` creates this automatically the moment it creates a fresh collection, so it only bites you if a collection was created before that line existed (fix: create the index once by hand, or drop and let it recreate).
 - The calculator uses a restricted AST-based evaluator instead of `eval()`.
 - If blob storage is unavailable, uploads still succeed and remain searchable — only the raw file backup is skipped.
 - Deleting a document removes its vector chunks from Qdrant (filtered by a document id tagged onto each chunk, not by filename, so two uploads that happen to share a name can't collide) and its row from the database.
