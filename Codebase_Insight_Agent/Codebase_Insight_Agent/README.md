@@ -169,7 +169,10 @@ app instead:
   if this ever gets horizontally scaled.
 - **Guardrails** (`guardrails.py`, the same module used in Azure RAG Assistant and
   the support copilot) — blocks prompt-injection attempts before they ever reach
-  the agent, and moderates the output before it's returned.
+  the agent, and moderates the output before it's returned. Benchmarked against
+  the same kind of labeled adversarial set as Azure RAG Assistant: **19/20** on
+  `tests/adversarial_prompts.json` (`tests/test_guardrails.py::test_adversarial_prompt_set_catch_rate`),
+  with the one miss named in that test rather than hidden.
 
 **One protected `/admin/*` route group** — just for you. Usage stats, recent
 questions, what got blocked. There's deliberately no public `/auth/register` route

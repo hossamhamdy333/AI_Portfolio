@@ -58,7 +58,7 @@ PROJECT_DESCRIPTIONS = {
     "rag-vanilla-vs-langchain": "Comparison of a vanilla RAG pipeline vs a LangChain implementation",
     "nl2sql_finetune": "Fine-tuning a small model for natural-language-to-SQL",
     "ecommerce-demand-forecasting": "Demand forecasting on the Online Retail II e-commerce dataset",
-     "employee-attrition": "Employee attrition prediction model with a Postgres SQL analysis layer",
+    "employee-attrition": "Employee attrition prediction model with a Postgres SQL analysis layer",
     "llm_api_integration": "FastAPI wrapper around an LLM API with retries, structured output, tool calling, and MLflow cost tracking, switchable between Gemini, Ollama, and vLLM backends",
     "marketing-ab-testing": "Statistical analysis of a marketing A/B test",
     "rag_qa_documind": "Document-upload RAG Q&A app with per-user accounts, deployed on Streamlit Cloud",
