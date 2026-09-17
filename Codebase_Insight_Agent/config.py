@@ -36,6 +36,12 @@ PROJECTS = [
     "rag-vanilla-vs-langchain",
     "nl2sql_finetune",
     "ecommerce-demand-forecasting",
+    "employee-attrition",
+    "llm_api_integration",
+    "marketing-ab-testing",
+    "rag_qa_documind",
+    "semantic-search-arxiv-papers",
+    "sentiment_forge",
 ]
 
 # One short description per project, used by the router to match a
@@ -52,6 +58,12 @@ PROJECT_DESCRIPTIONS = {
     "rag-vanilla-vs-langchain": "Comparison of a vanilla RAG pipeline vs a LangChain implementation",
     "nl2sql_finetune": "Fine-tuning a small model for natural-language-to-SQL",
     "ecommerce-demand-forecasting": "Demand forecasting on the Online Retail II e-commerce dataset",
+     "employee-attrition": "Employee attrition prediction model with a Postgres SQL analysis layer",
+    "llm_api_integration": "FastAPI wrapper around an LLM API with retries, structured output, tool calling, and MLflow cost tracking, switchable between Gemini, Ollama, and vLLM backends",
+    "marketing-ab-testing": "Statistical analysis of a marketing A/B test",
+    "rag_qa_documind": "Document-upload RAG Q&A app with per-user accounts, deployed on Streamlit Cloud",
+    "semantic-search-arxiv-papers": "Staged semantic search over arXiv ML papers (BM25 to SBERT/FAISS to Qdrant to cross-encoder reranking)",
+    "sentiment_forge": "Sentiment analysis comparing TF-IDF, BiLSTM, and fine-tuned BERT models",
 }
 
 # --- web_app.py (the public recruiter-facing website) -----------------
