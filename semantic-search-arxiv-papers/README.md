@@ -1,6 +1,10 @@
+<div align="center">
+  
 # Semantic Search over ArXiv ML Papers — Four Stages, One Eval Set
 
-**Live demo:** [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)
+**Live Application:** [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)
+
+</div>
 
 ## Summary
 
