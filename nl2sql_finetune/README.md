@@ -130,7 +130,7 @@ actually drives most of the gap (see Results).
 
 ### Post-processing
 
-: generated output is extracted from markdown code
+Generated output is extracted from markdown code
 fences if present, and the two notebooks each implement their own
 extraction function (`extract_sql()` in 02, `clean_generated_sql()` in
 04) rather than sharing one — similar logic, written twice, a second
@@ -164,7 +164,7 @@ axis.
 
 ### What isn't verifiable from the repo as committed
 
-: the "first iteration
+The "first iteration
 used 3,000 rows and rank 16" part of the story is the author's own account
 — no round-1 config, data split, or results file is checked in, only the
 final (12,000-row, rank-32) state that `configs/config.yaml` and

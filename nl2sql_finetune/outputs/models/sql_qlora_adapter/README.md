@@ -5,205 +5,72 @@ pipeline_tag: text-generation
 tags:
 - base_model:adapter:Qwen/Qwen2.5-Coder-1.5B-Instruct
 - lora
+- qlora
 - sft
 - transformers
 - trl
+- text-to-sql
 ---
 
-# Model Card for Model ID
+<div align="center">
 
-<!-- Provide a quick summary of what the model is/does. -->
+# Qwen2.5-Coder-1.5B QLoRA Adapter — Text-to-SQL
 
+`peft` `trl` `transformers` `bitsandbytes` `Qwen/Qwen2.5-Coder-1.5B-Instruct`
 
+</div>
 
-## Model Details
+---
 
-### Model Description
+LoRA adapter for `Qwen/Qwen2.5-Coder-1.5B-Instruct`, fine-tuned with QLoRA for schema-constrained text-to-SQL: given a question and a `CREATE TABLE` schema, generate a SQL query.
 
-<!-- Provide a longer summary of what this model is. -->
+This folder is the adapter's model card. The full data analysis, training details, scoring caveats, and limitations are in the parent project's [README](../../../README.md).
 
+## Adapter configuration
 
+From `adapter_config.json` and the parent README:
 
-- **Developed by:** [More Information Needed]
-- **Funded by [optional]:** [More Information Needed]
-- **Shared by [optional]:** [More Information Needed]
-- **Model type:** [More Information Needed]
-- **Language(s) (NLP):** [More Information Needed]
-- **License:** [More Information Needed]
-- **Finetuned from model [optional]:** [More Information Needed]
+| Setting | Value |
+|---|---|
+| PEFT type / task | LoRA / `CAUSAL_LM` |
+| Rank / alpha / dropout | 32 / 64 / 0.1 |
+| Target modules | `q_proj`, `k_proj`, `v_proj`, `o_proj` (attention only, no MLP) |
+| Trainable parameters | 8,716,288 of 1,552,430,592 (0.5615%) |
+| Saved with PEFT | 0.19.1 |
 
-### Model Sources [optional]
+## Training
 
-<!-- Provide the basic links for the model. -->
+- **Data:** [`b-mc2/sql-create-context`](https://huggingface.co/datasets/b-mc2/sql-create-context) — 12,000 train / 400 validation rows, seeded split
+- **Recipe:** TRL `SFTTrainer`, 2 epochs, effective batch 16, learning rate 2e-4, `max_seq_length=512`, 3% warmup; 4-bit NF4 base with double quantization and bf16 compute
+- **Hardware:** single T4 (Kaggle), about 4 h 13 min
 
-- **Repository:** [More Information Needed]
-- **Paper [optional]:** [More Information Needed]
-- **Demo [optional]:** [More Information Needed]
+## Results
 
-## Uses
+On the 400-row validation split (same split for base and fine-tuned):
 
-<!-- Address questions around how the model is intended to be used, including the foreseeable users of the model and those affected by the model. -->
+| Metric | Base (zero-shot) | Fine-tuned |
+|---|---|---|
+| Exact match | 5.00% | 81.25% |
+| Valid SQL rate (executes on SQLite) | 92.00% | 97.25% |
 
-### Direct Use
+Exact match is a string comparison and understates quality where quoting style differs from the gold query; the parent README explains this and other scoring caveats.
 
-<!-- This section is for the model use without fine-tuning or plugging into a larger ecosystem/app. -->
+## Usage
 
-[More Information Needed]
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import PeftModel
 
-### Downstream Use [optional]
+base_id = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                         bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
 
-<!-- This section is for the model use when fine-tuned for a task, or when plugged into a larger ecosystem/app -->
+tokenizer = AutoTokenizer.from_pretrained(base_id)
+base = AutoModelForCausalLM.from_pretrained(base_id, quantization_config=bnb, device_map="auto")
+model = PeftModel.from_pretrained(base, "outputs/models/sql_qlora_adapter")  # run from the project root
+```
 
-[More Information Needed]
+## Limitations
 
-### Out-of-Scope Use
-
-<!-- This section addresses misuse, malicious use, and uses that the model will not work well for. -->
-
-[More Information Needed]
-
-## Bias, Risks, and Limitations
-
-<!-- This section is meant to convey both technical and sociotechnical limitations. -->
-
-[More Information Needed]
-
-### Recommendations
-
-<!-- This section is meant to convey recommendations with respect to the bias, risk, and technical limitations. -->
-
-Users (both direct and downstream) should be made aware of the risks, biases and limitations of the model. More information needed for further recommendations.
-
-## How to Get Started with the Model
-
-Use the code below to get started with the model.
-
-[More Information Needed]
-
-## Training Details
-
-### Training Data
-
-<!-- This should link to a Dataset Card, perhaps with a short stub of information on what the training data is all about as well as documentation related to data pre-processing or additional filtering. -->
-
-[More Information Needed]
-
-### Training Procedure
-
-<!-- This relates heavily to the Technical Specifications. Content here should link to that section when it is relevant to the training procedure. -->
-
-#### Preprocessing [optional]
-
-[More Information Needed]
-
-
-#### Training Hyperparameters
-
-- **Training regime:** [More Information Needed] <!--fp32, fp16 mixed precision, bf16 mixed precision, bf16 non-mixed precision, fp16 non-mixed precision, fp8 mixed precision -->
-
-#### Speeds, Sizes, Times [optional]
-
-<!-- This section provides information about throughput, start/end time, checkpoint size if relevant, etc. -->
-
-[More Information Needed]
-
-## Evaluation
-
-<!-- This section describes the evaluation protocols and provides the results. -->
-
-### Testing Data, Factors & Metrics
-
-#### Testing Data
-
-<!-- This should link to a Dataset Card if possible. -->
-
-[More Information Needed]
-
-#### Factors
-
-<!-- These are the things the evaluation is disaggregating by, e.g., subpopulations or domains. -->
-
-[More Information Needed]
-
-#### Metrics
-
-<!-- These are the evaluation metrics being used, ideally with a description of why. -->
-
-[More Information Needed]
-
-### Results
-
-[More Information Needed]
-
-#### Summary
-
-
-
-## Model Examination [optional]
-
-<!-- Relevant interpretability work for the model goes here -->
-
-[More Information Needed]
-
-## Environmental Impact
-
-<!-- Total emissions (in grams of CO2eq) and additional considerations, such as electricity usage, go here. Edit the suggested text below accordingly -->
-
-Carbon emissions can be estimated using the [Machine Learning Impact calculator](https://mlco2.github.io/impact#compute) presented in [Lacoste et al. (2019)](https://arxiv.org/abs/1910.09700).
-
-- **Hardware Type:** [More Information Needed]
-- **Hours used:** [More Information Needed]
-- **Cloud Provider:** [More Information Needed]
-- **Compute Region:** [More Information Needed]
-- **Carbon Emitted:** [More Information Needed]
-
-## Technical Specifications [optional]
-
-### Model Architecture and Objective
-
-[More Information Needed]
-
-### Compute Infrastructure
-
-[More Information Needed]
-
-#### Hardware
-
-[More Information Needed]
-
-#### Software
-
-[More Information Needed]
-
-## Citation [optional]
-
-<!-- If there is a paper or blog post introducing the model, the APA and Bibtex information for that should go in this section. -->
-
-**BibTeX:**
-
-[More Information Needed]
-
-**APA:**
-
-[More Information Needed]
-
-## Glossary [optional]
-
-<!-- If relevant, include terms and calculations in this section that can help readers understand the model or model card. -->
-
-[More Information Needed]
-
-## More Information [optional]
-
-[More Information Needed]
-
-## Model Card Authors [optional]
-
-[More Information Needed]
-
-## Model Card Contact
-
-[More Information Needed]
-### Framework versions
-
-- PEFT 0.19.1
+The dataset is dominated by single-table, filter-only queries (only 2.3% contain a `JOIN`), so results say little about multi-table or grouped SQL.

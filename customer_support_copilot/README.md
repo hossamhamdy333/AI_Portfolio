@@ -1,10 +1,26 @@
 <div align="center">
-  
+
 # AI Support Copilot
 
 **Live Application:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
 
+`Unsloth` `llama.cpp` `llama-cpp-python` `FastAPI` `ChromaDB` `Azure Container Apps` `Docker` `pytest`
+
 </div>
+
+---
+
+### Contents
+
+- [Summary](#summary)
+- [Problem & motivation](#problem--motivation)
+- [Approach](#approach)
+- [Data](#data)
+- [Results](#results)
+- [What I'd do differently / limitations](#what-id-do-differently--limitations)
+- [Stack](#stack)
+
+---
 
 ## Summary
 

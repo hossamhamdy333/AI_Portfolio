@@ -238,7 +238,7 @@ Total error counts on the test set: TF-IDF 1,290/2,204 (58.5%), BiLSTM
 1,303/2,204 (59.1%), BERT 1,082/2,204 (49.1%, from notebook 04's
 best-checkpoint run).
 
-### Tuning and training detail worth keeping:
+### Tuning and training detail worth keeping
 
 - Grid search over `C` (5-fold CV, weighted F1 on train):
   0.01 → 0.3534, 0.1 → 0.3782, **1.0 → 0.4004**, 10.0 → 0.3883,
@@ -251,9 +251,9 @@ best-checkpoint run).
   1.6255, 1.6418, 1.8860. Train loss falls monotonically 1.5094 → 0.6477.
   The model is clearly overfitting from epoch 4 on by loss, while still
   improving on the metric that was selected on.
-- [ADD: BERT per-epoch validation F1 — the training cell's output is saved
+- **Open item:** BERT per-epoch validation F1 — the training cell's output is saved
   as an HTML widget object, so the numbers aren't recoverable from the
-  committed notebook; they're in the `bert_base_uncased` W&B run.]
+  committed notebook; they're in the `bert_base_uncased` W&B run.
 
 ### Same five sentences through all three models
 
@@ -279,7 +279,7 @@ direction — TF-IDF's strongest "neutral" features are `but`, `yet`,
 conjunctions mean mixed sentiment, which is real signal, but it's the only
 kind of structure available to it.
 
-### Latency and model size.
+### Latency and model size
 
 The numbers previously published
 in this README

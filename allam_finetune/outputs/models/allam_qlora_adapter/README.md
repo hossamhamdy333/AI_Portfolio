@@ -1,202 +1,60 @@
 ---
 base_model: ALLaM-AI/ALLaM-7B-Instruct-preview
 library_name: peft
+pipeline_tag: text-generation
+tags:
+- lora
+- qlora
+- peft
+- arabic
+- legal
 ---
 
-# Model Card for Model ID
+<div align="center">
 
-<!-- Provide a quick summary of what the model is/does. -->
+# ALLaM-7B QLoRA Adapter — Arabic Legal Instruction Following
 
+`peft` `transformers` `bitsandbytes` `ALLaM-AI/ALLaM-7B-Instruct-preview`
 
+</div>
 
-## Model Details
+---
 
-### Model Description
+LoRA adapter for `ALLaM-AI/ALLaM-7B-Instruct-preview`, fine-tuned with QLoRA (4-bit base) on Arabic legal instruction data: article analysis, plain-language simplification, and judgment prediction.
 
-<!-- Provide a longer summary of what this model is. -->
+This folder is the adapter's model card. The data, training procedure, LLM-judged results (base vs. v1 vs. v2), and limitations are in the parent project's [README](../../../README.md).
 
+> **Weights are not in this repo.** The adapter weights are hosted on the Hugging Face Hub as [`hossam3759180/allam-qlora-legal-adapter`](https://huggingface.co/hossam3759180/allam-qlora-legal-adapter). This folder holds the adapter config and tokenizer files only.
 
+## Adapter configuration
 
-- **Developed by:** [More Information Needed]
-- **Funded by [optional]:** [More Information Needed]
-- **Shared by [optional]:** [More Information Needed]
-- **Model type:** [More Information Needed]
-- **Language(s) (NLP):** [More Information Needed]
-- **License:** [More Information Needed]
-- **Finetuned from model [optional]:** [More Information Needed]
+From `adapter_config.json`:
 
-### Model Sources [optional]
+| Setting | Value |
+|---|---|
+| PEFT type / task | LoRA / `CAUSAL_LM` |
+| Rank / alpha / dropout | 32 / 64 / 0.1 |
+| Target modules | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj` |
+| Bias | none |
+| Saved with PEFT | 0.20.0 |
 
-<!-- Provide the basic links for the model. -->
+## Usage
 
-- **Repository:** [More Information Needed]
-- **Paper [optional]:** [More Information Needed]
-- **Demo [optional]:** [More Information Needed]
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import PeftModel
 
-## Uses
+base_id = "ALLaM-AI/ALLaM-7B-Instruct-preview"
+adapter_id = "hossam3759180/allam-qlora-legal-adapter"
 
-<!-- Address questions around how the model is intended to be used, including the foreseeable users of the model and those affected by the model. -->
+# Use the same 4-bit quantization settings as training (see the parent README).
+bnb = BitsAndBytesConfig(load_in_4bit=True)
 
-### Direct Use
+tokenizer = AutoTokenizer.from_pretrained(base_id)
+base = AutoModelForCausalLM.from_pretrained(base_id, quantization_config=bnb, device_map="auto")
+model = PeftModel.from_pretrained(base, adapter_id)
+```
 
-<!-- This section is for the model use without fine-tuning or plugging into a larger ecosystem/app. -->
+## Limitations
 
-[More Information Needed]
-
-### Downstream Use [optional]
-
-<!-- This section is for the model use when fine-tuned for a task, or when plugged into a larger ecosystem/app -->
-
-[More Information Needed]
-
-### Out-of-Scope Use
-
-<!-- This section addresses misuse, malicious use, and uses that the model will not work well for. -->
-
-[More Information Needed]
-
-## Bias, Risks, and Limitations
-
-<!-- This section is meant to convey both technical and sociotechnical limitations. -->
-
-[More Information Needed]
-
-### Recommendations
-
-<!-- This section is meant to convey recommendations with respect to the bias, risk, and technical limitations. -->
-
-Users (both direct and downstream) should be made aware of the risks, biases and limitations of the model. More information needed for further recommendations.
-
-## How to Get Started with the Model
-
-Use the code below to get started with the model.
-
-[More Information Needed]
-
-## Training Details
-
-### Training Data
-
-<!-- This should link to a Dataset Card, perhaps with a short stub of information on what the training data is all about as well as documentation related to data pre-processing or additional filtering. -->
-
-[More Information Needed]
-
-### Training Procedure
-
-<!-- This relates heavily to the Technical Specifications. Content here should link to that section when it is relevant to the training procedure. -->
-
-#### Preprocessing [optional]
-
-[More Information Needed]
-
-
-#### Training Hyperparameters
-
-- **Training regime:** [More Information Needed] <!--fp32, fp16 mixed precision, bf16 mixed precision, bf16 non-mixed precision, fp16 non-mixed precision, fp8 mixed precision -->
-
-#### Speeds, Sizes, Times [optional]
-
-<!-- This section provides information about throughput, start/end time, checkpoint size if relevant, etc. -->
-
-[More Information Needed]
-
-## Evaluation
-
-<!-- This section describes the evaluation protocols and provides the results. -->
-
-### Testing Data, Factors & Metrics
-
-#### Testing Data
-
-<!-- This should link to a Dataset Card if possible. -->
-
-[More Information Needed]
-
-#### Factors
-
-<!-- These are the things the evaluation is disaggregating by, e.g., subpopulations or domains. -->
-
-[More Information Needed]
-
-#### Metrics
-
-<!-- These are the evaluation metrics being used, ideally with a description of why. -->
-
-[More Information Needed]
-
-### Results
-
-[More Information Needed]
-
-#### Summary
-
-
-
-## Model Examination [optional]
-
-<!-- Relevant interpretability work for the model goes here -->
-
-[More Information Needed]
-
-## Environmental Impact
-
-<!-- Total emissions (in grams of CO2eq) and additional considerations, such as electricity usage, go here. Edit the suggested text below accordingly -->
-
-Carbon emissions can be estimated using the [Machine Learning Impact calculator](https://mlco2.github.io/impact#compute) presented in [Lacoste et al. (2019)](https://arxiv.org/abs/1910.09700).
-
-- **Hardware Type:** [More Information Needed]
-- **Hours used:** [More Information Needed]
-- **Cloud Provider:** [More Information Needed]
-- **Compute Region:** [More Information Needed]
-- **Carbon Emitted:** [More Information Needed]
-
-## Technical Specifications [optional]
-
-### Model Architecture and Objective
-
-[More Information Needed]
-
-### Compute Infrastructure
-
-[More Information Needed]
-
-#### Hardware
-
-[More Information Needed]
-
-#### Software
-
-[More Information Needed]
-
-## Citation [optional]
-
-<!-- If there is a paper or blog post introducing the model, the APA and Bibtex information for that should go in this section. -->
-
-**BibTeX:**
-
-[More Information Needed]
-
-**APA:**
-
-[More Information Needed]
-
-## Glossary [optional]
-
-<!-- If relevant, include terms and calculations in this section that can help readers understand the model or model card. -->
-
-[More Information Needed]
-
-## More Information [optional]
-
-[More Information Needed]
-
-## Model Card Authors [optional]
-
-[More Information Needed]
-
-## Model Card Contact
-
-[More Information Needed]
-### Framework versions
-
-- PEFT 0.10.0
+Evaluated with an LLM judge (Gemini) on a fixed 150-row sample, not against human-labeled data. Not legal advice; see the parent README's limitations section for what was and wasn't verified.

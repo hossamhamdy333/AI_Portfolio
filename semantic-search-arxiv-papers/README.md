@@ -1,10 +1,26 @@
 <div align="center">
-  
+
 # Semantic Search over ArXiv ML Papers — Four Stages, One Eval Set
 
 **Live Application:** [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)
 
+`rank-bm25` `sentence-transformers` `FAISS` `Qdrant` `FastAPI` `Streamlit` `DVC`
+
 </div>
+
+---
+
+### Contents
+
+- [Summary](#summary)
+- [Problem & motivation](#problem--motivation)
+- [Approach](#approach)
+- [Data](#data)
+- [Results](#results)
+- [What I'd do differently / limitations](#what-id-do-differently--limitations)
+- [Stack](#stack)
+
+---
 
 ## Summary
 
@@ -209,14 +225,14 @@ competition in a corpus of 50K ML abstracts, where several papers can
 legitimately match a title-shaped query; none of it has been inspected
 qualitatively, so that's a hypothesis, not a finding.
 
-[ADD: the bi-encoder's Recall@50, which is the hard ceiling on every
+**Open item:** the bi-encoder's Recall@50, which is the hard ceiling on every
 reranked metric above — computable from `05_reranking.ipynb` by calling
 `recall_at_k(all_rankings_reranked, correct_ids, 50)`, but not currently
-run.]
+run.
 
-[ADD: measured per-query latency for each of the four stages. The
+**Open item:** measured per-query latency for each of the four stages. The
 latency/quality trade-off is the stated reason for choosing reranking, and
-nothing in this repo times a search.]
+nothing in this repo times a search.
 
 **Production index**, from `06_build_index.ipynb`'s run against the live
 cluster: 55,752 vectors indexed (49,969 abstracts expanded into chunks),

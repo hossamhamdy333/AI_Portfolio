@@ -154,9 +154,10 @@ notebooks were. So despite what the code is clearly built to measure
 the agent's real cost versus `naive_ask()`'s single-call baseline in
 `04_evaluate.ipynb`, a live MCP protocol round-trip in
 `05_mcp_demo.ipynb`), I have no actual numbers for any of them.
-[ADD: router regression accuracy from 02_router.ipynb], [ADD: LLM-judged
-correctness rate from 03_agent.ipynb], [ADD: agent vs. naive `llm_calls`
-and latency/cost comparison from 04_evaluate.ipynb].
+**Open items** (need the notebooks run and committed with outputs): router
+regression accuracy (`02_router.ipynb`), LLM-judged correctness rate
+(`03_agent.ipynb`), and agent vs. naive `llm_calls` plus latency/cost
+(`04_evaluate.ipynb`).
 
 ## What I'd do differently / limitations
 

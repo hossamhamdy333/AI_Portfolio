@@ -42,19 +42,19 @@ The naive approach is to pick the model with the best accuracy, apply a 0.5 cuto
 
 ### Calibration
 
-: `CalibratedClassifierCV` with 5-fold internal cross-validation and isotonic regression, fit on the training set only (the calibrator needs data the base model hasn't already seen, so it can't be fit on the same rows the base model trained on). This matters specifically because the profit calculation downstream needs realistic probabilities, not just a good ranking — ROC-AUC is invariant to any monotonic transformation of the scores, so calibration doesn't change it, but Brier score (a direct measure of probability accuracy) does.
+`CalibratedClassifierCV` with 5-fold internal cross-validation and isotonic regression, fit on the training set only (the calibrator needs data the base model hasn't already seen, so it can't be fit on the same rows the base model trained on). This matters specifically because the profit calculation downstream needs realistic probabilities, not just a good ranking — ROC-AUC is invariant to any monotonic transformation of the scores, so calibration doesn't change it, but Brier score (a direct measure of probability accuracy) does.
 
 ### Threshold selection
 
-: rather than the default 0.5, the project sweeps thresholds from 0.01 to 0.99 and picks the one that maximizes `TP × (avg_customer_value − offer_cost − outreach_cost) + FP × (−offer_cost − outreach_cost) + FN × (−avg_customer_value)` on the calibrated test-set probabilities, using $50 as the assumed retention-offer cost and $5 as the assumed cost to reach a customer.
+Rather than the default 0.5, the project sweeps thresholds from 0.01 to 0.99 and picks the one that maximizes `TP × (avg_customer_value − offer_cost − outreach_cost) + FP × (−offer_cost − outreach_cost) + FN × (−avg_customer_value)` on the calibrated test-set probabilities, using $50 as the assumed retention-offer cost and $5 as the assumed cost to reach a customer.
 
 ### SQL layer
 
-: two files, run against Postgres. `01_create_tables_postgres.sql` stages the raw CSV schema plus a `scored_customers` table for the model's exported probabilities. `02_segment_queries_postgres.sql` does two things: pure rule-based analysis that needs no model at all (churn by contract type; churn by tenure band, with a window function comparing each band to the overall average; the `high_risk`/`high_value` flags recreated exactly as SQL, using `PERCENTILE_CONT` for the same thresholds the notebook computes with pandas), and an independent rebuild of the priority matrix from the model's exported scores, using `NTILE(3)` for value tertiles and the same bin edges as the notebook's `pd.cut()` — but written with `<=` throughout instead of pandas' default half-open intervals.
+Two files, run against Postgres. `01_create_tables_postgres.sql` stages the raw CSV schema plus a `scored_customers` table for the model's exported probabilities. `02_segment_queries_postgres.sql` does two things: pure rule-based analysis that needs no model at all (churn by contract type; churn by tenure band, with a window function comparing each band to the overall average; the `high_risk`/`high_value` flags recreated exactly as SQL, using `PERCENTILE_CONT` for the same thresholds the notebook computes with pandas), and an independent rebuild of the priority matrix from the model's exported scores, using `NTILE(3)` for value tertiles and the same bin edges as the notebook's `pd.cut()` — but written with `<=` throughout instead of pandas' default half-open intervals.
 
 ### Two dashboards on the same two exported CSVs
 
-: a 4-page Streamlit app (`streamlit_app.py`: churn overview, calibration curve, priority matrix as a sortable table with a call-list view, and a what-if page with offer cost / outreach cost / threshold as live sliders) and a 2-page Power BI file (`churn_dashboard.pbix`: an executive overview and a retention-priority page with the same three sliders feeding an Expected Profit measure in DAX). Built to make the threshold and cost assumptions adjustable by whoever owns the retention budget, rather than locking the notebook's specific dollar figures into a dashboard nobody can change.
+A 4-page Streamlit app (`streamlit_app.py`: churn overview, calibration curve, priority matrix as a sortable table with a call-list view, and a what-if page with offer cost / outreach cost / threshold as live sliders) and a 2-page Power BI file (`churn_dashboard.pbix`: an executive overview and a retention-priority page with the same three sliders feeding an Expected Profit measure in DAX). Built to make the threshold and cost assumptions adjustable by whoever owns the retention budget, rather than locking the notebook's specific dollar figures into a dashboard nobody can change.
 
 ## Data
 
