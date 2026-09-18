@@ -1,6 +1,10 @@
+<div align="center">
+  
 # DocuMind — Per-Account RAG Document Q&A
 
-**Live demo:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
+**Live Application:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
+
+</div>
 
 ## Summary
 
