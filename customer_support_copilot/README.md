@@ -1,6 +1,10 @@
+<div align="center">
+  
 # AI Support Copilot
 
-**Live demo:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
+**Live Application:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
+
+</div>
 
 ## Summary
 
