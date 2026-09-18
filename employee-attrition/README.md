@@ -54,7 +54,7 @@ The second half of the problem — turning a risk score into a business decision
 
 ### Dashboards
 
-: a 4-page Power BI report (`dashboard/Dashboard-employee-attrition.pbix`, with live What-If DAX parameters for the ROI scenario on the last page, plus a static PDF export) and a matching 4-page Streamlit app (`dashboard/streamlit_app.py`) built off the same exported CSV, so the cost/effectiveness assumptions behind the ROI number are adjustable rather than fixed in a notebook.
+A 4-page Power BI report (`dashboard/Dashboard-employee-attrition.pbix`, with live What-If DAX parameters for the ROI scenario on the last page, plus a static PDF export) and a matching 4-page Streamlit app (`dashboard/streamlit_app.py`) built off the same exported CSV, so the cost/effectiveness assumptions behind the ROI number are adjustable rather than fixed in a notebook.
 
 **Scope note — Prophet was dropped.** An earlier version considered Prophet for a time-series angle on attrition trends; it was dropped after a Windows long-path install failure (Prophet's bundled Stan/TBB library paths exceed Windows' 260-character limit), and the project moved forward with the Logistic Regression vs. LightGBM comparison instead rather than working around the install issue.
 
@@ -78,12 +78,12 @@ Classification — winner picked on 5-fold cross-validated PR-AUC, not the singl
 
 Survival analysis: Cox model concordance index **0.797** (correctly ranks who leaves sooner ~80% of the time). Hazard ratios:
 
-| Factor | Hazard ratio | Interpretation |
-|---|---|---|
-| **OverTime** | **3.19** | ~3.2x faster attrition, holding other factors constant |
-| JobSatisfaction | 0.79 | Each point (1–4 scale) cuts risk ~21% |
-| DistanceFromHome | 1.02 | ~2% higher risk per mile |
-| MonthlyIncome | 1.00 | Statistically significant, but a tiny per-dollar effect |
+| Factor | Hazard ratio | 95% CI | Interpretation |
+|---|---|---|---|
+| **OverTime** | **3.19** | 2.47–4.12 | ~3.2x faster attrition, holding other factors constant |
+| JobSatisfaction | 0.79 | 0.70–0.88 | Each point (1–4 scale) cuts risk ~21% |
+| DistanceFromHome | 1.02 | 1.00–1.03 | ~2% higher risk per mile |
+| MonthlyIncome | 1.00 | 1.00–1.00 (rounds to 1.00) | Statistically significant, but a tiny per-dollar effect |
 
 Log-rank test on the OverTime Kaplan-Meier split: p < 0.0001. Independently confirmed by SQL (`sql/06_query_tenure_bucket.sql`): attrition rate by tenure bucket falls monotonically — 0–1 yrs 34.9%, 2–4 yrs 18.1%, 5–9 yrs 11.1%, 10+ yrs 10.4%.
 
@@ -107,10 +107,9 @@ This number is entirely a function of the two stated assumptions (cost per emplo
 - **The single-split-vs-CV reversal is the most important methodological finding in this project, and it's worth stating plainly: with only 47 positive test cases, a single train/test split is not a reliable way to rank two models here.** Anyone re-running just the single-split cell would pick Logistic Regression and be wrong by the project's own more trustworthy metric.
 - **The $2,000 intervention cost and 30% risk-reduction figure are stated assumptions, not measured numbers.** Neither comes from a real HR program's historical data; the ROI figure should be read as "what this would be worth if these hold," and the dashboard's sliders exist specifically so a reader doesn't have to take the default numbers on faith.
 - **The 50%-of-salary replacement-cost assumption behind the $10.15M figure is a common industry rule of thumb, not this company's actual measured replacement cost** — a real HR team would have (or could measure) a better number.
-- **SHAP was only run on the winning LightGBM model**, and only as a summary bar chart in the notebook — there's no committed table of exact mean-|SHAP| values or per-feature ranking beyond the plot itself, so a reader can see which features matter visually but can't pull an exact ranked list from this README alone. [ADD: top-10 SHAP feature ranking with values, from `03_classification_models.ipynb`'s SHAP cell, if a precise list is needed.]
+- **SHAP was only run on the winning LightGBM model**, and only as a summary bar chart in the notebook — there's no committed table of exact mean-|SHAP| values or per-feature ranking beyond the plot itself, so a reader can see which features matter visually but can't pull an exact ranked list from this README alone. **Open item:** a top-10 SHAP feature ranking with values, from `03_classification_models.ipynb`'s SHAP cell, if a precise list is needed.
 - **No time dimension in the underlying data.** This is a single flat snapshot (1,470 employees at one point in time), not a longitudinal dataset, so the model can't distinguish a genuine trend from a one-time snapshot artifact, and Prophet (which would have needed a time series) was dropped for a Windows install issue rather than a data-availability one — worth revisiting if a longitudinal version of this dataset is ever available.
 - **`role_tenure_ratio`'s divide-by-zero guard (replacing `YearsAtCompany=0` with 1) is a reasonable but arbitrary choice** — it silently treats a brand-new employee's ratio as if they'd been there one year, rather than flagging tenure-zero rows separately.
-- **The Cox model's hazard ratios are reported without confidence intervals in this README** — the underlying `lifelines` output has them, but they're not surfaced here. [ADD: 95% CI for each hazard ratio from `04_survival_analysis.ipynb`.]
 
 ## Stack
 

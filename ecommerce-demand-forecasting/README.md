@@ -56,7 +56,7 @@ it, documented in `reports/PROJECT_REPORT.md`.
 
 ## Approach
 
-### SQL layer (PostgreSQL, `sql/00`–`sql/09`, run in order):
+### SQL layer (PostgreSQL, `sql/00`–`sql/09`, run in order)
 
 - Staging (`02_staging_clean.sql`) deduplicates, drops zero/negative-price
   rows, and excludes a fixed list of non-product stock codes (`POST`, `D`,
@@ -110,9 +110,9 @@ window. SKU-level average demand, SKU zero-rate, and category frequency
 encoding are all fit on training rows only and then applied to the full
 frame, so nothing from the test period leaks backward into them.
 
-### Model:
+### Model
 
-a gated two-stage hurdle model, both stages `LightGBM`
+A gated two-stage hurdle model, both stages `LightGBM`
 (`n_estimators=300, learning_rate=0.05, num_leaves=63`): an `LGBMClassifier`
 for P(demand > 0), and an `LGBMRegressor` with a **quantile objective at the
 median** (`alpha=0.5`), trained only on rows with nonzero demand, for
@@ -125,9 +125,9 @@ on the training set only, sweeping thresholds from 0.05 to 0.95 in steps of
 against test-set performance, since that would just be a subtler version of
 the same leakage the project is otherwise careful about.
 
-### Inventory sizing (`04_inventory_risk.ipynb`):
+### Inventory sizing (`04_inventory_risk.ipynb`)
 
-safety stock and reorder
+Safety stock and reorder
 point are derived directly from the model's own test-set residuals, not an
 assumed error rate — `safety_stock = z × residual_std × sqrt(lead_time_days)`,
 `reorder_point = avg_daily_forecast × lead_time_days + safety_stock`, computed

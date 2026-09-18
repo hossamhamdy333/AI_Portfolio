@@ -50,7 +50,7 @@ Gemini was picked mainly for practical reasons — free tier, no billing setup �
 
 ### Retries
 
-: `call_gemini()` wraps every non-streaming call in exponential backoff (`config.yaml`: 3 attempts, 2s base, linear multiplier — `backoff_seconds * attempt`). Rate limits and timeouts are treated as expected background noise for any external API call, handled once in the wrapper rather than special-cased per call site. Retry settings are passed explicitly at every one of the three LLM call sites, rather than relying on a function default that happens to match `config.yaml`, so a future change to the retry policy in config can't silently stop applying somewhere it's called from a stale default.
+`call_gemini()` wraps every non-streaming call in exponential backoff (`config.yaml`: 3 attempts, 2s base, linear multiplier — `backoff_seconds * attempt`). Rate limits and timeouts are treated as expected background noise for any external API call, handled once in the wrapper rather than special-cased per call site. Retry settings are passed explicitly at every one of the three LLM call sites, rather than relying on a function default that happens to match `config.yaml`, so a future change to the retry policy in config can't silently stop applying somewhere it's called from a stale default.
 
 ### Cost/usage tracking
 

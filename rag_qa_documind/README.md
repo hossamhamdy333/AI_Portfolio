@@ -1,10 +1,26 @@
 <div align="center">
-  
+
 # DocuMind — Per-Account RAG Document Q&A
 
 **Live Application:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
 
+`FastAPI` `ChromaDB` `sentence-transformers` `Gemini API` `Streamlit` `SQLAlchemy` `Docker` `pytest`
+
 </div>
+
+---
+
+### Contents
+
+- [Summary](#summary)
+- [Problem & motivation](#problem--motivation)
+- [Approach](#approach)
+- [Data](#data)
+- [Results](#results)
+- [What I'd do differently / limitations](#what-id-do-differently--limitations)
+- [Stack](#stack)
+
+---
 
 ## Summary
 

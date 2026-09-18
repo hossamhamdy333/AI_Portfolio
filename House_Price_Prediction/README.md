@@ -97,7 +97,7 @@ Raw-data correlation with `SalePrice` (before any modeling, on untransformed fea
 - **No held-out test-set score to validate the CV estimate against.** Every number in this README is 5-fold CV RMSE on the training set; there's no leaderboard or held-out score confirming the CV estimate generalizes, since the competition test set has no public labels.
 - **MLflow tracking is local only** (a local database-backed store, not a hosted server) — runs aren't shared or comparable across machines, and there's no experiment UI screenshot or exported run table in the repo, just the code that produces the runs.
 - **Trial counts (50 for Ridge, 100 for LightGBM/XGBoost) look chosen for round numbers, not for a demonstrated convergence point** — there's no plot showing the search had actually plateaued by the last trial versus still improving.
-- **A previous version of this README's write-up cited a 0.673 correlation for `TotalBathrooms` that isn't computed anywhere in the current notebooks.** I couldn't verify it against any cell output, so it's left out here rather than repeated. [ADD: if this number should be here, the notebook cell that computes it.]
+- **A previous version of this README's write-up cited a 0.673 correlation for `TotalBathrooms` that isn't computed anywhere in the current notebooks.** I couldn't verify it against any cell output, so it's left out here rather than repeated. **Open item:** add the notebook cell that computes it if the figure should be reported.
 
 ## Stack
 

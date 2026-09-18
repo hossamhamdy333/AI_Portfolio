@@ -1,10 +1,26 @@
 <div align="center">
-  
+
 # Azure RAG Assistant
 
 **Live Application:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
 
+`FastAPI` `LangChain` `Qdrant` `Azure App Service` `Azure SQL` `Azure Blob Storage` `Docker` `pytest`
+
 </div>
+
+---
+
+### Contents
+
+- [Summary](#summary)
+- [Problem & motivation](#problem--motivation)
+- [Approach](#approach)
+- [Data](#data)
+- [Results](#results)
+- [What I'd do differently / limitations](#what-id-do-differently--limitations)
+- [Stack](#stack)
+
+---
 
 ## Summary
 

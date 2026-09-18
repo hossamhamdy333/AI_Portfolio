@@ -118,7 +118,7 @@ returns. The reranker object is passed *into* `build_chain()` rather than
 constructed there, so both implementations provably hold the same model.
 `citation.py` re-verifies `[N]` tags the same way `impl_vanilla` does.
 
-### Persistence, and a bug fixed along the way.
+### Persistence, and a bug fixed along the way
 
 `retriever.py`'s docstring
 records that `ParentDocumentRetriever` was originally built with
@@ -144,7 +144,7 @@ ignored the old `host`/`port` keys entirely, and an embedded collection
 only existed inside the Colab session that built it, so anything serving
 from it worked nowhere else.
 
-### Tracking.
+### Tracking
 
 `shared/tracking.py` points MLflow at a DagsHub-hosted server
 so both implementations' runs land in one experiment
@@ -306,8 +306,8 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
   LangSmith, and no number is committed.
   `ParentDocumentRetriever` sends larger contexts, so its input-token cost
   per generation should be higher — the comparison's most practical
-  dimension, and it's an open number. [ADD: impl_langchain's mean input
-  tokens and cost per query, from the LangSmith run for `langchain_eval`.]
+  dimension, and it's an open number. **Open item:** impl_langchain's mean input
+  tokens and cost per query, from the LangSmith run for `langchain_eval`.
 - **94 duplicate articles are counted in EDA and never dropped.** They
   survive into the cleaned parquet and therefore into the 300-article
   sample and both indexes. For a retrieval eval with exactly one correct

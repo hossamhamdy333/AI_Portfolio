@@ -101,7 +101,7 @@ Under these assumptions, the campaign lost money — $0.39 returned per $1 spent
 
 ### Spend concentration
 
-: the top 1% of `ad`-group users (200+ ads shown each) account for 13.2% of total ad impressions — cost is concentrated in a small segment of heavy-exposure accounts, not spread evenly across everyone who saw an ad.
+The top 1% of `ad`-group users (200+ ads shown each) account for 13.2% of total ad impressions — cost is concentrated in a small segment of heavy-exposure accounts, not spread evenly across everyone who saw an ad.
 
 ## What I'd do differently / limitations
 
