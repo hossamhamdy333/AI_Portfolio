@@ -1,4 +1,5 @@
 <div align="center">
+  
 # Azure RAG Assistant
 
 **Live Application:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
