@@ -1,24 +1,6 @@
-<div align="center">
-
 # Semantic Search over ArXiv ML Papers — Four Stages, One Eval Set
 
-`rank-bm25` `sentence-transformers` `faiss-cpu` `qdrant-client` `FastAPI` `Streamlit` `datasets` `torch` `DVC` `pandas` `PyYAML`
-
-</div>
-
----
-
-### Contents
-
-- [Summary](#summary)
-- [Problem & motivation](#problem--motivation)
-- [Approach](#approach)
-- [Data](#data)
-- [Results](#results)
-- [What I'd do differently / limitations](#what-id-do-differently--limitations)
-- [Stack](#stack)
-
----
+**Live demo:** [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)
 
 ## Summary
 
@@ -79,9 +61,7 @@ lives in `configs/config.yaml`, read by all six notebooks, by
 `scripts/build_index.py`, by `src/serve.py`, and by `streamlit_app.py`, so
 no component can quietly diverge from the benchmarked settings.
 
-### Evaluation method
-
-(`notebooks/02_sparse_retriever.ipynb` builds it,
+**Evaluation method** (`notebooks/02_sparse_retriever.ipynb` builds it,
 `src/evaluate.py` scores it). 200 papers are sampled from the cleaned
 corpus with `random_state=42`; each paper's own **title** becomes a query,
 and that paper's row id is the single correct answer. The same seed and
@@ -94,17 +74,13 @@ one correct paper land in the top k), and NDCG@k reduces to
 `1/log2(rank+1)` with an ideal DCG of 1, so it's a rank-discounted version
 of the same signal rather than independent information.
 
-### Stage 1 — BM25
-
-(`rank-bm25`'s `BM25Okapi`, default k1/b). Abstracts are
+**Stage 1 — BM25** (`rank-bm25`'s `BM25Okapi`, default k1/b). Abstracts are
 tokenized with `re.findall(r"[a-z]+", text.lower())` — no stemming, no
 stopword removal, since BM25's IDF term already discounts terms that appear
 everywhere. Each query is scored against all 49,969 documents and the full
 corpus is ranked.
 
-### Stage 2 — dense retrieval
-
-(`BAAI/bge-base-en-v1.5`, 768-dim). All
+**Stage 2 — dense retrieval** (`BAAI/bge-base-en-v1.5`, 768-dim). All
 49,969 abstracts encoded on a Colab T4 in 781 batches of 64, with
 `normalize_embeddings=True`, then indexed with `faiss.IndexFlatIP`. Inner
 product over L2-normalized vectors is cosine similarity, and `IndexFlat` is
@@ -113,9 +89,7 @@ approximation error mixed in. At 49,969 vectors, exact search is cheap
 enough that an ANN index would only add a recall/latency knob with nothing
 to tune it against yet.
 
-### Stage 3 — Qdrant
-
-(`notebooks/04_vector_db.ipynb`). The same encoder,
+**Stage 3 — Qdrant** (`notebooks/04_vector_db.ipynb`). The same encoder,
 the same vectors, upserted in batches of 500 into a Qdrant collection
 (768-dim, `Distance.COSINE`) with `paper_id`, `title`, `abstract` and
 `categories` in the payload, then re-evaluated. This runs against
@@ -123,9 +97,7 @@ the same vectors, upserted in batches of 500 into a Qdrant collection
 server — so it validates the client API, the payload round-trip and the
 distance configuration, not the network behavior of a hosted cluster.
 
-### Stage 4 — cross-encoder reranking
-
-(`notebooks/05_reranking.ipynb`). The
+**Stage 4 — cross-encoder reranking** (`notebooks/05_reranking.ipynb`). The
 bi-encoder retrieves `top_k = 50` candidates from FAISS, then
 `cross-encoder/ms-marco-MiniLM-L-6-v2` scores each `[query, abstract]` pair
 and the 50 candidates are re-sorted by that score. A cross-encoder can't be
@@ -134,9 +106,7 @@ document in the same forward pass — which is exactly why it sees
 interactions two independently-encoded vectors can't, and exactly why it
 costs 50 forward passes per search.
 
-### Serving
-
-(`src/serve.py`, `streamlit_app.py`, both on the same code in
+**Serving** (`src/serve.py`, `streamlit_app.py`, both on the same code in
 `src/retrieval.py`). A `POST /search` FastAPI endpoint encodes the query,
 pulls `top_k = 50` from a hosted Qdrant Cloud collection, reranks with the
 cross-encoder, and returns `rerank_top_k = 5` results. Connection details
@@ -146,9 +116,7 @@ missing rather than failing on the first request. `GET /health` exists for
 free-tier hosts that ping to keep an app awake. The Streamlit demo hits the
 same collection through the same functions.
 
-### Index provisioning
-
-(`scripts/build_index.py`, run by
+**Index provisioning** (`scripts/build_index.py`, run by
 `notebooks/06_build_index.ipynb`). Recreates the Qdrant Cloud collection
 from scratch (delete-then-create, so a re-run can't leave stale vectors
 behind), chunks each abstract at 256 words with 32-word overlap, embeds
@@ -246,9 +214,7 @@ run.]
 latency/quality trade-off is the stated reason for choosing reranking, and
 nothing in this repo times a search.]
 
-### Production index
-
-, from `06_build_index.ipynb`'s run against the live
+**Production index**, from `06_build_index.ipynb`'s run against the live
 cluster: 55,752 vectors indexed (49,969 abstracts expanded into chunks),
 collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
 `ef_construct=100`.

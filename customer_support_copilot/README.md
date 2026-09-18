@@ -1,24 +1,6 @@
-<div align="center">
-
 # AI Support Copilot
 
-`unsloth` `llama.cpp` `llama-cpp-python` `chromadb` `FastAPI` `PyJWT` `google-genai` `frontend/index.html` `Docker` `pytest`
-
-</div>
-
----
-
-### Contents
-
-- [Summary](#summary)
-- [Problem & motivation](#problem--motivation)
-- [Approach](#approach)
-- [Data](#data)
-- [Results](#results)
-- [What I'd do differently / limitations](#what-id-do-differently--limitations)
-- [Stack](#stack)
-
----
+**Live demo:** [support-copilot-app...azurecontainerapps.io](https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io)
 
 ## Summary
 
@@ -32,33 +14,19 @@ The fine-tuning itself is close to the easy part — the harder problem turned o
 
 ## Approach
 
-### Fine-tuning
+**Fine-tuning** (`notebooks/training.ipynb`, run on a single Colab T4 GPU via Unsloth): QLoRA on `unsloth/llama-3-8b-bnb-4bit` (4-bit base), LoRA rank 16 across the seven standard attention/MLP projection matrices (`q/k/v/o_proj`, `gate/up/down_proj`), alpha 16, no dropout, Unsloth's gradient checkpointing. 5,000 training examples, 2 epochs, per-device batch size 2 with 4 gradient-accumulation steps (effective batch size 8), learning rate 2e-4, 8-bit AdamW, 1,250 total training steps. 41,943,040 trainable parameters out of 8,072,204,288 total (0.52%) — the entire point of LoRA being that only that 0.52% gets updated. The adapter is pushed to the Hugging Face Hub, not committed to the repo.
 
-(`notebooks/training.ipynb`, run on a single Colab T4 GPU via Unsloth): QLoRA on `unsloth/llama-3-8b-bnb-4bit` (4-bit base), LoRA rank 16 across the seven standard attention/MLP projection matrices (`q/k/v/o_proj`, `gate/up/down_proj`), alpha 16, no dropout, Unsloth's gradient checkpointing. 5,000 training examples, 2 epochs, per-device batch size 2 with 4 gradient-accumulation steps (effective batch size 8), learning rate 2e-4, 8-bit AdamW, 1,250 total training steps. 41,943,040 trainable parameters out of 8,072,204,288 total (0.52%) — the entire point of LoRA being that only that 0.52% gets updated. The adapter is pushed to the Hugging Face Hub, not committed to the repo.
+**GGUF conversion** (`notebooks/gguf_conversion.ipynb`): the base model is converted to `f16` GGUF with `llama.cpp`'s `convert_hf_to_gguf.py`, the LoRA adapter is converted separately with `convert_lora_to_gguf.py`, the two are merged with `llama-export-lora`, and the merged model is quantized to `Q4_K_M` with `llama-quantize` before being uploaded back to the Hub as a single `.gguf` file the running app downloads at startup.
 
-### GGUF conversion
+**Serving** (`src/llm_backend.py`): the default backend loads the quantized GGUF file through `llama-cpp-python` with `n_ctx=1024`, `n_threads=4` and `n_threads_batch=4` — hardcoded to match the Container App's actual CPU allocation rather than read from `os.cpu_count()`, which is the thread-oversubscription fix described above — and `n_batch=512` for faster prompt ingestion. Generation is greedy (`temperature=0.0`), capped at 100 new tokens, stopping on `<|user|>`/`<|system|>`. A second backend (`vllm`) exists behind the same `generate(prompt)` interface for a future GPU deployment, calling an OpenAI-compatible `/completions` endpoint on a separately-run vLLM server — this path needs the original merged (non-GGUF) checkpoint, and there's no evidence in the repo that it's actually been run, as opposed to written and left ready.
 
-(`notebooks/gguf_conversion.ipynb`): the base model is converted to `f16` GGUF with `llama.cpp`'s `convert_hf_to_gguf.py`, the LoRA adapter is converted separately with `convert_lora_to_gguf.py`, the two are merged with `llama-export-lora`, and the merged model is quantized to `Q4_K_M` with `llama-quantize` before being uploaded back to the Hub as a single `.gguf` file the running app downloads at startup.
+**RAG**: an in-memory Chroma collection indexed once at startup from `data/kb_articles.jsonl` (27 knowledge-base articles, one per unique intent, built by de-duplicating the same Bitext dataset used for fine-tuning), embedded with `sentence-transformers/all-MiniLM-L6-v2`. At query time the retriever returns the single (`k=1`) most similar KB snippet, which gets folded into the prompt alongside the (PII-redacted) user query.
 
-### Serving
+**Guardrails** (`src/guardrails.py`): three regex-based checks, not a learned classifier — PII redaction (emails, phone numbers, national-ID-shaped 14-digit numbers) run before a query reaches the model or a log line, prompt-injection detection (9 patterns covering "ignore previous instructions," "you are now," "developer mode," "jailbreak," and similar) that blocks the request outright rather than just flagging it, and output-side moderation for a small set of disallowed response patterns.
 
-(`src/llm_backend.py`): the default backend loads the quantized GGUF file through `llama-cpp-python` with `n_ctx=1024`, `n_threads=4` and `n_threads_batch=4` — hardcoded to match the Container App's actual CPU allocation rather than read from `os.cpu_count()`, which is the thread-oversubscription fix described above — and `n_batch=512` for faster prompt ingestion. Generation is greedy (`temperature=0.0`), capped at 100 new tokens, stopping on `<|user|>`/`<|system|>`. A second backend (`vllm`) exists behind the same `generate(prompt)` interface for a future GPU deployment, calling an OpenAI-compatible `/completions` endpoint on a separately-run vLLM server — this path needs the original merged (non-GGUF) checkpoint, and there's no evidence in the repo that it's actually been run, as opposed to written and left ready.
+**Auth**: JWT access tokens (20-minute expiry) plus opaque refresh tokens (30-day expiry, stored as a SHA-256 hash — not the raw token — so a stolen database dump can't be used to forge sessions, and so logout can actually revoke a session rather than just discarding the client's copy). Passwords are hashed with bcrypt, separately from the refresh-token hashing. Role-based access control is enforced with a `require_admin` FastAPI dependency on every admin route, not a per-route `if` check. Google OAuth is implemented (state-cookie CSRF check, code exchange, account linking-or-creation by email) but not exposed in the frontend UI — see limitations.
 
-### RAG
-
-: an in-memory Chroma collection indexed once at startup from `data/kb_articles.jsonl` (27 knowledge-base articles, one per unique intent, built by de-duplicating the same Bitext dataset used for fine-tuning), embedded with `sentence-transformers/all-MiniLM-L6-v2`. At query time the retriever returns the single (`k=1`) most similar KB snippet, which gets folded into the prompt alongside the (PII-redacted) user query.
-
-### Guardrails
-
-(`src/guardrails.py`): three regex-based checks, not a learned classifier — PII redaction (emails, phone numbers, national-ID-shaped 14-digit numbers) run before a query reaches the model or a log line, prompt-injection detection (9 patterns covering "ignore previous instructions," "you are now," "developer mode," "jailbreak," and similar) that blocks the request outright rather than just flagging it, and output-side moderation for a small set of disallowed response patterns.
-
-### Auth
-
-: JWT access tokens (20-minute expiry) plus opaque refresh tokens (30-day expiry, stored as a SHA-256 hash — not the raw token — so a stolen database dump can't be used to forge sessions, and so logout can actually revoke a session rather than just discarding the client's copy). Passwords are hashed with bcrypt, separately from the refresh-token hashing. Role-based access control is enforced with a `require_admin` FastAPI dependency on every admin route, not a per-route `if` check. Google OAuth is implemented (state-cookie CSRF check, code exchange, account linking-or-creation by email) but not exposed in the frontend UI — see limitations.
-
-### Deployment
-
-: Docker image built and pushed by GitHub Actions (not from a local machine, which reportedly kept timing out on upload), running on Azure Container Apps against Azure SQL in production (SQLite for local dev, selected purely by the `DATABASE_URL` setting). Live at a `.azurecontainerapps.io` URL in the France Central region.
+**Deployment**: Docker image built and pushed by GitHub Actions (not from a local machine, which reportedly kept timing out on upload), running on Azure Container Apps against Azure SQL in production (SQLite for local dev, selected purely by the `DATABASE_URL` setting). Live at a `.azurecontainerapps.io` URL in the France Central region.
 
 ## Data
 
@@ -70,9 +38,7 @@ The fine-tuning itself is close to the easy part — the harder problem turned o
 
 ## Results
 
-### Guardrails
-
-, run directly against `scripts/adversarial_report.py`'s 20-case adversarial set (9 prompt-injection, 2 benign-lookalike, 5 benign, 4 PII):
+**Guardrails**, run directly against `scripts/adversarial_report.py`'s 20-case adversarial set (9 prompt-injection, 2 benign-lookalike, 5 benign, 4 PII):
 
 | Category | Correct |
 |---|---|

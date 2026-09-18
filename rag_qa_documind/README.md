@@ -1,24 +1,6 @@
-<div align="center">
-
 # DocuMind — Per-Account RAG Document Q&A
 
-`FastAPI` `chromadb` `google-genai` `pypdf` `SQLAlchemy` `PyJWT` `python-dotenv` `Docker` `pytest`
-
-</div>
-
----
-
-### Contents
-
-- [Summary](#summary)
-- [Problem & motivation](#problem--motivation)
-- [Approach](#approach)
-- [Data](#data)
-- [Results](#results)
-- [What I'd do differently / limitations](#what-id-do-differently--limitations)
-- [Stack](#stack)
-
----
+**Live demo:** [documents-mind.streamlit.app](https://documents-mind.streamlit.app/)
 
 ## Summary
 
@@ -67,9 +49,7 @@ allowed to decide the identifier did.
 
 ## Approach
 
-### Ingestion
-
-(`app/ingest.py`): `.txt`/`.md` are read directly; `.pdf` goes
+**Ingestion** (`app/ingest.py`): `.txt`/`.md` are read directly; `.pdf` goes
 through `pypdf` in `layout` extraction mode rather than the default `plain`
 mode, because layout mode preserves visual spacing far better on PDFs that
 otherwise extract with words glued together — LaTeX-exported academic PDFs
@@ -84,9 +64,7 @@ characters, a paragraph longer than that on its own gets hard-split, and a
 each chunk after the first, so an answer that straddles a chunk boundary
 doesn't get cut in half.
 
-### Retrieval
-
-(`app/vectorstore.py`): a `chromadb.PersistentClient` with one
+**Retrieval** (`app/vectorstore.py`): a `chromadb.PersistentClient` with one
 collection per identifier, embedded with
 `sentence-transformers/all-MiniLM-L6-v2` via Chroma's own
 `SentenceTransformerEmbeddingFunction` — chosen specifically so ingestion
@@ -101,9 +79,7 @@ built lazily and cached at module level, so opening a second account's
 collection reuses the already-loaded embedding model instead of
 reloading it.
 
-### Generation
-
-(`app/llm.py`): one `google-genai` client per API key (cached
+**Generation** (`app/llm.py`): one `google-genai` client per API key (cached
 in a dict, since the public deployment uses one shared key for every
 visitor while a self-hosted instance uses the operator's own), calling
 `client.models.generate_content()` with a system instruction that
@@ -118,9 +94,7 @@ going "via the Interactions API" — that line is stale and contradicts what
 the code actually does and why; it's a documentation-drift artifact from
 before that decision was made, not a functional bug.
 
-### Auth
-
-(`app/auth.py`, `app/oauth.py`, `app/main.py`): JWT access tokens
+**Auth** (`app/auth.py`, `app/oauth.py`, `app/main.py`): JWT access tokens
 (20-minute expiry) plus opaque refresh tokens (30-day expiry, stored as a
 SHA-256 hash, never the raw value, so a logout can actually revoke a
 session and a stolen DB dump can't forge one). Passwords are bcrypt-hashed.
@@ -133,9 +107,7 @@ design, not by omission. Every document-facing route requires a verified
 `require_admin`, checked as a FastAPI dependency on each route rather than
 an inline `if` check.
 
-### Guardrails
-
-(`app/guardrails.py`): three regex-based checks, not a
+**Guardrails** (`app/guardrails.py`): three regex-based checks, not a
 learned classifier — PII redaction (email, phone, 14-digit
 national-ID-shaped numbers) run on every query before it reaches the model
 or a log line; prompt-injection detection (9 patterns: "ignore/disregard
@@ -144,9 +116,7 @@ previous instructions," "you are now," "new instructions:," "act as,"
 outright; and output-side moderation for a small set of disallowed
 response patterns.
 
-### Two deployment shapes, one pipeline
-
-: `ui/streamlit_app.py` is a thin
+**Two deployment shapes, one pipeline**: `ui/streamlit_app.py` is a thin
 client that talks to the FastAPI backend over HTTP (`requests`, with a
 401-triggers-token-refresh retry on ingest and query calls) — the setup for
 local dev (two terminals) and Docker (two services). `streamlit_app.py` at
@@ -184,9 +154,7 @@ system, not a model trained on a static corpus. What's fixed:
 
 ## Results
 
-### Guardrails
-
-, run directly against `app/adversarial_prompts.json`
+**Guardrails**, run directly against `app/adversarial_prompts.json`
 (verified by executing `guard_input()` on all 20 cases myself, not just
 reading the code):
 
@@ -216,9 +184,7 @@ is the one that matters most: it ingests two different users' documents
 download or network access) and asserts neither user's query ever returns
 the other's text.
 
-### Walkthrough notebook
-
-, real saved cell outputs (not re-run by me, read
+**Walkthrough notebook**, real saved cell outputs (not re-run by me, read
 directly from the committed `.ipynb`): loading and chunking
 `sample.txt` (1,776 characters) produces 4 chunks (283/662/547/638
 characters). Querying "How does DocuMind decide which text is relevant to

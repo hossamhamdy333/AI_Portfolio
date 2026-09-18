@@ -1,24 +1,6 @@
-<div align="center">
-
 # Azure RAG Assistant
 
-`FastAPI` `LangChain` `Qdrant` `SQLAlchemy` `Azure Blob Storage` `Azure App Service` `Arize Phoenix` `bcrypt` `pytest`
-
-</div>
-
----
-
-### Contents
-
-- [Summary](#summary)
-- [Problem & motivation](#problem--motivation)
-- [Approach](#approach)
-- [Data](#data)
-- [Results](#results)
-- [What I'd do differently / limitations](#what-id-do-differently--limitations)
-- [Stack](#stack)
-
----
+**Live demo:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
 
 ## Summary
 
