@@ -4,6 +4,8 @@
 
 **Live Application:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
 
+</div>
+
 ## Summary
 
 A multi-user document Q&A chatbot: sign in, upload a PDF, image, or text
