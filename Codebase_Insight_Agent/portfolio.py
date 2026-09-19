@@ -111,18 +111,85 @@ def get_readme(project_name):
 
 
 def split_into_chunks(text, chunk_size=512, overlap=64):
-    """Split text into chunks, keeping whole paragraphs together
-    where possible, and only breaking a paragraph up if it's too long."""
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    chunks = []
-    for para in paragraphs:
-        if len(para) <= chunk_size:
-            chunks.append(para)
+    """Split a README into chunks that keep their context.
+
+    Every chunk is prefixed with "<document title> > <section heading>", so a
+    chunk from the Results section says it is from Results of Sentiment Forge
+    - a vague question like "models performance" can then match it.
+    Paragraphs are packed together up to chunk_size, long paragraphs are cut
+    at sentence boundaries (never mid-word), and table rows stay together with
+    the section they belong to. `overlap` is kept for compatibility: the last
+    sentence of a chunk is repeated at the start of the next when a section
+    spans several chunks.
+    """
+    import re
+
+    title = ""
+    heading = ""
+    in_code = False
+    blocks = []          # (context, paragraph_text)
+    para = []
+
+    def flush():
+        if para:
+            blocks.append((_context(title, heading), "\n".join(para).strip()))
+            para.clear()
+
+    def _context(t, h):
+        return " > ".join(x for x in (t, h) if x)
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code = not in_code
+        m = None if in_code else re.match(r"^(#{1,6})\s+(.*\S)\s*$", line)
+        if m:
+            flush()
+            level, name = len(m.group(1)), m.group(2).strip("` ")
+            if level == 1 and not title:
+                title = name
+                heading = ""
+            else:
+                heading = name
             continue
-        start = 0
-        while start < len(para):
-            chunks.append(para[start:start + chunk_size])
-            start += chunk_size - overlap
+        if not stripped:
+            flush()
+        else:
+            para.append(line)
+    flush()
+
+    def units(p):
+        # sentences, and table rows as their own units
+        parts = re.split(r"(?<=[.!?])\s+|\n(?=\|)", p)
+        return [u.strip() for u in parts if u.strip()]
+
+    chunks = []
+    cur_ctx, cur = None, []
+
+    def emit():
+        nonlocal cur
+        if cur:
+            body = "\n".join(cur).strip()
+            if body:
+                chunks.append((f"[{cur_ctx}]\n" if cur_ctx else "") + body)
+        cur = []
+
+    for ctx, p in blocks:
+        if ctx != cur_ctx:
+            emit()
+            cur_ctx = ctx
+        for u in (units(p) if len(p) > chunk_size else [p]):
+            size = sum(len(x) + 1 for x in cur)
+            if cur and size + len(u) > chunk_size:
+                last = cur[-1]
+                emit()
+                if len(last) <= overlap * 2 and not last.startswith("|"):
+                    cur = [last]
+            # a single unit longer than chunk_size (e.g. a giant line): hard cut
+            while len(u) > chunk_size * 2:
+                cur.append(u[:chunk_size]); emit(); u = u[chunk_size:]
+            cur.append(u)
+    emit()
     return chunks
 
 
@@ -143,7 +210,7 @@ def get_qdrant_client():
     from qdrant_client import QdrantClient
 
     if config.QDRANT_URL:
-        return QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
+        return QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY, timeout=180)
     return QdrantClient(":memory:")
 
 
@@ -182,7 +249,7 @@ def build_index(project_name, client=None):
     chunks = split_into_chunks(text, config.CHUNK_SIZE, config.CHUNK_OVERLAP)
     docs = [Document(text=chunk, metadata={"project": project_name}) for chunk in chunks]
 
-    vector_store = QdrantVectorStore(client=client, collection_name=name)
+    vector_store = QdrantVectorStore(client=client, collection_name=name, batch_size=16)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     return VectorStoreIndex.from_documents(docs, storage_context=storage_context)
 
