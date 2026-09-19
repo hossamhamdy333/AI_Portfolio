@@ -86,6 +86,8 @@ A cascade detection architecture (binary → 21-class multiclass → attack-only
 | **Explainability** | SHAP |
 | **Deployment** | Real-time detection dashboard, validated in a GNS3-emulated enterprise network |
 | **Documentation** | Full technical thesis in IEEE-style formatting |
+| **Modeling repo** | [machine-learning-techniques-for-intrusion-detection](https://github.com/hossamhamdy333/machine-learning-techniques-for-intrusion-detection) |
+| **Deployment repo** | [ids-deploy](https://github.com/hossamhamdy333/ids-deploy) |
 
 ---
 

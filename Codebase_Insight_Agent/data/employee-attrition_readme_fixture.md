@@ -2,11 +2,7 @@
 
 # Employee Attrition & Retention Risk Analytics
 
-An end-to-end HR analytics project: SQL data modeling, EDA-driven feature engineering, a classification model comparison chosen on cross-validated PR-AUC (not accuracy, given the dataset's imbalance), Kaplan-Meier and Cox survival analysis to quantify *when* people leave and why, and a final cost-of-attrition model that ties the risk scores to real dollar figures and a targeted-retention ROI estimate.
-
-`Python` `SQL (PostgreSQL)` `scikit-learn` `LightGBM` `lifelines` `SHAP` `Streamlit` `Power BI`
-
-Every claim in this README traces back to a number produced in one of the five notebooks — nothing here is asserted without a cell that generated it.
+`pandas` `scikit-learn` `LightGBM` `SHAP` `lifelines` `PostgreSQL` `Streamlit` `Power BI` `matplotlib`
 
 </div>
 
@@ -14,97 +10,186 @@ Every claim in this README traces back to a number produced in one of the five n
 
 ### Contents
 
-- [Dashboard](#dashboard)
-- [Dataset](#dataset)
-- [Project structure](#project-structure)
-- [How to run this](#how-to-run-this)
-- [Notes on scope decisions](#notes-on-scope-decisions)
-- [Key findings](#key-findings)
-- [Techniques used](#techniques-used)
+- [Summary](#summary)
+- [Problem & motivation](#problem--motivation)
+- [Approach](#approach)
+- [Data](#data)
+- [Results](#results)
+- [What I'd do differently / limitations](#what-id-do-differently--limitations)
+- [Stack](#stack)
 
-## Dashboard
+---
 
-![Executive Summary](dashboard_screenshots/page1_executive_summary.png)
-![Attrition Drivers](dashboard_screenshots/page2_attrition_drivers.png)
-![Tenure & Survival](dashboard_screenshots/page3_tenure_survival.png)
-![Cost & Retention ROI](dashboard_screenshots/page4_cost_roi.png)
+## Summary
 
-Full interactive Power BI file: `dashboard/Dashboard-employee-attrition.pbix` (includes live What-If sliders for the retention ROI scenario on page 4). A static PDF export is also included: `dashboard/Dashboard-employee-attrition.pdf`. A Streamlit version with the same 4 pages is at `dashboard/streamlit_app.py` (`streamlit run dashboard/streamlit_app.py`).
+An HR analytics project that goes past "predict who leaves" and into "what would it actually cost, and is intervening worth it." A star-schema SQL layer and a classification model (LightGBM, chosen on 5-fold cross-validated PR-AUC) both quantify attrition risk on IBM's 1,470-employee HR dataset; a Cox proportional-hazards model adds *when* people leave and confirms overtime as the dominant driver (hazard ratio 3.19, ~3.2x faster attrition, holding other factors constant); and a final cost model translates the model's risk scores into dollars — $10.15M in estimated workforce-wide annual attrition cost, and a targeted retention intervention on the 81 highest-risk overtime workers projected at 497% ROI under stated cost assumptions. The two dashboards (Power BI with live What-If sliders, and a matching Streamlit app) exist specifically so someone other than the analyst can stress-test those assumptions instead of trusting one baked-in number.
 
-## Dataset
+## Problem & motivation
 
-[IBM HR Analytics Employee Attrition & Performance](https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset) — 1,470 employees, 35 columns, single flat snapshot.
+The naive version of this project stops at "train a classifier, report accuracy." Two things make that the wrong approach here. First, the data is imbalanced (84% stayed / 16% left), so accuracy is close to meaningless — a model that predicts "stays" for everyone is 84% accurate and catches zero leavers, which is useless for a retention team. Second, and less obvious: even after switching to PR-AUC, a single train/test split is still not a reliable way to compare two models when the test set only has 47 positive cases. This project hit that directly — on the single 80/20 split, Logistic Regression's PR-AUC (0.552) actually beat LightGBM's (0.478), which would pick the wrong model. Five-fold cross-validation on the training set reversed that ranking (LightGBM 0.578 vs. Logistic Regression 0.478), and that's the number the project actually trusts, specifically because 47 positive cases is small enough for one split to favor either model by chance.
 
-**Getting the data:**
+The second half of the problem — turning a risk score into a business decision — has its own naive failure mode: "classify everyone as high or low risk" throws away the fact that a $2,000/employee intervention is only worth it if the targeting is narrow and confident. The project treats this as its own thing to model, not an afterthought, and shows explicitly (via the dashboard's What-If sliders) that widening the target group and weakening the intervention effect turns the same ROI calculation negative.
 
-1. Go to the Kaggle link above and sign in (or create a free account)
-2. Click **Download** — this is a plain dataset, not a competition, so no rules-acceptance step is needed
-3. You'll get one file: `WA_Fn-UseC_-HR-Employee-Attrition.csv` (227 KB)
-4. Place it in `data/raw/` in this project, keeping that exact filename — the notebooks reference it by name
+## Approach
 
-## Project structure
+### SQL layer
 
-```
-employee-attrition/
-├── README.md
-├── requirements.txt
-├── .gitignore
-├── data/
-│   ├── raw/                      # gitignored — put the Kaggle CSV here
-│   └── processed/                # gitignored — notebook outputs land here
-├── sql/
-│   ├── 01_create_tables.sql
-│   ├── 02_load_staging.sql
-│   ├── 03_build_dimensions_and_fact.sql
-│   ├── 04_query_department_attrition.sql
-│   ├── 05_query_income_percentile.sql
-│   └── 06_query_tenure_bucket.sql
-├── notebooks/
-│   ├── 01_eda.ipynb
-│   ├── 02_feature_engineering.ipynb
-│   ├── 03_classification_models.ipynb
-│   ├── 04_survival_analysis.ipynb
-│   └── 05_cost_of_attrition.ipynb
-├── models/                        # gitignored
-├── reports/
-│   └── model_results_summary.md
-├── dashboard/
-│   ├── Dashboard-employee-attrition.pbix
-│   ├── Dashboard-employee-attrition.pdf
-│   └── streamlit_app.py
-└── dashboard_screenshots/
-    ├── page1_executive_summary.png
-    ├── page2_attrition_drivers.png
-    ├── page3_tenure_survival.png
-    └── page4_cost_roi.png
-```
+(`sql/01`–`06`, run against PostgreSQL): a star schema (dimension tables plus a fact table) built from the raw CSV, then three independent analytical queries — department-level attrition rate, income percentile within role (window functions), and attrition rate by tenure bucket. This layer exists to cross-check the Python-side findings with plain SQL, not to replace them — the tenure-bucket query in particular is used later to independently confirm the survival-analysis result.
 
-## How to run this
+### Feature engineering
 
-1. Activate your Python environment, `pip install -r requirements.txt`
-2. Download the CSV into `data/raw/` — see [Dataset](#dataset) above
-3. Run notebooks in order: `01_eda.ipynb` → `02_feature_engineering.ipynb` → `03_classification_models.ipynb` → `04_survival_analysis.ipynb` → `05_cost_of_attrition.ipynb` (the last one exports `data/processed/fact_risk_scores.csv`, needed by the dashboards)
-4. (Optional) load into Postgres via `sql/01`–`06`, in order, for the SQL-driven analytical queries (department attrition rate, income percentile within role, tenure-bucket attrition rate)
-5. `streamlit run dashboard/streamlit_app.py` for the interactive web dashboard, or open `dashboard/Dashboard-employee-attrition.pbix` in Power BI Desktop for the full report with What-If sliders
+(`02_feature_engineering.ipynb`): three constant columns (`EmployeeCount`, `Over18`, `StandardHours` — zero variance across all 1,470 rows in EDA) and the `EmployeeNumber` ID column are dropped. Two engineered features are added: `role_tenure_ratio` (`YearsInCurrentRole` / `YearsAtCompany`, divide-by-zero guarded by replacing 0 with 1, then clipped to [0, 1]) and `overtime_role` (a concatenation of `OverTime` and `JobRole`, since the two interact — see Results). Categorical columns are one-hot encoded with `drop_first=True` to avoid redundant collinear columns. Split 80/20, stratified on `Attrition` (`random_state=42`), giving 1,176 train / 294 test rows, both preserving the ~16% attrition rate (16.2% train, 16.0% test).
 
-## Notes on scope decisions
+### Classification
 
-- **No Prophet.** Dropped after hitting a Windows long-path install failure (Prophet's bundled Stan/TBB library has deeply nested paths past Windows' 260-char limit). Baseline is seasonal-naive/logistic-regression instead; the real comparison is Logistic Regression vs. LightGBM, decided on 5-fold cross-validated PR-AUC rather than a single train/test split.
+(`03_classification_models.ipynb`): Logistic Regression (`class_weight="balanced"`) and LightGBM (`scale_pos_weight` set to the actual train-set class ratio), both against class imbalance rather than left at library defaults. Compared two ways deliberately: a single 80/20 split (shown for context, explicitly *not* used to pick the winner) and 5-fold stratified cross-validation on the training set (the metric actually used to decide). LightGBM wins on CV PR-AUC and is carried forward for SHAP explanation and the downstream risk scores.
 
-## Key findings
+### Survival analysis
 
-- **Class imbalance:** 84% No / 16% Yes (1,233 vs 237 employees) — drove the choice of PR-AUC over accuracy, and stratified splits, throughout.
+(`04_survival_analysis.ipynb`): Kaplan-Meier curves and a Cox proportional-hazards model, duration = `YearsAtCompany`, event = `Attrition`, via `lifelines`. This answers a different question than the classifier — not just who's at risk, but how much faster a given factor moves someone toward leaving, expressed as a hazard ratio, holding the other covariates constant.
 
-- **Overtime is the single strongest driver of attrition**, and it compounds with role: overtime workers leave at 30.5% vs 10.4% for those without it, and Sales Representatives working overtime hit 66.7% attrition — the highest of any group in the data. The Cox model confirms this isn't just correlation: holding income, satisfaction, and commute distance constant, overtime workers leave at **~3.2x the rate** (hazard ratio 3.19, p < 0.005).
+### Cost of attrition
 
-- **Department cost vs. department risk are different questions.** R&D carries the largest total dollar cost ($6.89M of the $10.15M workforce-wide expected attrition cost) simply because it's the largest department — but Sales has the highest per-employee attrition *rate* (20.6% vs R&D's 13.8%), with Sales Representative the single highest-risk role (39.8%).
+(`05_cost_of_attrition.ipynb`): each employee's classifier-derived risk score is combined with a standard 50%-of-annual-salary replacement-cost assumption to produce a per-employee and department-level expected attrition cost. A retention-intervention ROI scenario then targets a specific, narrow group (top 20% by risk score, AND working overtime) against a stated intervention cost and assumed risk-reduction effectiveness, exporting `data/processed/fact_risk_scores.csv` for both dashboards to consume.
 
-- **Model:** Logistic Regression and LightGBM were compared on 5-fold cross-validation (not a single train/test split, which proved unreliable with only 47 positive test cases) — LightGBM won clearly (PR-AUC 0.578 vs 0.478) and was used for the final risk scores and SHAP explanations.
+### Dashboards
 
-- **Survival analysis:** median tenure for leavers is 3 years vs 6 for those who stayed; the Cox model reaches a concordance index of 0.80, meaning it correctly ranks "who leaves sooner" about 80% of the time. Independently confirmed in SQL: attrition rate drops from 34.9% (0-1 yrs) to 10.4% (10+ yrs), monotonically, across every tenure bucket.
+A 4-page Power BI report (`dashboard/Dashboard-employee-attrition.pbix`, with live What-If DAX parameters for the ROI scenario on the last page, plus a static PDF export) and a matching 4-page Streamlit app (`dashboard/streamlit_app.py`) built off the same exported CSV, so the cost/effectiveness assumptions behind the ROI number are adjustable rather than fixed in a notebook.
 
-- **Cost of attrition:** total expected annual attrition cost across the workforce is an estimated **$10.15M**, using a standard 50%-of-salary replacement cost assumption. A targeted intervention aimed at the 81 highest-risk employees who also work overtime — combining the classification model's risk scores with the survival analysis's OverTime finding — is estimated at $162K in cost against $967K in avoided attrition cost (**ROI ~497%**, under the notebook's stated assumptions about intervention cost and effectiveness — not a measured result; see `reports/model_results_summary.md` for the full breakdown, including how quickly this ROI turns negative if the targeting is too broad).
+**Scope note — Prophet was dropped.** An earlier version considered Prophet for a time-series angle on attrition trends; it was dropped after a Windows long-path install failure (Prophet's bundled Stan/TBB library paths exceed Windows' 260-character limit), and the project moved forward with the Logistic Regression vs. LightGBM comparison instead rather than working around the install issue.
 
-## Techniques used
+## Data
 
-SQL data modeling (star schema, window functions, CTEs) · EDA-driven feature engineering · binary classification with class-imbalance handling (Logistic Regression, LightGBM, 5-fold cross-validation, SHAP) · survival analysis (Kaplan-Meier, Cox Proportional Hazards) · cost-of-attrition and retention-ROI modeling · interactive dashboarding (Power BI with DAX measures and What-If parameters, Streamlit).
+- Source: IBM HR Analytics Employee Attrition & Performance (Kaggle), 1,470 employees, 35 raw columns, a single flat snapshot (no time series).
+- Class balance: 84% No / 16% Yes (1,233 stayed / 237 left) — drove the choice of PR-AUC over accuracy and stratified splits throughout.
+- After dropping 3 constant columns and the ID column, one-hot encoding 8 categorical columns (including the engineered `overtime_role`) with `drop_first=True`: 62 features.
+- Split: 80/20 stratified on `Attrition` (`random_state=42`) → 1,176 train rows (16.2% attrition) / 294 test rows (16.0% attrition, 47 positive cases).
+
+## Results
+
+Classification — winner picked on 5-fold cross-validated PR-AUC, not the single split, because the single split actually reverses the ranking:
+
+| Model | Single-split PR-AUC | 5-fold CV PR-AUC (winner metric) | Recall, leavers* | Precision, leavers* |
+|---|---|---|---|---|
+| Logistic Regression | 0.552 | 0.478 (±0.052) | 0.64 | 0.33 |
+| **LightGBM (winner)** | 0.478 | **0.578 (±0.053)** | 0.26 | 0.52 |
+
+\* From the single 80/20 split's classification report at the default 0.5 threshold — shown for context on what each model's predictions look like, not used to pick the winner. LightGBM's CV PR-AUC (0.578) clearly beats Logistic Regression's (0.478), reversing what the single split alone would suggest.
+
+Survival analysis: Cox model concordance index **0.797** (correctly ranks who leaves sooner ~80% of the time). Hazard ratios:
+
+| Factor | Hazard ratio | 95% CI | Interpretation |
+|---|---|---|---|
+| **OverTime** | **3.19** | 2.47–4.12 | ~3.2x faster attrition, holding other factors constant |
+| JobSatisfaction | 0.79 | 0.70–0.88 | Each point (1–4 scale) cuts risk ~21% |
+| DistanceFromHome | 1.02 | 1.00–1.03 | ~2% higher risk per mile |
+| MonthlyIncome | 1.00 | 1.00–1.00 (rounds to 1.00) | Statistically significant, but a tiny per-dollar effect |
+
+Log-rank test on the OverTime Kaplan-Meier split: p < 0.0001. Independently confirmed by SQL (`sql/06_query_tenure_bucket.sql`): attrition rate by tenure bucket falls monotonically — 0–1 yrs 34.9%, 2–4 yrs 18.1%, 5–9 yrs 11.1%, 10+ yrs 10.4%.
+
+Overtime and role compound: overtime workers leave at 30.5% vs. 10.4% for those without it; Sales Representatives working overtime hit 66.7% attrition, the single highest-risk group in the data.
+
+Cost of attrition: **$10.15M** total expected annual attrition cost workforce-wide. R&D carries the largest total dollar cost ($6.89M, 68%) purely on headcount size, while Sales has the higher per-employee rate (20.6% vs. R&D's 13.8%); HR is smallest on both counts ($0.63M, 6%).
+
+Retention intervention ROI (target: top 20% by risk score AND working overtime; $2,000/employee intervention cost; assumed 30% risk reduction):
+
+| Metric | Value |
+|---|---|
+| Employees targeted | 81 |
+| Intervention cost | $162,000 |
+| Expected savings | $966,663 |
+| **ROI** | **497%** |
+
+This number is entirely a function of the two stated assumptions (cost per employee, risk-reduction effectiveness), not a measured outcome. The dashboard's What-If sliders show it's genuinely sensitive to targeting: widening the target group to 45% of the workforce with a weaker 10% risk-reduction assumption turns the same calculation negative.
+
+## What I'd do differently / limitations
+
+- **The single-split-vs-CV reversal is the most important methodological finding in this project, and it's worth stating plainly: with only 47 positive test cases, a single train/test split is not a reliable way to rank two models here.** Anyone re-running just the single-split cell would pick Logistic Regression and be wrong by the project's own more trustworthy metric.
+- **The $2,000 intervention cost and 30% risk-reduction figure are stated assumptions, not measured numbers.** Neither comes from a real HR program's historical data; the ROI figure should be read as "what this would be worth if these hold," and the dashboard's sliders exist specifically so a reader doesn't have to take the default numbers on faith.
+- **The 50%-of-salary replacement-cost assumption behind the $10.15M figure is a common industry rule of thumb, not this company's actual measured replacement cost** — a real HR team would have (or could measure) a better number.
+- **SHAP was only run on the winning LightGBM model**, and only as a summary bar chart in the notebook — there's no committed table of exact mean-|SHAP| values or per-feature ranking beyond the plot itself, so a reader can see which features matter visually but can't pull an exact ranked list from this README alone. **Open item:** a top-10 SHAP feature ranking with values, from `03_classification_models.ipynb`'s SHAP cell, if a precise list is needed.
+- **No time dimension in the underlying data.** This is a single flat snapshot (1,470 employees at one point in time), not a longitudinal dataset, so the model can't distinguish a genuine trend from a one-time snapshot artifact, and Prophet (which would have needed a time series) was dropped for a Windows install issue rather than a data-availability one — worth revisiting if a longitudinal version of this dataset is ever available.
+- **`role_tenure_ratio`'s divide-by-zero guard (replacing `YearsAtCompany=0` with 1) is a reasonable but arbitrary choice** — it silently treats a brand-new employee's ratio as if they'd been there one year, rather than flagging tenure-zero rows separately.
+
+## Stack
+
+- `pandas`, `numpy` for data handling and feature engineering
+- `scikit-learn` (`LogisticRegression`, `train_test_split`, `StratifiedKFold`, `cross_val_score`, `precision_recall_curve`, `average_precision_score`) for the classification comparison and threshold analysis
+- `LightGBM` (`LGBMClassifier`) for the winning classification model
+- `SHAP` (`TreeExplainer`) for feature importance on the LightGBM model
+- `lifelines` for Kaplan-Meier curves and the Cox proportional-hazards model
+- `PostgreSQL`, run via `psql`/pgAdmin, for the independent star-schema SQL layer
+- `Streamlit` for the 4-page interactive dashboard
+- `Power BI` for the 4-page stakeholder dashboard with live What-If DAX parameters
+- `matplotlib` for EDA and SHAP plots
+-e 
+
+---
+
+# Supplementary document: `reports/model_results_summary.md`
+
+<div align="center">
+
+# Model Results Summary
+
+</div>
+
+---
+
+### Contents
+
+- [Classification — attrition prediction](#classification--attrition-prediction)
+- [Survival analysis — Cox proportional hazards](#survival-analysis--cox-proportional-hazards)
+- [Cost of attrition](#cost-of-attrition)
+- [Retention intervention ROI](#retention-intervention-roi-default-assumptions)
+- [Headline takeaway](#headline-takeaway)
+
+## Classification — attrition prediction
+
+Compared on **5-fold cross-validation** for the headline metric (PR-AUC) — not a single train/test split, which was shown to give an unreliable, misleading ranking with only 47 positive cases in the test set (see `03_classification_models.ipynb` for the comparison that caught this). Recall/precision below are from the single 80/20 split's classification report at the default 0.5 threshold — a different evaluation than the CV column, shown for context on what each model's predictions actually look like, not as the basis for picking the winner.
+
+| Model | 5-fold CV PR-AUC (winner metric) | Recall*, leavers | Precision*, leavers |
+|---|---|---|---|
+| Logistic Regression | 0.478 | 0.64 | 0.33 |
+| **LightGBM (winner)** | **0.578** | 0.26 | 0.52 |
+
+\* From the single train/test split, 0.5 threshold — shown for context, not used to pick the winner. LightGBM won on 5-fold CV PR-AUC.
+
+LightGBM won on the trustworthy metric (cross-validated PR-AUC) and was used for all downstream risk scores and SHAP explanations.
+
+## Survival analysis — Cox proportional hazards
+
+Duration = `YearsAtCompany`, event = `Attrition`. Concordance index: **0.797** (correctly ranks who leaves sooner vs. later ~80% of the time).
+
+| Factor | Hazard Ratio | Interpretation |
+|---|---|---|
+| **OverTime** | **3.19** | ~3.2x faster attrition, holding other factors constant |
+| JobSatisfaction | 0.79 | Each point (1–4 scale) cuts risk ~21% |
+| DistanceFromHome | 1.02 | ~2% higher risk per mile |
+| MonthlyIncome | 1.00 | Statistically significant, but tiny effect per dollar |
+
+Log-rank test on the OverTime Kaplan-Meier split: **p < 0.0001** — the gap is real, not chance.
+
+Independently confirmed by SQL: attrition rate by tenure bucket (`sql/06_query_tenure_bucket.sql`) shows the same pattern — 0-1 yrs: 34.9%, 2-4 yrs: 18.1%, 5-9 yrs: 11.1%, 10+ yrs: 10.4%.
+
+## Cost of attrition
+
+- Total expected annual attrition cost (workforce-wide): **$10.15M** (50%-of-salary replacement-cost assumption × each employee's model risk score)
+- Cost concentration: R&D $6.89M (68%), Sales $2.63M (26%), HR $0.63M (6%) — R&D leads on total dollars due to headcount size, not attrition rate; Sales has the higher per-employee rate (20.6% vs R&D's 13.8%)
+
+## Retention intervention ROI (default assumptions)
+
+Target: top 20% by risk score, AND working overtime. Intervention cost $2,000/employee, assumed 30% risk reduction.
+
+| Metric | Value |
+|---|---|
+| Employees targeted | 81 |
+| Intervention cost | $162,000 |
+| Expected savings | $966,663 |
+| **ROI** | **497%** |
+
+This figure depends entirely on the two stated assumptions (cost per employee, risk-reduction effectiveness) — it is a "what this would be worth if the assumptions hold" estimate, not a measured result. The Power BI dashboard's What-If sliders let you test other assumptions directly (e.g. widening the target group to 45% of the workforce with a weaker 10% risk reduction turns this negative — the ROI is genuinely sensitive to targeting a narrow, high-confidence group, not just "throw money at everyone").
+
+## Headline takeaway
+
+LightGBM beat Logistic Regression on the metric that matters (cross-validated PR-AUC), overtime is by far the strongest and most confident driver of attrition (both in the classifier's feature importance and independently in the Cox model's hazard ratio), and targeting a narrow, correctly-identified high-risk group produces a strong ROI — but that ROI collapses quickly if the targeting is too broad or the intervention too weak, which is the real business lesson: precision in *who* you target matters more than the size of the intervention budget.

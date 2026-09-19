@@ -62,13 +62,39 @@ def _extract_text(response):
 
 
 def get_readme(project_name):
-    """Get a project's real README from GitHub. Falls back to a saved
-    copy in data/ if GitHub can't be reached."""
-    url = f"https://raw.githubusercontent.com/{config.GITHUB_ORG}/{config.GITHUB_REPO}/{config.GITHUB_BRANCH}/{project_name}/README.md"
+    """Get a project's real content from GitHub: its main README, plus any
+    real supplementary docs listed in config.PROJECT_FILES (a COMPARISON.md,
+    a reports/ writeup, a sub-implementation's own README), concatenated
+    into one document with a clear header marking where each supplementary
+    piece starts. Two projects (the graduation project's own two repos)
+    live outside AI_Portfolio entirely, via config.PROJECT_REPO_OVERRIDES -
+    everything else defaults to a subfolder of this repo.
+
+    Falls back to a saved copy in data/ if GitHub can't be reached, or if
+    any file in the list fails partway through - better to fall back to
+    the last-known-good combined copy than index a half-fetched document
+    with some supplementary sections silently missing."""
+    repo = config.PROJECT_REPO_OVERRIDES.get(project_name)
+    branch = config.PROJECT_BRANCH_OVERRIDES.get(project_name, config.GITHUB_BRANCH)
+    files = config.PROJECT_FILES.get(project_name, ["README.md"])
+
+    if repo:
+        # A standalone repo of its own - files live at the repo root.
+        base_url = f"https://raw.githubusercontent.com/{config.GITHUB_ORG}/{repo}/{branch}"
+    else:
+        # A subfolder of the main portfolio repo.
+        base_url = f"https://raw.githubusercontent.com/{config.GITHUB_ORG}/{config.GITHUB_REPO}/{branch}/{project_name}"
+
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        return response.text
+        parts = []
+        for i, file_path in enumerate(files):
+            response = requests.get(f"{base_url}/{file_path}", timeout=10)
+            response.raise_for_status()
+            if i == 0:
+                parts.append(response.text)
+            else:
+                parts.append(f"\n\n---\n\n# Supplementary document: `{file_path}`\n\n{response.text}")
+        return "".join(parts)
     except requests.RequestException:
         path = DATA_DIR / f"{project_name}_readme_fixture.md"
         print(f"Couldn't reach GitHub for {project_name}, using the saved copy instead")
@@ -97,7 +123,7 @@ def get_qdrant_client():
     pattern Azure_RAG_Assistant already uses) - this is what makes an
     index built by running 01_indexing.ipynb still be there the next
     time mcp_server.py or web_app.py starts, instead of every process
-    restart silently re-embedding all 11 projects from scratch.
+    restart silently re-embedding all 19 projects from scratch.
 
     Falls back to a local in-memory client if QDRANT_URL isn't set, for
     zero-setup quick testing - but that mode has NO persistence at all:

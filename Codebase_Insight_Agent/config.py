@@ -42,6 +42,8 @@ PROJECTS = [
     "rag_qa_documind",
     "semantic-search-arxiv-papers",
     "sentiment_forge",
+    "machine-learning-techniques-for-intrusion-detection",
+    "ids-deploy",
 ]
 
 # One short description per project, used by the router to match a
@@ -64,6 +66,59 @@ PROJECT_DESCRIPTIONS = {
     "rag_qa_documind": "Document-upload RAG Q&A app with per-user accounts, deployed on Streamlit Cloud",
     "semantic-search-arxiv-papers": "Staged semantic search over arXiv ML papers (BM25 to SBERT/FAISS to Qdrant to cross-encoder reranking)",
     "sentiment_forge": "Sentiment analysis comparing TF-IDF, BiLSTM, and fine-tuned BERT models",
+    "machine-learning-techniques-for-intrusion-detection": "Graduation project modeling repo: cascade network intrusion detection (binary to 21-class multiclass to attack-only) on the ~76M-row NF-UQ-NIDS-v2 NetFlow dataset, comparing XGBoost, CatBoost, TabNet, Residual MLP, and FT-Transformer",
+    "ids-deploy": "Graduation project deployment repo: real-time intrusion-detection dashboard serving the ML-NIDS cascade models, validated in a GNS3-emulated enterprise network",
+}
+
+# --- Where each project's content actually lives -----------------------
+# Most projects are just README.md in this repo (AI_Portfolio). A few have
+# real supplementary docs worth indexing too (a COMPARISON.md, a reports/
+# writeup, a sub-implementation's own README) - those list every file to
+# fetch and concatenate, in order. Two projects (the graduation project,
+# split across two of its own repos) live outside AI_Portfolio entirely,
+# so they get an explicit repo override instead of using GITHUB_REPO.
+# Anything not listed in PROJECT_FILES defaults to just ["README.md"] -
+# see get_readme() in portfolio.py.
+
+PROJECT_REPO_OVERRIDES = {
+    "machine-learning-techniques-for-intrusion-detection": "machine-learning-techniques-for-intrusion-detection",
+    "ids-deploy": "ids-deploy",
+}
+
+# Branch override for projects whose repo doesn't use GITHUB_BRANCH's
+# default - ids-deploy's default branch is "master", not "main".
+PROJECT_BRANCH_OVERRIDES = {
+    "ids-deploy": "master",
+}
+
+PROJECT_FILES = {
+    "customer_churn_prediction": ["README.md", "reports/segment_summary.md"],
+    "ecommerce-demand-forecasting": [
+        "README.md",
+        "reports/PROJECT_REPORT.md",
+        "reports/model_results_summary.md",
+    ],
+    "employee-attrition": ["README.md", "reports/model_results_summary.md"],
+    "fact_check_crew": ["README.md", "COMPARISON.md"],
+    "rag_router": ["README.md", "COMPARISON.md"],
+    "rag-vanilla-vs-langchain": [
+        "README.md",
+        "COMPARISON.md",
+        "impl_langchain/README.md",
+        "impl_vanilla/README.md",
+    ],
+    "marketing-ab-testing": ["README.md", "reports/ab_test_summary.md"],
+    "machine-learning-techniques-for-intrusion-detection": [
+        "README.md",
+        "plots/README.md",
+        "notebooks/eda/README.md",
+        "notebooks/preprocessing/README.md",
+        "notebooks/xgboost/README.md",
+        "notebooks/catboost/README.md",
+        "notebooks/tabnet/README.md",
+        "notebooks/residual-mlp/README.md",
+    ],
+    "ids-deploy": ["README.md"],
 }
 
 # --- web_app.py (the public recruiter-facing website) -----------------

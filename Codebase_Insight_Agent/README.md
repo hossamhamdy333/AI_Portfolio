@@ -43,7 +43,7 @@ This is a slightly different problem than a typical RAG project: the
 agent has to decide which project (or projects) a question is even
 about before it can answer, not just retrieve within one fixed corpus.
 A naive version would either dump every README into one context window
-(wasteful, and dilutes retrieval precision once the portfolio has 17+
+(wasteful, and dilutes retrieval precision once the portfolio has 19
 projects) or route with an LLM call (an extra API call and another place
 output parsing can fail, the same tradeoff `rag_router` already explored
 in a different context). The harder problem this project actually takes
@@ -73,7 +73,7 @@ actually supported by the retrieved README content.
   `mcp_server.py` and `web_app.py` call `portfolio.load_all_indexes()`
   at startup, not `build_all_indexes()`, they load an already-provisioned
   Qdrant Cloud index and raise a clear error if it isn't there yet,
-  rather than silently paying the embedding cost of rebuilding all 17
+  rather than silently paying the embedding cost of rebuilding all 19
   project indexes on every process restart. `notebooks/01_indexing.ipynb`
   is the one thing that actually provisions it.
 - **Three real bugs found and fixed, not just designed around**:
@@ -107,22 +107,27 @@ actually supported by the retrieved README content.
 
 ## Data
 
-The corpus is the portfolio's own READMEs, fetched live from GitHub
-(`raw.githubusercontent.com/.../<project>/README.md`) at index-build
-time, with a saved local copy in `data/` as a fallback if GitHub can't be
-reached. `config.PROJECTS` lists 17 sibling projects (every project in
-the repo except this one). Each README is split into chunks with
-`split_into_chunks()`, paragraph-aware (splits on blank lines, only
-breaking a paragraph internally if it's still too long), at
-`CHUNK_SIZE = 512, CHUNK_OVERLAP = 64`. Each project gets its own Qdrant
-collection (`portfolio_<project_name>`).
-
-One inconsistency worth flagging as found rather than silently fixed:
-`portfolio.py`'s `get_qdrant_client()` docstring still says "re-embedding
-all 11 projects from scratch," a stale number from before more projects
-were added to `config.PROJECTS`; the list is actually 17 long now. Harmless
-(nothing reads that number programmatically), but it's exactly the kind
-of comment-drift a "study every word" pass is supposed to catch.
+The corpus is the portfolio's own project documentation, fetched live from
+GitHub at index-build time, with a saved local copy in `data/` as a
+fallback if GitHub can't be reached or a fetch fails partway through.
+`config.PROJECTS` lists 19 projects. Most are a single `README.md` in a
+subfolder of this repo, fetched via
+`raw.githubusercontent.com/.../<project>/README.md` (the same-repo
+default in `get_readme()`); 7 of them also pull in real supplementary
+docs (`COMPARISON.md`, a `reports/` writeup, a sub-implementation's own
+README) listed explicitly in `config.PROJECT_FILES`, concatenated behind
+a `# Supplementary document: <path>` header so the source of each part
+stays traceable. Two projects - the graduation project's modeling and
+deployment repos - live entirely outside AI_Portfolio, via
+`config.PROJECT_REPO_OVERRIDES` (and, for `ids-deploy` specifically, a
+`config.PROJECT_BRANCH_OVERRIDES` entry, since that repo's default
+branch is `master`, not `main` - caught by actually running
+`get_readme()` against it, not assumed). Each project's combined
+document is split into chunks with `split_into_chunks()`,
+paragraph-aware (splits on blank lines, only breaking a paragraph
+internally if it's still too long), at `CHUNK_SIZE = 512, CHUNK_OVERLAP
+= 64`. Each project gets its own Qdrant collection
+(`portfolio_<project_name>`).
 
 ## Results
 
@@ -184,10 +189,12 @@ regression accuracy (`02_router.ipynb`), LLM-judged correctness rate
   spot in the LLM's judgment (confidently wrong on a specific kind of
   question) wouldn't be caught by this critique loop, only variance
   between one draft and a retry.
-- **The stale "11 projects" comment is small, but it's the kind of drift
-  worth a repo-wide grep before each release**, since `config.PROJECTS`
-  is exactly the kind of list that grows as the portfolio does, and a
-  hardcoded number in a docstring has no way to notice that on its own.
+- **The "11 projects" stale docstring comment was exactly this kind of
+  drift, and it's now fixed rather than just flagged.** It read "11"
+  while `config.PROJECTS` had grown to 17, caught during this same pass
+  that added the 2 graduation-project repos (bringing the list to 19) -
+  a repo-wide grep for hardcoded counts before each release would catch
+  this class of bug before it ships stale, rather than after.
 - **Guardrails inherit the same known gap as Azure RAG Assistant**: the
   injection regex doesn't catch "forget the previous instructions"
   phrasing. Since this module is shared, fixing it in one place fixes

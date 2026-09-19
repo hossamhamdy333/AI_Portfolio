@@ -1,22 +1,8 @@
-<!--
-CACHED SNAPSHOT of the real rag_router/README.md, fetched
-from raw.githubusercontent.com on 2026-09-03.
-
-This is a real cached copy (not fabricated placeholder text), used so
-indexing.py has something to index without depending on GitHub being
-reachable during local dev, testing, or CI. It WILL drift from the live
-repo over time -- delete this file and let the live fetch run to refresh it.
--->
-
 <div align="center">
 
 # rag_router — Multi-Domain RAG with Query Routing
 
-Routes incoming questions to one of four topic-specific indexes (sports, tech, history, English literature — built from a Wikipedia sample) and answers from whichever one gets picked. Two routing methods are compared: an LLM call that selects the domain, and an embedding-similarity match against each domain's description.
-
-`Python` `LlamaIndex` `Qdrant Cloud` `Gemini API` `MLflow (DagsHub)` `DVC`
-
-Standalone project — no shared code, corpus, or config with [`../rag-vanilla-vs-langchain`](../rag-vanilla-vs-langchain). See that project's README for the vanilla-vs-LangChain retrieval comparison.
+`LlamaIndex` `Qdrant Cloud` `google-genai` `sentence-transformers/all-MiniLM-L6-v2` `HuggingFace datasets` `MLflow` `DVC` `pytest`
 
 </div>
 
@@ -24,15 +10,89 @@ Standalone project — no shared code, corpus, or config with [`../rag-vanilla-v
 
 ### Contents
 
+- [Summary](#summary)
+- [Problem & motivation](#problem--motivation)
+- [Approach](#approach)
+- [Data](#data)
 - [Results](#results)
-- [Architecture](#architecture)
-- [Known issue: LlamaIndex selector parsing bug](#known-issue-llamaindex-selector-parsing-bug)
-- [Notebooks](#notebooks-run-in-order)
-- [Tests](#tests)
+- [What I'd do differently / limitations](#what-id-do-differently--limitations)
+- [Stack](#stack)
+
+---
+
+## Summary
+
+This project builds a RAG system that first decides *which* knowledge base
+to search before answering. Wikipedia articles are split into four topic
+domains (sports, tech, history, English literature), each indexed
+separately in Qdrant. A router picks a domain per incoming question, then
+that domain's index handles retrieval and generation. Two routing methods
+are compared head to head on 400 questions: an LLM call that picks the
+domain, and an embedding-similarity match against each domain's
+description. The LLM selector wins on every accuracy metric (routing
+accuracy 0.6975 vs 0.6450), but it also fails about 10x more often on a
+LlamaIndex parsing bug, so its real edge is even bigger once you exclude
+the questions that crash outright.
+
+## Problem & motivation
+
+A single RAG index gets noisy once the corpus covers unrelated topics. A
+question about tennis can pull irrelevant embeddings from a history
+article that happens to mention war metaphors, or vice versa. Splitting
+the corpus into topic-specific indexes fixes retrieval quality within a
+domain, but adds a new failure point: something has to decide which index
+to search, and a wrong routing decision means the right answer was never
+retrievable in the first place, no matter how good the retriever is.
+
+The naive approach is to assume routing is "easy" and focus all the
+evaluation effort on retrieval quality within a domain. This project
+treats routing as its own thing to measure, separately from citation
+accuracy, MRR, and NDCG, because a router that's wrong 30% of the time
+caps every downstream metric no matter how good the retriever is.
+
+## Approach
+
+- **Indexing**: four domains, each its own Qdrant Cloud collection
+  (`wiki_router_sports`, `wiki_router_tech`, etc.), embedded with
+  `sentence-transformers/all-MiniLM-L6-v2`.
+- **Routing**: LlamaIndex's `RouterQueryEngine`, tested with two
+  interchangeable selectors:
+  - `LLMSingleSelector`: an LLM call reads the question plus each
+    domain's description and picks one.
+  - `EmbeddingSingleSelector`: embeds the question, compares it to each
+    domain description's embedding, no extra LLM call.
+- **Generation**: `gemini-3.1-flash-lite`, temperature 0.1, top-k
+  retrieval of 10 chunks per query.
+- **Why compare both selectors instead of picking one**: they trade off
+  differently. The embedding selector is cheaper and doesn't spend an
+  API call on routing, which matters at scale. The LLM selector costs
+  more per question but can reason about ambiguous phrasing the way a
+  cosine-similarity match against a static description can't. Rather
+  than assume which one wins, both were run on the same eval set.
+
+## Data
+
+- Source: `wikimedia/wikipedia` (`20231101.en` snapshot), streamed
+  rather than loaded in full, since only a few hundred articles per
+  domain are needed out of millions.
+- Domain assignment: keyword match against article title plus the first
+  500 characters of body text. Keyword lists are deliberately narrow
+  (e.g. sports requires terms like "football", "olympic", "championship")
+  to keep false positives low, since a misfiled article quietly hurts
+  routing accuracy later.
+- Size: 300 articles per domain, 1,200 articles total. Streaming capped
+  at 500,000 articles scanned, with progress logged every 10,000.
+- Eval set: 400 synthetic Q&A pairs, generated by Gemini from 50 sampled
+  articles per domain × 2 questions each (4 domains × 50 × 2 = 400).
+  Generation cost $0.0691 total (0 failures), per
+  `notebooks/03_synthetic_qa.ipynb`'s own logged output.
+- No train/val/test split in the ML sense. This is a retrieval system,
+  not a trained classifier, so the "split" that matters is corpus
+  (indexed) vs. eval questions (held out, generated after indexing).
 
 ## Results
 
-Evaluated on 400 questions (`notebooks/04_evaluation.ipynb`):
+Evaluated on all 400 questions, `notebooks/04_evaluation.ipynb`:
 
 | Metric | LLM selector | Embedding selector |
 |---|---|---|
@@ -43,35 +103,110 @@ Evaluated on 400 questions (`notebooks/04_evaluation.ipynb`):
 | Parsing-bug failures | 39/400 (9.75%) | 4/400 (1.0%) |
 | Extra API call for routing | Yes | No |
 
-The LLM selector wins on every accuracy metric, despite hitting the known LlamaIndex bug below far more often. Excluding failed questions, its routing accuracy is 77.3% vs. 65.2% for the embedding selector — full breakdown in [COMPARISON.md](./COMPARISON.md).
+Failed questions (the parsing bug below) count as wrong routing, since
+there's no domain to compare against `None`. Excluding those:
 
-## Architecture
+- Embedding selector: 258/396 correct = 65.2%
+- LLM selector: 279/361 correct = 77.3%
 
-- 4 domains, each its own Qdrant Cloud collection
-- Routing via LlamaIndex's `RouterQueryEngine`, either `LLMSingleSelector` or `EmbeddingSingleSelector`
-- Corpus: `wikimedia/wikipedia` (20231101.en), filtered into domains by keyword match, 300 articles per domain
-- Eval set: 400 synthetic Q&A pairs (50 articles × 2 questions × 4 domains), generated with Gemini
-- Tracking: MLflow via DagsHub
-- Data and model artifacts: DVC
+So the gap in actual routing quality is wider than the headline numbers
+suggest, even though the LLM selector fails far more often. On this
+corpus, the four domain descriptions aren't distinct enough in embedding
+space for similarity matching alone to match an LLM's judgment. The
+embedding selector's only real advantage is cost and latency.
 
-## Known issue: LlamaIndex selector parsing bug
+## What I'd do differently / limitations
 
-LlamaIndex's selector-result parsing occasionally returns `choice=None`, which crashes with `TypeError: unsupported operand type(s) for -: 'NoneType' and 'int'`. It's deterministic per question — retrying doesn't help — and it affects both selectors, though the LLM selector hits it about 10x more often. `eval_routing.py` detects this specific error and skips retries for it, while still retrying transient failures like rate limits normally.
+- **The corpus is small and cleanly separated.** 300 articles per domain
+  across four genuinely distinct topics (sports vs. 19th-century English
+  poetry, say) is close to a best case for a router. I'd want to see both
+  selectors tested against domains that actually overlap semantically
+  (e.g. "sports" vs. "sports history") before trusting either number on
+  a harder problem.
+- **The keyword-based domain filter is coarse.** Matching on title plus
+  the first 500 characters will misfile some articles, and there's no
+  step that checks how often. A held-out sample of manually labeled
+  articles to measure filter precision would make the "clean domains"
+  assumption in the eval numbers above less of an assumption.
+- **The LlamaIndex parsing bug is worked around, not fixed.** The
+  `choice=None` decode failure is deterministic per question, and the
+  current fix is detecting it and skipping retries rather than avoiding
+  it. That's the right call for eval reproducibility, but it means 9.75%
+  of LLM-selector questions never get a real answer in production either
+  as it stands.
+- **A prior version of this project's own docstring misattributed which
+  selector produced a specific number in `COMPARISON.md`** (the eval
+  notebook had called the embedding selector, not the LLM selector the
+  docstring claimed). It was caught and fixed, but it's a reminder that
+  eval logs should tag results with the actual selector class used, not
+  a string a human typed separately, so the report can't drift from the
+  code that produced it.
+- **Cost is tracked for the wrong phase.** `shared/llm_client.py`'s
+  cost/token logging is wired into synthetic Q&A generation (generating
+  the 400-question eval set cost $0.0691 total, per the output cell in
+  `03_synthetic_qa.ipynb`), but it's never called from `eval_routing.py`.
+  So the run that actually compares the two selectors, whose entire
+  tradeoff is "the LLM selector spends one more Gemini call per
+  question," never measures what that call costs. No latency numbers
+  either.
+- **Only one embedding model was tested** (`all-MiniLM-L6-v2`). No
+  ablation on whether a larger or domain-tuned embedding model closes the
+  gap for the embedding selector.
 
-## Notebooks (run in order)
+## Stack
 
-1. `01_build_corpus.ipynb` — streams and filters the Wikipedia corpus into 4 domains, saves to DVC
-2. `02_ingest_and_router.ipynb` — embeds articles into Qdrant, builds the router, sanity-checks routing on a few questions
-3. `03_synthetic_qa.ipynb` — generates the 400-question eval set
-4. `04_evaluation.ipynb` — runs both selectors on the eval set, reports routing accuracy, citation accuracy, MRR, and NDCG
+- `LlamaIndex` (`RouterQueryEngine`, `LLMSingleSelector`,
+  `EmbeddingSingleSelector`) for indexing, routing, and querying
+- `Qdrant Cloud` as the vector store, one collection per domain
+- `google-genai` (`gemini-3.1-flash-lite`) for generation and synthetic
+  Q&A generation
+- `sentence-transformers/all-MiniLM-L6-v2` for embeddings
+- `HuggingFace datasets` to stream the Wikipedia source corpus
+- `MLflow`, hosted via DagsHub, for run tracking
+- `DVC` for data and model artifact versioning
+- `pytest`, 30 tests covering pure logic plus in-memory Qdrant and real
+  LlamaIndex routing, no API keys required to run them
+-e 
 
-Each notebook pulls DVC artifacts the previous one produced.
+---
 
-## Tests
+# Supplementary document: `COMPARISON.md`
 
-```bash
-cd rag_router
-PYTHONPATH=src:shared pytest tests/ shared/tests/ -v
-```
+<div align="center">
 
-30 tests — pure logic plus in-memory Qdrant and real LlamaIndex machinery, no API keys required.
+# LLM Selector vs. Embedding Selector
+
+Both selectors were run on the same 400-question set in `notebooks/04_evaluation.ipynb`, with checkpoints keyed per selector so the two runs can't share state.
+
+</div>
+
+---
+
+### Contents
+
+- [Results](#results)
+- [The failure rate understates the LLM selector's edge](#the-failure-rate-understates-the-llm-selectors-edge)
+- [Conclusion](#conclusion)
+
+## Results
+
+| Metric | Embedding selector | LLM selector |
+|---|---|---|
+| Routing accuracy | 0.6450 | **0.6975** |
+| Citation accuracy | 0.6275 | **0.6650** |
+| MRR | 0.6010 | **0.6319** |
+| NDCG@10 | 0.6074 | **0.6398** |
+| Parsing-bug failures | 4/400 (1.0%) | 39/400 (9.75%) |
+
+## The failure rate understates the LLM selector's edge
+
+Failed questions count as wrong routing — there's no domain to compare against `None`. Excluding failures:
+
+- Embedding selector: 258/396 correct = **65.2%**
+- LLM selector: 279/361 correct = **77.3%**
+
+So the actual gap in routing quality is wider than the headline accuracy numbers show, even though the LLM selector fails almost 10x more often.
+
+## Conclusion
+
+The LLM selector wins on every metric, including after accounting for its higher failure rate. The embedding selector's only advantage is cost and latency — no extra Gemini call per question. On this corpus, the four domain descriptions aren't distinct enough in embedding space for similarity matching to match an LLM's judgment; the extra API call buys real accuracy.
