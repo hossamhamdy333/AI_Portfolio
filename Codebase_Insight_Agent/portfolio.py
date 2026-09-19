@@ -131,7 +131,7 @@ def get_qdrant_client():
     pattern Azure_RAG_Assistant already uses) - this is what makes an
     index built by running 01_indexing.ipynb still be there the next
     time mcp_server.py or web_app.py starts, instead of every process
-    restart silently re-embedding all 19 projects from scratch.
+    restart silently re-embedding every project from scratch.
 
     Falls back to a local in-memory client if QDRANT_URL isn't set, for
     zero-setup quick testing - but that mode has NO persistence at all:

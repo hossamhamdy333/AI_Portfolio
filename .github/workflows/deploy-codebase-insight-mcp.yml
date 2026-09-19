@@ -1,14 +1,4 @@
-# ============================================================================
-# IMPORTANT if this project is nested inside another repo (e.g. AI_Portfolio):
-# Move this file to the repo's real top-level .github/workflows/, renamed
-# to avoid clashing with any existing deploy workflow the repo already
-# has (e.g. deploy-codebase-insight-agent.yml). The appSourcePath below is
-# already set correctly for the nested case -- it points at this
-# project's subfolder specifically, not the whole repo, so Azure only
-# builds this project's Dockerfile, not anything else in AI_Portfolio.
-# ============================================================================
-
-name: Deploy Codebase Insight Agent to Azure Container Apps
+name: Deploy Codebase Insight Agent MCP server to Azure Container Apps
 
 # Manual trigger only, on purpose -- this deploys a real, billed Azure
 # resource. Automatic deploy-on-push is easy to add later
@@ -59,14 +49,18 @@ jobs:
 #      CONTAINER_APP_NAME     (your Container App's name)
 #      AZURE_RESOURCE_GROUP   (the resource group both of the above live in)
 #
-# 4. The container app itself needs GOOGLE_API_KEY and (optionally)
+# 4. The container app itself needs GOOGLE_API_KEY, QDRANT_URL and
+#    QDRANT_API_KEY (without the Qdrant ones it can't find the index and
+#    fails at startup) and, optionally,
 #    APPLICATIONINSIGHTS_CONNECTION_STRING set as its own secret-backed
 #    environment variables in Azure -- NOT as GitHub secrets, since
 #    those are for THIS workflow's Azure auth, not the running app's
 #    runtime config. Set these via the Azure Portal or:
 #      az containerapp update --name <CONTAINER_APP_NAME> \
 #        --resource-group <RESOURCE_GROUP> \
-#        --set-env-vars GOOGLE_API_KEY=secretref:google-api-key
+#        --set-env-vars GOOGLE_API_KEY=secretref:google-api-key \
+#                       QDRANT_URL=secretref:qdrant-url \
+#                       QDRANT_API_KEY=secretref:qdrant-api-key
 #
 #    Since this is now a real public URL, ALSO set (see README's "Remote
 #    deployment" section for why): MCP_TRANSPORT=streamable-http,

@@ -87,3 +87,4 @@ sentiment_forge/outputs/models/bert_onnx/
 
 .env.*
 !.env.example
+*.db

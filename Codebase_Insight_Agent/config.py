@@ -44,6 +44,8 @@ PROJECTS = [
     "sentiment_forge",
     "machine-learning-techniques-for-intrusion-detection",
     "ids-deploy",
+    "Codebase_Insight_Agent",
+    "portfolio_overview",
 ]
 
 # One short description per project, used by the router to match a
@@ -68,6 +70,8 @@ PROJECT_DESCRIPTIONS = {
     "sentiment_forge": "Sentiment analysis comparing TF-IDF, BiLSTM, and fine-tuned BERT models",
     "machine-learning-techniques-for-intrusion-detection": "Graduation project modeling repo: cascade network intrusion detection (binary to 21-class multiclass to attack-only) on the ~76M-row NF-UQ-NIDS-v2 NetFlow dataset, comparing XGBoost, CatBoost, TabNet, Residual MLP, and FT-Transformer",
     "ids-deploy": "Graduation project deployment repo: real-time intrusion-detection dashboard serving the ML-NIDS cascade models, validated in a GNS3-emulated enterprise network",
+    "Codebase_Insight_Agent": "This site's own agent: LangGraph plan/retrieve/critique loop over the portfolio READMEs, LlamaIndex and Qdrant retrieval, MCP server, FastAPI website, Azure Container Apps deployment, guardrails, rate limiting and pytest",
+    "portfolio_overview": "Overview of the whole portfolio: skills, tech stack, tools, live deployments, graduation project, contact details and a summary of every project",
 }
 
 # --- Where each project's content actually lives -----------------------
@@ -81,6 +85,7 @@ PROJECT_DESCRIPTIONS = {
 # see get_readme() in portfolio.py.
 
 PROJECT_REPO_OVERRIDES = {
+    "portfolio_overview": "AI_Portfolio",
     "machine-learning-techniques-for-intrusion-detection": "machine-learning-techniques-for-intrusion-detection",
     "ids-deploy": "ids-deploy",
 }

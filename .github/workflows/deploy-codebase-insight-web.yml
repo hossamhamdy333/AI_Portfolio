@@ -1,15 +1,8 @@
-# ============================================================================
-# IMPORTANT if this project is nested inside another repo (e.g. AI_Portfolio):
-# Move this file to the repo's real top-level .github/workflows/, same as
-# deploy-azure.yml (the MCP server's workflow) -- GitHub Actions only reads
-# workflow files from the repo's real root, never from a subfolder.
-# ============================================================================
-
 name: Deploy Codebase Insight Agent website to Azure Container Apps
 
 # Manual trigger only, on purpose -- this deploys a real, billed Azure
 # resource, separate from the MCP server's own container app (see
-# deploy-azure.yml). They share the same source code (portfolio.py) but
+# deploy-codebase-insight-mcp.yml). They share the same source code (portfolio.py) but
 # are two different services with two different jobs, so they get two
 # separate deployments rather than trying to make one container do both.
 on:
@@ -41,20 +34,23 @@ jobs:
 # --- SETUP REQUIRED before this workflow can run ---
 #
 # 1. A SEPARATE Container App from the MCP server's one (same Container
-#    Registry and resource group are fine to reuse - see deploy-azure.yml
+#    Registry and resource group are fine to reuse - see deploy-codebase-insight-mcp.yml
 #    for creating those if they don't exist yet):
 #      az containerapp create --name codebase-insight-website \
 #        --resource-group <RESOURCE_GROUP> --environment <ENV_NAME> \
 #        --image mcr.microsoft.com/k8se/quickstart:latest \
 #        --target-port 8000 --ingress external
 #
-# 2. Add ONE more repo secret alongside the ones deploy-azure.yml already
+# 2. Add ONE more repo secret alongside the ones deploy-codebase-insight-mcp.yml already
 #    needs (AZURE_CREDENTIALS, ACR_NAME, AZURE_RESOURCE_GROUP are shared):
 #      WEB_CONTAINER_APP_NAME   (the name from step 1, e.g. codebase-insight-website)
 #
 # 3. This container needs its own environment variables set - NOT the
 #    MCP server's (MCP_ACCESS_TOKEN etc. mean nothing here):
 #      GOOGLE_API_KEY       (same Gemini key as everywhere else)
+#      QDRANT_URL, QDRANT_API_KEY  (same Qdrant Cloud cluster the
+#                            indexing notebook wrote to; without these
+#                            the app fails at startup)
 #      DATABASE_URL         (see README's "The public website" section -
 #                            Azure SQL if you want the query log and admin
 #                            account to survive a redeploy, otherwise it's
@@ -67,6 +63,8 @@ jobs:
 #      az containerapp update --name codebase-insight-website \
 #        --resource-group <RESOURCE_GROUP> \
 #        --set-env-vars GOOGLE_API_KEY=secretref:google-api-key \
+#                       QDRANT_URL=secretref:qdrant-url \
+#                       QDRANT_API_KEY=secretref:qdrant-api-key \
 #                       DATABASE_URL=secretref:database-url \
 #                       JWT_SECRET_KEY=secretref:jwt-secret-key
 #
@@ -74,5 +72,12 @@ jobs:
 #    real production database - see README's "The public website" section:
 #      DATABASE_URL=<the real production value> python scripts/create_admin.py you@example.com
 #
-# 5. Cost control: same budget alert advice as deploy-azure.yml - set one
+# 5. Cost control: same budget alert advice as deploy-codebase-insight-mcp.yml - set one
 #    on the resource group before running this the first time.
+#
+# 6. Keep min and max replicas at 1. The rate limiter lives in memory, so
+#    more than one replica would give each visitor a separate allowance.
+#    Min replicas at 1 also avoids a slow cold start for recruiters, at a
+#    small always-on cost.
+#      az containerapp update --name codebase-insight-website \
+#        --resource-group <RESOURCE_GROUP> --min-replicas 1 --max-replicas 1
