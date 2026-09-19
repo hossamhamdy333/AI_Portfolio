@@ -45,6 +45,12 @@ def test_ask_returns_an_answer(mock_ask):
     assert body["projects"] == ["Codebase_Insight_Agent"]
 
 
+@patch("web_app.portfolio.ask", return_value={"answer": "He knows:\n* **Python** and SQL\n* FastAPI", "projects": ["portfolio_overview"]})
+def test_ask_strips_markdown_from_the_answer(mock_ask):
+    response = client.post("/ask", json={"question": "What skills does Hossam have?"})
+    assert response.json()["answer"] == "He knows:\n- Python and SQL\n- FastAPI"
+
+
 def test_ask_rejects_a_very_long_question():
     response = client.post("/ask", json={"question": "a" * 501})
     assert response.status_code == 422

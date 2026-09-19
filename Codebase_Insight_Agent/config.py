@@ -24,6 +24,17 @@ SIMILARITY_THRESHOLD = 0.3   # a project below this score is not considered rele
 MAX_PROJECTS_PER_QUERY = 3   # how many project indexes one question can be routed to
 MAX_CRITIQUE_RETRIES = 2     # how many times the agent can retry after a failed critique
 
+# Questions about the person or the overall stack always get the overview
+# entry, because a short question like "what skills does he have" scores
+# low against any single description.
+OVERVIEW_PROJECT = "portfolio_overview"
+OVERVIEW_TOP_K = 12  # the overview is one long README, so a skills answer needs more chunks than 5
+OVERVIEW_WORDS = {
+    "hossam", "skill", "skills", "stack", "experience", "background", "contact",
+    "email", "tools", "technologies", "certificates", "certifications",
+    "resume", "cv", "hire", "hiring",
+}
+
 PROJECTS = [
     "customer_support_copilot",
     "Azure_RAG_Assistant",
@@ -71,7 +82,7 @@ PROJECT_DESCRIPTIONS = {
     "machine-learning-techniques-for-intrusion-detection": "Graduation project modeling repo: cascade network intrusion detection (binary to 21-class multiclass to attack-only) on the ~76M-row NF-UQ-NIDS-v2 NetFlow dataset, comparing XGBoost, CatBoost, TabNet, Residual MLP, and FT-Transformer",
     "ids-deploy": "Graduation project deployment repo: real-time intrusion-detection dashboard serving the ML-NIDS cascade models, validated in a GNS3-emulated enterprise network",
     "Codebase_Insight_Agent": "This site's own agent: LangGraph plan/retrieve/critique loop over the portfolio READMEs, LlamaIndex and Qdrant retrieval, MCP server, FastAPI website, Azure Container Apps deployment, guardrails, rate limiting and pytest",
-    "portfolio_overview": "Overview of the whole portfolio: skills, tech stack, tools, live deployments, graduation project, contact details and a summary of every project",
+    "portfolio_overview": "About Hossam Hamdy Fakry: skills, experience, background, tech stack, tools, programming languages, frameworks, live deployments, graduation project, contact details and a summary of every project",
 }
 
 # --- Where each project's content actually lives -----------------------

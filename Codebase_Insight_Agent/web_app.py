@@ -19,6 +19,7 @@ Run it with: uvicorn web_app:app --reload --port 8000
 """
 
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -81,6 +82,11 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+def strip_markdown(text: str) -> str:
+    text = text.replace("**", "")
+    return re.sub(r"^[ \t]*\*[ \t]+", "- ", text, flags=re.MULTILINE)
 
 
 def get_client_ip(request: Request) -> str:
@@ -146,18 +152,19 @@ async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db))
     result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
 
     output_guard = guard_output(result["answer"])
+    answer = strip_markdown(output_guard["text"])
 
     db.add(QueryLog(
         ip_address=ip,
         question=body.question,
-        answer=output_guard["text"],
+        answer=answer,
         blocked=output_guard["blocked"],
         block_reason=output_guard["match"] if output_guard["blocked"] else None,
         target_projects=",".join(result["projects"]),
     ))
     db.commit()
 
-    return {"answer": output_guard["text"], "blocked": output_guard["blocked"], "projects": result["projects"]}
+    return {"answer": answer, "blocked": output_guard["blocked"], "projects": result["projects"]}
 
 
 # ---------------------------------------------------------------- admin auth

@@ -34,7 +34,7 @@ generated from retrieved chunks, and a second LLM call checks the draft
 is actually grounded in what was retrieved before it's returned, retrying
 with feedback if not. The guardrails layer (shared with Azure RAG
 Assistant) catches 19/20 (95%) on the same adversarial prompt set, and
-the full test suite (35 tests) passes.
+the full test suite (41 tests) passes.
 
 ## Problem & motivation
 
@@ -61,6 +61,11 @@ actually supported by the retrieved README content.
   `MAX_PROJECTS_PER_QUERY = 3`, falling back to the single best-scoring
   project if nothing clears the threshold (so a question always routes
   somewhere rather than routing nowhere).
+  Questions that mention the person or the overall stack (the words in
+  `config.OVERVIEW_WORDS`, like "skills" or "Hossam") always add the
+  `portfolio_overview` entry too, because a short question like "what
+  skills does he have" scores low against any single project's
+  description.
 - **Agent loop**: a LangGraph `StateGraph` with four nodes: `plan` (run
   the router), `retrieve` (query each target project's index, building
   one combined context block), `critique` (a second LLM call asking
@@ -147,11 +152,11 @@ internally if it's still too long), at `CHUNK_SIZE = 512, CHUNK_OVERLAP
 
 Two things here are independently verified, not just described:
 
-- **Test suite**: 35 tests (`pytest`), covering router/portfolio
+- **Test suite**: 41 tests (`pytest`), covering router/portfolio
   persistence bookkeeping (with a real in-memory Qdrant client and a fake
   embedding function, no live API calls), MCP auth token verification,
   rate limiting, guardrails, and the web app's route surface. I installed
-  the project's own `requirements.txt` and ran the suite myself: all 35
+  the project's own `requirements.txt` and ran the suite myself: all 41
   pass.
 - **Guardrails catch rate**: `guardrails.py` and
   `tests/adversarial_prompts.json` are byte-identical to Azure RAG
@@ -229,4 +234,4 @@ regression accuracy (`02_router.ipynb`), LLM-judged correctness rate
 - `Azure Container Apps` (two separate deployments, one for the MCP
   server via `Dockerfile`, one for the website via `Dockerfile.web`),
   `GitHub Actions` for CI/CD
-- `pytest`, 35 tests, no live API keys required to run them
+- `pytest`, 41 tests, no live API keys required to run them

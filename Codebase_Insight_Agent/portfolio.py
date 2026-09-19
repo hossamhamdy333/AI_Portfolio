@@ -1,6 +1,7 @@
 # The actual logic, in one plain file so every notebook can just
 # `import portfolio` instead of repeating this code five times.
 
+import re
 from pathlib import Path
 from typing import TypedDict
 
@@ -246,6 +247,37 @@ def cosine_similarity(a, b):
     return dot / (norm_a * norm_b)
 
 
+import difflib
+
+
+def _readable_name(name):
+    """'sentiment_forge' -> 'sentiment forge'."""
+    return re.sub(r"[_\-]+", " ", name).strip().lower()
+
+
+def match_project_names(question, cutoff=0.82, word_cutoff=0.78):
+    """Projects whose NAME appears in the question, typos tolerated
+    ("sentimantal forge" still finds sentiment_forge)."""
+    words = re.findall(r"[a-z0-9]+", question.lower())
+    hits = []
+    for name in config.PROJECT_DESCRIPTIONS:
+        target = _readable_name(name).split()
+        n = len(target)
+        if n < 2 or n > len(words):
+            continue
+        target_str = " ".join(target)
+        best = 0.0
+        for i in range(len(words) - n + 1):
+            window = words[i:i + n]
+            if any(difflib.SequenceMatcher(None, w, t).ratio() < (0.9 if len(t) <= 4 else word_cutoff)
+                   for w, t in zip(window, target)):
+                continue
+            best = max(best, difflib.SequenceMatcher(None, " ".join(window), target_str).ratio())
+        if best >= cutoff:
+            hits.append((best, name))
+    return [name for _, name in sorted(hits, reverse=True)]
+
+
 class ProjectRouter:
     """Picks which project(s) a question is about, by comparing the
     question's embedding to each project's description embedding.
@@ -274,7 +306,21 @@ class ProjectRouter:
         scored = self.scores(question)
         picked = [name for name, score in scored if score >= config.SIMILARITY_THRESHOLD]
         picked = picked[:config.MAX_PROJECTS_PER_QUERY]
+
+        # a project named in the question always goes first
+        named = match_project_names(question)
+        if named:
+            picked = named + [n for n in picked if n not in named]
+            picked = picked[:config.MAX_PROJECTS_PER_QUERY]
+
+        if self.is_about_the_person(question) and config.OVERVIEW_PROJECT not in picked:
+            picked = [config.OVERVIEW_PROJECT] + picked[:config.MAX_PROJECTS_PER_QUERY - 1]
+
         return picked if picked else [scored[0][0]]  # always return at least one guess
+
+    def is_about_the_person(self, question):
+        words = set(re.findall(r"[a-z]+", question.lower()))
+        return bool(words & config.OVERVIEW_WORDS)
 
 
 def build_router():
@@ -317,7 +363,8 @@ def build_agent(indexes, router):
 
         parts = []
         for name in state["target_projects"]:
-            engine = indexes[name].as_query_engine(similarity_top_k=5)
+            top_k = config.OVERVIEW_TOP_K if name == config.OVERVIEW_PROJECT else 8
+            engine = indexes[name].as_query_engine(similarity_top_k=top_k)
             response = engine.query(query)
             parts.append(f"From the {name} project:\n{response}")
         context = "\n\n".join(parts)
@@ -329,7 +376,9 @@ def build_agent(indexes, router):
             "the interface already shows which project(s) this answer "
             "came from separately, so just answer naturally, the way "
             "you'd explain it to someone who already knows what they "
-            "asked about. If the context isn't enough, say so instead "
+            "asked about. Don't use markdown formatting like asterisks or "
+            "bold text; if a list helps, start each item on its own line "
+            "with a dash. If the context isn't enough, say so instead "
             "of guessing.\n\n"
             f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
         )

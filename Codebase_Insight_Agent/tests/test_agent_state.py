@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import config
 import portfolio
 
 
@@ -28,10 +29,12 @@ class FakeEngine:
 
 
 class FakeIndex:
-    def __init__(self, seen):
+    def __init__(self, seen, top_ks=None):
         self.seen = seen
+        self.top_ks = top_ks if top_ks is not None else []
 
     def as_query_engine(self, similarity_top_k=5):
+        self.top_ks.append(similarity_top_k)
         return FakeEngine(self.seen)
 
 
@@ -83,3 +86,18 @@ def test_llm_calls_counts_one_query_per_routed_project():
 
     assert result["retries"] == 0
     assert result["llm_calls"] == 3  # one project query, one draft, one critique
+
+
+def test_overview_retrieves_more_chunks_than_a_normal_project():
+    class OverviewRouter:
+        def select(self, question):
+            return [config.OVERVIEW_PROJECT]
+
+    top_ks = []
+    FailingThenPassingLLM.critiques = 10  # critique passes straight away
+    with patch("langchain_google_genai.ChatGoogleGenerativeAI", FailingThenPassingLLM):
+        agent = portfolio.build_agent({config.OVERVIEW_PROJECT: FakeIndex([], top_ks)}, OverviewRouter())
+
+    portfolio.ask(agent, "What skills does Hossam have?")
+
+    assert top_ks == [config.OVERVIEW_TOP_K]
