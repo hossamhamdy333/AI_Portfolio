@@ -22,6 +22,12 @@
 
 ## Summary
 
+**Headline result** (same 2,204-sentence test set for every model):
+
+- Best model: fine-tuned BERT-base, with weighted F1 0.5136, macro F1 0.5142 and AUC-ROC 0.8361.
+- TF-IDF + LogReg: weighted F1 0.4171, macro F1 0.4107, AUC-ROC 0.7410.
+- BiLSTM + GloVe: weighted F1 0.4140, macro F1 0.4122, AUC-ROC 0.7564.
+
 A 5-class sentiment classifier for single-sentence movie reviews (SST-5),
 built three separate ways — TF-IDF + Logistic Regression, a BiLSTM over
 GloVe embeddings, and a fully fine-tuned `bert-base-uncased` — and scored
