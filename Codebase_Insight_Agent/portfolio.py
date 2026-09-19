@@ -446,7 +446,11 @@ def build_agent(indexes, router):
             "asked about. Don't use markdown formatting like asterisks or "
             "bold text; if a list helps, start each item on its own line "
             "with a dash. If the context isn't enough, say so instead "
-            "of guessing.\n\n"
+            "of guessing. When the question is about performance or "
+            "results, start by naming the best model and quoting its "
+            "actual metric values from the context (for example its F1), "
+            "and only then discuss trade-offs like speed or size. Call a "
+            "metric by its real name: say F1 when it is F1, not accuracy.\n\n"
             f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
         )
         draft = _extract_text(llm.invoke(prompt))
