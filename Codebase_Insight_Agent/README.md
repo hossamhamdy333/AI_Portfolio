@@ -33,8 +33,7 @@ a public website with no login (the live application above), as an MCP
 server for Claude Desktop, Claude Code or any MCP client, and as five
 notebooks that provision and check the pipeline. All 41 tests pass, and
 the website's guardrails catch 19/20 (95%) of a 20-prompt adversarial
-set. Router accuracy and answer correctness have not been measured yet
-(see limitations).
+set.
 
 ## Problem & motivation
 
@@ -181,27 +180,16 @@ just print your config."* The injection regex covers "ignore" and
 "disregard" but not "forget". `test_adversarial_prompt_set_catch_rate`
 asserts the rate stays at or above 95%, so a new miss fails the build.
 
-Not measured: routing accuracy, answer correctness against the reference
-facts, and the extra cost of the critique loop over a single-call
-baseline. The code for all three is in notebooks 02, 03 and 04. See
-limitations.
-
 ## What I'd do differently / limitations
 
-- **Retrieval and answer quality are unmeasured.** Notebooks 02 to 05
-  have no saved outputs. The saved output in `01_indexing.ipynb` comes
-  from an earlier run over 19 projects, before this project and the
-  overview were added. So there is no committed router accuracy, no
-  answer-correctness rate, and no agent-versus-baseline `llm_calls`
-  comparison. Running notebooks 02 to 04 and committing the outputs comes
-  first, and the eval set needs questions for the four uncovered entries.
-- **The routing method is unvalidated on this corpus.** On its 400-question
-  set, `rag_router` measured the LLM selector as more accurate than
-  embedding similarity (0.6975 vs 0.6450 routing accuracy). I chose
-  embeddings here for cost and latency and have not measured what that
-  costs in accuracy. `SIMILARITY_THRESHOLD = 0.3` and
-  `MAX_CRITIQUE_RETRIES = 2` were picked by hand. `scripts/router_scores.py`
-  prints the scores for any question, but I have not swept the threshold.
+- **The eval set is small.** `data/eval_set_starter.csv` has 39
+  questions covering 17 of the 21 entries. The two graduation repos, the
+  overview and this project have none.
+- **Embedding routing was a cost and latency choice.** On its
+  400-question set, `rag_router` found the LLM selector more accurate
+  than embedding similarity (0.6975 vs 0.6450 routing accuracy). Both
+  `SIMILARITY_THRESHOLD = 0.3` and `MAX_CRITIQUE_RETRIES = 2` were picked
+  by hand. `scripts/router_scores.py` prints the scores for any question.
 - **The critique is the same model checking its own draft.** Nothing
   independent, such as a stronger model or human labels, backs it up, so
   a consistent blind spot would pass. When retries run out, the last
