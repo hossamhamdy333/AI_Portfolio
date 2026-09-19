@@ -24,7 +24,7 @@ Every project below goes from raw data to a served, evaluated result — with re
 | | |
 |---|---|
 | **Projects** | 18, spanning LLM/RAG, agents, fine-tuning, classification, forecasting, and BI |
-| **Live deployments** | 4 — DocuMind, Azure RAG Assistant, AI Support Copilot, arXiv Semantic Search |
+| **Live deployments** | 5 — DocuMind, Azure RAG Assistant, AI Support Copilot, arXiv Semantic Search, Codebase Insight Agent |
 | **Graduation project** | ML-NIDS — cascade intrusion detection on a 76M-row NetFlow dataset |
 | **Core stack** | Python, SQL, PyTorch, scikit-learn/XGBoost/LightGBM, LangChain/LlamaIndex, FastAPI, MLflow, DVC |
 
@@ -53,7 +53,7 @@ Every project below goes from raw data to a served, evaluated result — with re
 | [`llm_api_integration`](./llm_api_integration) | FastAPI service wrapping the Gemini API: streaming, tool calling, schema-validated structured output, retry/backoff, per-request token and cost tracking to MLflow | `Python` `FastAPI` `Pydantic` `google-generativeai` `MLflow` | 27 unit tests covering retries, schema validation, tool dispatch, and cost math |
 | [`Azure_RAG_Assistant`](./Azure_RAG_Assistant) | Document upload and RAG chat assistant deployed on Azure, with blob storage archiving and a restricted-AST calculator tool | `Python` `FastAPI` `LangChain` `Gemini API` `Qdrant` `Azure Blob Storage` `Docker` | **Live:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net) |
 | [`customer_support_copilot`](./customer_support_copilot) | Support chatbot on a QLoRA-fine-tuned Llama-3-8B, GGUF-quantized to run on CPU-only Azure Container Apps, grounded with RAG over a support knowledge base | `Python` `FastAPI` `llama-cpp-python` `Sentence-Transformers` `ChromaDB` `Docker` | Response time cut from timing out at 4 minutes to ~15-20 seconds after quantization; live demo deployed |
-| [`Codebase_Insight_Agent`](./Codebase_Insight_Agent) | LangGraph agent (plan → retrieve → critique → retry) that answers questions about this portfolio, grounded in each project's own README; served as an MCP server and a public no-login website | `Python` `LangGraph` `LlamaIndex` `Qdrant` `MCP` `FastAPI` `Azure Container Apps` | 30 tests pass; guardrails catch 19/20 (95%) on the shared adversarial set; router/answer-quality notebooks not yet executed with saved outputs |
+| [`Codebase_Insight_Agent`](./Codebase_Insight_Agent) | LangGraph agent (plan → retrieve → critique → retry) that answers questions about this portfolio, grounded in each project's own README; served as an MCP server and a public no-login website | `Python` `LangGraph` `LlamaIndex` `Qdrant` `MCP` `FastAPI` `Azure Container Apps` | **Live:** [portfolio-agent...azurecontainerapps.io](https://portfolio-agent.livelystone-91518072.germanywestcentral.azurecontainerapps.io) · 41 tests pass; guardrails catch 19/20 (95%) on the shared adversarial set; router/answer-quality notebooks not yet executed with saved outputs |
 
 ## Data Analytics & Business Intelligence
 
