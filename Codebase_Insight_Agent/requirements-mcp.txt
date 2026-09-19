@@ -1,0 +1,3 @@
+# MCP server image (Dockerfile)
+-r requirements-base.txt
+mcp==2.2.0

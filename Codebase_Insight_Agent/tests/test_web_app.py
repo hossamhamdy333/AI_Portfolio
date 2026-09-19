@@ -45,6 +45,11 @@ def test_ask_returns_an_answer(mock_ask):
     assert body["projects"] == ["Codebase_Insight_Agent"]
 
 
+def test_ask_rejects_a_very_long_question():
+    response = client.post("/ask", json={"question": "a" * 501})
+    assert response.status_code == 422
+
+
 def test_ask_rejects_empty_question():
     response = client.post("/ask", json={"question": "   "})
     assert response.status_code == 400

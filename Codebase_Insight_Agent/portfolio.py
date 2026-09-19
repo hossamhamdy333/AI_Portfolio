@@ -299,7 +299,6 @@ def build_agent(indexes, router):
     draft answer is actually grounded in what was retrieved, and retry
     (with the critique's feedback folded in) if it isn't."""
     from langgraph.graph import StateGraph, END
-    from langgraph.checkpoint.memory import MemorySaver
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     llm = ChatGoogleGenerativeAI(model=config.LLM_MODEL, temperature=0.2)
@@ -373,18 +372,20 @@ def build_agent(indexes, router):
     graph.add_conditional_edges("critique", after_critique, {"retrieve": "retrieve", "answer": "answer"})
     graph.add_edge("answer", END)
 
-    return graph.compile(checkpointer=MemorySaver())
+    return graph.compile()
 
 
-def ask(agent, question, thread_id="default"):
+def ask(agent, question):
     """Run the agent on one question, return the answer plus how it got there."""
-    run_config = {"configurable": {"thread_id": thread_id}}
-    result = agent.invoke({"question": question, "retries": 0}, run_config)
+    result = agent.invoke({"question": question, "retries": 0})
+    projects = result["target_projects"]
+    attempts = result["retries"] + 1
     return {
         "answer": result["final_answer"],
-        "projects": result["target_projects"],
+        "projects": projects,
         "retries": result["retries"],
-        "llm_calls": (result["retries"] + 1) * 2,  # one draft + one critique per attempt
+        # per attempt: one query-engine call per project, plus the draft and the critique
+        "llm_calls": attempts * (len(projects) + 2),
     }
 
 

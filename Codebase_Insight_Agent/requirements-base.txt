@@ -1,0 +1,12 @@
+# Shared by the website and the MCP server
+langgraph==1.2.11
+langchain-core==1.6.3
+langchain-google-genai==4.4.0
+llama-index-core==0.14.24
+llama-index-llms-google-genai==0.11.2
+llama-index-embeddings-google-genai==0.6.0
+llama-index-embeddings-huggingface==0.8.0
+sentence-transformers==6.1.0
+llama-index-vector-stores-qdrant==0.10.3
+qdrant-client==1.19.1
+requests==2.34.2

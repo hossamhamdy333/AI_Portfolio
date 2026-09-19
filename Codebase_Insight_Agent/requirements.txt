@@ -1,39 +1,9 @@
-# Orchestration
-langgraph
-langchain-core
-langchain-google-genai
+# Everything, for local work and the notebooks
+-r requirements-web.txt
+-r requirements-mcp.txt
 
-# Retrieval
-llama-index-core
-llama-index-llms-google-genai
-llama-index-embeddings-google-genai
-llama-index-embeddings-huggingface
-llama-index-vector-stores-qdrant
-qdrant-client
-
-# MCP server (v2.x API -- see mcp_server.py's import path)
-mcp
-
-# Data + fetching
-requests
 pandas
-
-# Notebooks
+pytest
 jupyter
 matplotlib
-google-genai   # notebook 03's LLM-judge cell (from google import genai)
-
-# Website (web_app.py) - auth + database
-fastapi
-uvicorn[standard]
-sqlalchemy
-bcrypt
-pyjwt
-pydantic[email]
-# SQL Server driver for production (Azure SQL). Needs the Microsoft ODBC
-# Driver 18 installed on the machine/container too - pip install alone
-# isn't enough. Not needed for local dev.
-# pyodbc
-
-# Tests
-pytest
+google-genai

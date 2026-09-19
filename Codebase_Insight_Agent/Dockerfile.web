@@ -2,12 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# CPU-only torch keeps the image far smaller than the default CUDA build
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+COPY requirements-base.txt requirements-web.txt ./
+RUN pip install --no-cache-dir -r requirements-web.txt
+
+# Download the embedding model at build time so cold starts don't fetch it
+COPY config.py .
+RUN python -c "import config; from sentence_transformers import SentenceTransformer; SentenceTransformer(config.EMBEDDING_MODEL)"
 
 COPY data/ data/
 COPY static/ static/
-COPY config.py .
 COPY portfolio.py .
 COPY database.py .
 COPY models.py .
@@ -16,9 +22,8 @@ COPY guardrails.py .
 COPY rate_limit.py .
 COPY web_app.py .
 
-# GOOGLE_API_KEY, DATABASE_URL, and JWT_SECRET_KEY must be provided at
-# container run/deploy time -- never baked into the image. See README's
-# "The public website" section for what each one needs to be set to.
+# GOOGLE_API_KEY, QDRANT_URL, QDRANT_API_KEY, DATABASE_URL and JWT_SECRET_KEY
+# are set on the container at deploy time, never baked into the image.
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

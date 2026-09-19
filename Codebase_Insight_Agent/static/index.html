@@ -133,7 +133,7 @@
 <div id="chat"></div>
 
 <form id="chat-form">
-  <input type="text" id="question" placeholder="e.g. Which project uses LangGraph?" autocomplete="off" />
+  <input type="text" id="question" maxlength="500" placeholder="e.g. Which project uses LangGraph?" autocomplete="off" />
   <button type="submit">Ask</button>
 </form>
 
@@ -204,6 +204,12 @@
 
   // ---------------------------------------------------------- admin panel
 
+  function esc(value) {
+    const div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.innerHTML;
+  }
+
   let adminAccessToken = null;
   const adminPanel = document.getElementById("admin-panel");
   const adminLoginView = document.getElementById("admin-login");
@@ -257,19 +263,19 @@
     const statsRes = await fetch("/admin/stats", { headers: { Authorization: `Bearer ${adminAccessToken}` } });
     const stats = await statsRes.json();
     document.getElementById("stats").innerHTML = `
-      <div class="stat-row"><span>Total questions</span><span>${stats.total_questions}</span></div>
-      <div class="stat-row"><span>Blocked</span><span>${stats.blocked_count}</span></div>
-      <div class="stat-row"><span>Rate-limited</span><span>${stats.rate_limited_count}</span></div>
-      <div class="stat-row"><span>Unique visitors</span><span>${stats.unique_visitors}</span></div>
+      <div class="stat-row"><span>Total questions</span><span>${esc(stats.total_questions)}</span></div>
+      <div class="stat-row"><span>Blocked</span><span>${esc(stats.blocked_count)}</span></div>
+      <div class="stat-row"><span>Rate-limited</span><span>${esc(stats.rate_limited_count)}</span></div>
+      <div class="stat-row"><span>Unique visitors</span><span>${esc(stats.unique_visitors)}</span></div>
     `;
 
     const logsRes = await fetch("/admin/logs?limit=20", { headers: { Authorization: `Bearer ${adminAccessToken}` } });
     const logs = await logsRes.json();
     document.getElementById("logs").innerHTML = logs.map(l => `
       <div class="log-entry">
-        <div class="q">${l.question}</div>
-        <div>${l.answer ? l.answer.slice(0, 100) : ""}</div>
-        ${l.blocked ? '<div class="blocked">blocked: ' + (l.block_reason || '') + '</div>' : ''}
+        <div class="q">${esc(l.question)}</div>
+        <div>${esc(l.answer ? l.answer.slice(0, 100) : "")}</div>
+        ${l.blocked ? '<div class="blocked">blocked: ' + esc(l.block_reason) + '</div>' : ''}
         ${l.rate_limited ? '<div class="blocked">rate limited</div>' : ''}
       </div>
     `).join("");

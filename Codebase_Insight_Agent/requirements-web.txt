@@ -1,0 +1,9 @@
+# Website image (Dockerfile.web)
+-r requirements-base.txt
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+sqlalchemy==2.0.54
+bcrypt==5.0.0
+pyjwt==2.14.0
+pydantic[email]==2.13.5
+# For Azure SQL, add pyodbc and install Microsoft ODBC Driver 18 in the image

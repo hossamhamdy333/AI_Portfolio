@@ -34,7 +34,7 @@ generated from retrieved chunks, and a second LLM call checks the draft
 is actually grounded in what was retrieved before it's returned, retrying
 with feedback if not. The guardrails layer (shared with Azure RAG
 Assistant) catches 19/20 (95%) on the same adversarial prompt set, and
-the full test suite (30 tests) passes.
+the full test suite (33 tests) passes.
 
 ## Problem & motivation
 
@@ -76,7 +76,7 @@ actually supported by the retrieved README content.
   rather than silently paying the embedding cost of rebuilding all 19
   project indexes on every process restart. `notebooks/01_indexing.ipynb`
   is the one thing that actually provisions it.
-- **Three real bugs found and fixed, not just designed around**:
+- **Five real bugs found and fixed, not just designed around**:
   - `llama_index`'s global `Settings.embed_model`/`Settings.llm` were
     never actually configured anywhere in an earlier version, so every
     real indexing or query call failed immediately trying to resolve
@@ -96,6 +96,18 @@ actually supported by the retrieved README content.
     run failed on a UNIQUE constraint because the previous run's admin
     user was still sitting in the repo's real `dev.db`. Fixed by setting
     `DATABASE_URL` in `conftest.py`, which pytest always imports first.
+  - The agent was compiled with a `MemorySaver` checkpointer and every
+    question ran on the same default thread, so state carried over
+    between visitors. A failed critique on one question left its
+    `feedback` in the checkpoint, and the next visitor's first retrieval
+    query got "(also cover: ...)" appended to it. Fixed by removing the
+    checkpointer, since nothing here needs conversation memory;
+    `tests/test_agent_state.py` fails on the old behaviour.
+  - The admin dashboard built its log view with `innerHTML` using the
+    visitor's raw question text, which is stored XSS: a visitor could
+    submit markup as a question and have it run when the admin opened the
+    dashboard. Fixed by escaping every value before it goes into the
+    page.
 - **MCP auth**: local stdio use (Claude Desktop, Claude Code) has no
   token at all, whoever can launch the process on their own machine
   already has full access. A remote deployment
@@ -133,11 +145,11 @@ internally if it's still too long), at `CHUNK_SIZE = 512, CHUNK_OVERLAP
 
 Two things here are independently verified, not just described:
 
-- **Test suite**: 30 tests (`pytest`), covering router/portfolio
+- **Test suite**: 33 tests (`pytest`), covering router/portfolio
   persistence bookkeeping (with a real in-memory Qdrant client and a fake
   embedding function, no live API calls), MCP auth token verification,
   rate limiting, guardrails, and the web app's route surface. I installed
-  the project's own `requirements.txt` and ran the suite myself: all 30
+  the project's own `requirements.txt` and ran the suite myself: all 33
   pass.
 - **Guardrails catch rate**: `guardrails.py` and
   `tests/adversarial_prompts.json` are byte-identical to Azure RAG
@@ -202,7 +214,7 @@ regression accuracy (`02_router.ipynb`), LLM-judged correctness rate
 
 ## Stack
 
-- `LangGraph` (`StateGraph`, `MemorySaver` checkpointer) for the
+- `LangGraph` (`StateGraph`) for the
   plan/retrieve/critique/retry agent loop
 - `LlamaIndex` (`VectorStoreIndex`, `llama-index-llms-google-genai`,
   `llama-index-embeddings-google-genai`) for indexing and retrieval
@@ -215,4 +227,4 @@ regression accuracy (`02_router.ipynb`), LLM-judged correctness rate
 - `Azure Container Apps` (two separate deployments, one for the MCP
   server via `Dockerfile`, one for the website via `Dockerfile.web`),
   `GitHub Actions` for CI/CD
-- `pytest`, 30 tests, no live API keys required to run them
+- `pytest`, 33 tests, no live API keys required to run them

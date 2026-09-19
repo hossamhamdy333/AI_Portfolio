@@ -2,24 +2,24 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+COPY requirements-base.txt requirements-mcp.txt ./
+RUN pip install --no-cache-dir -r requirements-mcp.txt
+
+COPY config.py .
+RUN python -c "import config; from sentence_transformers import SentenceTransformer; SentenceTransformer(config.EMBEDDING_MODEL)"
 
 COPY data/ data/
-COPY config.py .
 COPY portfolio.py .
 COPY mcp_server.py .
 
-# GOOGLE_API_KEY must be provided at container run/deploy time -- never
-# baked into the image. Same for MCP_ACCESS_TOKEN if MCP_TRANSPORT is set
-# to streamable-http or sse (see README's "Remote deployment" section) --
-# without MCP_ACCESS_TOKEN set, the server defaults to no auth at all,
-# which is correct for local stdio use but not for a public URL.
+# GOOGLE_API_KEY, QDRANT_URL and QDRANT_API_KEY are set at deploy time.
+# Without MCP_ACCESS_TOKEN the server has no auth, which is fine for local
+# stdio use but not for a public URL (see README, "Remote deployment").
 ENV PYTHONUNBUFFERED=1
 
-# Only used when MCP_TRANSPORT=streamable-http or sse - a plain local
-# `python mcp_server.py` (stdio, the default) doesn't listen on a port at
-# all, so this EXPOSE is a no-op for that case.
+# Only used when MCP_TRANSPORT is streamable-http or sse
 EXPOSE 8000
 
 CMD ["python", "mcp_server.py"]

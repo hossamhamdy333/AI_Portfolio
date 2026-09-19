@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -71,7 +71,7 @@ app = FastAPI(title="Codebase Insight Agent - public site", lifespan=lifespan)
 
 
 class AskRequest(BaseModel):
-    question: str
+    question: str = Field(max_length=500)
 
 
 class LoginRequest(BaseModel):
