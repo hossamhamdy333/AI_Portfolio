@@ -14,17 +14,25 @@ _llama_index_configured = False
 
 
 def configure_llama_index():
-    """Sets llama_index's global embed_model/llm to Gemini equivalents.
+    """Sets llama_index's global embed_model/llm.
 
-    Without this, VectorStoreIndex.from_documents() and as_query_engine()
-    both fall back to llama_index's built-in default, which tries to
-    resolve OpenAI's embedding/LLM classes - raising
+    embed_model is a local, free, no-API-key sentence-transformers model
+    (config.EMBEDDING_MODEL) - runs on CPU, no rate limit, no quota,
+    same model already used elsewhere in this portfolio
+    (rag_router/fact_check_crew's shared corpus, Azure_RAG_Assistant,
+    customer_support_copilot). llm stays on Gemini (config.LLM_MODEL) -
+    only embedding was ever hitting the free-tier quota wall during
+    indexing, chat generation is a separate, much lower-volume call.
+
+    Without setting embed_model explicitly, VectorStoreIndex.from_documents()
+    and as_query_engine() both fall back to llama_index's built-in default,
+    which tries to resolve OpenAI's embedding class - raising
     `ImportError: llama-index-embeddings-openai package not found`
-    immediately, since this project only ever installs the Gemini
-    integration packages, never OpenAI's. Nothing else in this file
-    calls this for you implicitly; build_index/load_index/as_query_engine
-    callers all call it themselves first (it's idempotent - safe to call
-    every time, only does real work once per process).
+    immediately, since this project never installs OpenAI's integration.
+    Nothing else in this file calls this for you implicitly;
+    build_index/load_index/as_query_engine callers all call it themselves
+    first (it's idempotent - safe to call every time, only does real work
+    once per process).
     """
     global _llama_index_configured
     if _llama_index_configured:
@@ -32,9 +40,9 @@ def configure_llama_index():
 
     from llama_index.core import Settings
     from llama_index.llms.google_genai import GoogleGenAI
-    from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
+    from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
-    Settings.embed_model = GoogleGenAIEmbedding(model_name=config.EMBEDDING_MODEL)
+    Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBEDDING_MODEL)
     Settings.llm = GoogleGenAI(model=config.LLM_MODEL)
     _llama_index_configured = True
 
@@ -270,8 +278,8 @@ class ProjectRouter:
 
 
 def build_router():
-    from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-    embed_model = GoogleGenAIEmbedding(model_name=config.EMBEDDING_MODEL)
+    from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+    embed_model = HuggingFaceEmbedding(model_name=config.EMBEDDING_MODEL)
     return ProjectRouter(embed_model)
 
 

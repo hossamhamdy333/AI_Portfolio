@@ -7,6 +7,7 @@ langchain-google-genai
 llama-index-core
 llama-index-llms-google-genai
 llama-index-embeddings-google-genai
+llama-index-embeddings-huggingface
 llama-index-vector-stores-qdrant
 qdrant-client
 

@@ -6,7 +6,7 @@ GITHUB_REPO = "AI_Portfolio"
 GITHUB_BRANCH = "main"
 
 LLM_MODEL = "gemini-3.1-flash-lite"
-EMBEDDING_MODEL = "models/gemini-embedding-001"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # free, local, no API key/quota
 
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
