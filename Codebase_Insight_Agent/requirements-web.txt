@@ -7,3 +7,4 @@ bcrypt==5.0.0
 pyjwt==2.14.0
 pydantic[email]==2.13.5
 # For Azure SQL, add pyodbc and install Microsoft ODBC Driver 18 in the image
+psycopg2-binary
