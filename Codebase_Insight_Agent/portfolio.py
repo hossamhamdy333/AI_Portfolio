@@ -312,13 +312,18 @@ def build_agent(indexes, router):
         for name in state["target_projects"]:
             engine = indexes[name].as_query_engine(similarity_top_k=5)
             response = engine.query(query)
-            parts.append(f"[{name}]\n{response}")
+            parts.append(f"From the {name} project:\n{response}")
         context = "\n\n".join(parts)
 
         prompt = (
-            "Answer the question using only the context below. Say which "
-            "project(s) the answer comes from. If the context isn't enough, "
-            "say so instead of guessing.\n\n"
+            "Answer the question using only the context below. Write in "
+            "plain prose - don't cite sources with bracket notation like "
+            "[project_name], and don't repeat project names as labels; "
+            "the interface already shows which project(s) this answer "
+            "came from separately, so just answer naturally, the way "
+            "you'd explain it to someone who already knows what they "
+            "asked about. If the context isn't enough, say so instead "
+            "of guessing.\n\n"
             f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
         )
         draft = _extract_text(llm.invoke(prompt))
