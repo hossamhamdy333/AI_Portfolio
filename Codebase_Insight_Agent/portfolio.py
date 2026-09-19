@@ -305,6 +305,24 @@ def load_all_indexes():
     return {name: load_index(name, client) for name in config.PROJECTS}
 
 
+def _source_excerpts(response, limit=8):
+    """Raw text of the chunks a query engine retrieved, so exact figures
+    (F1 scores, latencies) survive - the engine's own summary tends to
+    paraphrase them away. Returns "" if the response has no source nodes."""
+    import re as _re
+
+    out = []
+    for node in (getattr(response, "source_nodes", None) or [])[:limit]:
+        try:
+            text = node.get_content()
+        except Exception:
+            text = str(getattr(getattr(node, "node", node), "text", ""))
+        text = _re.sub(r"^\[(?:[^\]>]*> )?([^\]]*)\]\n", r"Section: \1\n", text.strip())
+        if text:
+            out.append(text)
+    return "\n---\n".join(out)
+
+
 def cosine_similarity(a, b):
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = sum(x * x for x in a) ** 0.5
@@ -433,7 +451,11 @@ def build_agent(indexes, router):
             top_k = config.OVERVIEW_TOP_K if name == config.OVERVIEW_PROJECT else 8
             engine = indexes[name].as_query_engine(similarity_top_k=top_k)
             response = engine.query(query)
-            parts.append(f"From the {name} project:\n{response}")
+            excerpts = _source_excerpts(response)
+            parts.append(
+                f"From the {name} project:\n{response}"
+                + (f"\n\nExact excerpts from its README:\n{excerpts}" if excerpts else "")
+            )
         context = "\n\n".join(parts)
 
         prompt = (
