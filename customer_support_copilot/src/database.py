@@ -92,3 +92,35 @@ def init_db():
     with an evolving schema would use Alembic migrations instead."""
     import src.models  # noqa: F401 - importing registers the models with Base
     Base.metadata.create_all(bind=engine)
+    _repair_google_id_index()
+
+
+def _repair_google_id_index():
+    """One-time fix for databases created before the filtered index existed.
+
+    create_all() never alters an existing table, so a production Azure SQL
+    database still has the OLD plain unique index on users.google_id. That
+    index allows only one NULL, which blocks every registration after the
+    first. This swaps it for a filtered one (unique only where google_id is
+    not NULL). Idempotent: does nothing once the filtered index is in place.
+    """
+    if not str(engine.url).startswith("mssql"):
+        return
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                IF EXISTS (SELECT 1 FROM sys.indexes
+                           WHERE name = 'ix_users_google_id'
+                             AND object_id = OBJECT_ID('users') AND has_filter = 0)
+                    DROP INDEX ix_users_google_id ON users;
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes
+                               WHERE name = 'ix_users_google_id'
+                                 AND object_id = OBJECT_ID('users'))
+                    CREATE UNIQUE INDEX ix_users_google_id ON users (google_id)
+                    WHERE google_id IS NOT NULL;
+            """))
+        logger.info("users.google_id index is in the correct (filtered) form.")
+    except Exception:
+        # Never stop the app from starting over this; log it instead.
+        logger.exception("Could not repair users.google_id index")

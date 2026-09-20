@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 import os
 
 from src.retriever import KBRetriever
@@ -125,7 +126,11 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
     user = User(email=body.email, password_hash=hash_password(body.password), role=Role.user)
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "An account with this email already exists")
     db.refresh(user)
 
     access_token = create_access_token(user.id, user.role.value)

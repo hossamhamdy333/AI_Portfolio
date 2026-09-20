@@ -14,7 +14,7 @@ Five tables:
 from datetime import datetime, timezone
 import enum
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Text, Index, text
 from sqlalchemy.orm import relationship
 
 from src.database import Base
@@ -40,13 +40,26 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)
-    google_id = Column(String(255), unique=True, nullable=True, index=True)
+    # NOT unique=True: on SQL Server a plain unique index allows only ONE NULL,
+    # and every email/password account has google_id NULL, so a second
+    # registration would fail. The filtered index in __table_args__ only
+    # enforces uniqueness for accounts that actually have a Google id.
+    google_id = Column(String(255), nullable=True)
     role = Column(Enum(Role), nullable=False, default=Role.user)
     is_active = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, nullable=False, default=utcnow)
 
     conversations = relationship("Conversation", back_populates="user")
     messages = relationship("ChatMessage", back_populates="user")
+
+    __table_args__ = (
+        Index(
+            "ix_users_google_id", "google_id", unique=True,
+            mssql_where=text("google_id IS NOT NULL"),
+            postgresql_where=text("google_id IS NOT NULL"),
+            sqlite_where=text("google_id IS NOT NULL"),
+        ),
+    )
 
 
 class RefreshToken(Base):
