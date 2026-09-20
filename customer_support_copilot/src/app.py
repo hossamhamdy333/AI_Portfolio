@@ -103,6 +103,10 @@ async def lifespan(app: FastAPI):
     logger.info("Building KB retriever...")
     _retriever = KBRetriever()
     logger.info("Retriever ready.")
+    try:
+        llm_backend.warm_up(_build_prompt("Thank you for contacting us.", "Hello"))
+    except Exception:
+        logger.exception("Model warm-up failed (continuing without it).")
     yield
 
 
