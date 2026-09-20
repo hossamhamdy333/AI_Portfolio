@@ -181,12 +181,20 @@
     const pending = addMessage("bot pending", "Thinking...");
 
     try {
-      const res = await fetch("/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
-      });
-      const data = await res.json();
+      // Retry once on a 5xx (e.g. first request after the server was idle).
+      // Reads the body as text first so a non-JSON error page can't throw.
+      let res, data;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        res = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+        const raw = await res.text();
+        try { data = JSON.parse(raw); } catch { data = { detail: raw || res.statusText }; }
+        if (res.status < 500) break;
+        await new Promise(r => setTimeout(r, 1500));
+      }
       pending.classList.remove("pending");
       if (res.status === 429) {
         pending.textContent = data.detail;
