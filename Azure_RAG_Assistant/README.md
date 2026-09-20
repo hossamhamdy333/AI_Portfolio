@@ -2,7 +2,7 @@
 
 # Azure RAG Assistant
 
-**Live Application:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
+**Live Application:** [rag-assistant-hossam...azurewebsites.net](https://rag-assistant-hossam-dhfjgrfwcaf6g9e6.francecentral-01.azurewebsites.net)
 
 `FastAPI` `LangChain` `Qdrant` `Azure App Service` `Azure SQL` `Azure Blob Storage` `Docker` `pytest`
 
