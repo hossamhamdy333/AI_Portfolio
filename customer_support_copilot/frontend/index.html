@@ -297,6 +297,31 @@
   const input = document.getElementById("chat-input");
   const sendBtn = document.getElementById("send-btn");
 
+  // Reads a response body without throwing on non-JSON (e.g. a plain-text
+  // "Internal Server Error" page), so the UI can show a real message.
+  async function readJson(res) {
+    const raw = await res.text();
+    try { return JSON.parse(raw); } catch { return { detail: raw || res.statusText }; }
+  }
+
+  // POST for login/register. If the server answers 5xx (typically the
+  // database waking up after being idle), tell the user and retry.
+  async function postAuth(url, payload) {
+    let res, data;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      data = await readJson(res);
+      if (res.status < 500) break;
+      setAuthStatus("Waking up the server, one moment...");
+      await new Promise(r => setTimeout(r, 4000));
+    }
+    return { res, data };
+  }
+
   function setAuthStatus(text, cls) {
     authStatusEl.textContent = text;
     authStatusEl.className = cls || "";
@@ -423,12 +448,7 @@
     const password = document.getElementById("password").value;
     setAuthStatus("Logging in...");
     try {
-      const res = await fetch("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
+      const { res, data } = await postAuth("/auth/login", { email, password });
       if (!res.ok) { setAuthStatus(data.detail || "Login failed", "error"); return; }
       await handleAuthSuccess(data);
     } catch (e) {
@@ -441,12 +461,7 @@
     const password = document.getElementById("password").value;
     setAuthStatus("Creating account...");
     try {
-      const res = await fetch("/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
+      const { res, data } = await postAuth("/auth/register", { email, password });
       if (!res.ok) { setAuthStatus(data.detail || "Registration failed", "error"); return; }
       await handleAuthSuccess(data);
     } catch (e) {
@@ -534,8 +549,8 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, conversation_id: activeConvoId }),
       });
-      if (!res.ok) throw new Error(`Server responded ${res.status}`);
-      const data = await res.json();
+      const data = await readJson(res);
+      if (!res.ok) throw new Error(data.detail || `Server responded ${res.status}`);
       removeTyping();
       addMessage("bot", data.response, data.context);
       renderConvoList(await loadConversations()); // picks up auto-generated title
