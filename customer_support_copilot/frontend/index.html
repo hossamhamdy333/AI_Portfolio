@@ -533,6 +533,26 @@
     if (el) el.remove();
   }
 
+  // Reads a newline-delimited JSON stream and calls onEvent for each line.
+  async function readStream(res, onEvent) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (line) onEvent(JSON.parse(line));
+      }
+    }
+    const rest = buffer.trim();
+    if (rest) onEvent(JSON.parse(rest));
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const query = input.value.trim();
@@ -544,15 +564,48 @@
     addTyping();
 
     try {
-      const res = await authedFetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, conversation_id: activeConvoId }),
-      });
-      const data = await readJson(res);
-      if (!res.ok) throw new Error(data.detail || `Server responded ${res.status}`);
-      removeTyping();
-      addMessage("bot", data.response, data.context);
+      const payload = { method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ query, conversation_id: activeConvoId }) };
+
+      // Preferred: streaming, so the answer appears as it is written.
+      let res = await authedFetch("/chat/stream", { ...payload, headers: { ...payload.headers } });
+
+      if (res.status === 404 || res.status === 405 || !res.body) {
+        // Older server without streaming: use the normal endpoint.
+        res = await authedFetch("/chat", { ...payload, headers: { ...payload.headers } });
+        const data = await readJson(res);
+        if (!res.ok) throw new Error(data.detail || `Server responded ${res.status}`);
+        removeTyping();
+        addMessage("bot", data.response, data.context);
+      } else if (!res.ok) {
+        const data = await readJson(res);
+        throw new Error(data.detail || `Server responded ${res.status}`);
+      } else {
+        let bubbleWrap = null;
+        let bubble = null;
+        let shown = "";
+        let finished = false;
+        await readStream(res, (ev) => {
+          if (ev.type === "token") {
+            if (!bubbleWrap) {
+              removeTyping();
+              bubbleWrap = addMessage("bot", "");
+              bubble = bubbleWrap.querySelector(".bubble");
+            }
+            shown += ev.text;
+            bubble.textContent = shown;
+            chat.scrollTop = chat.scrollHeight;
+          } else if (ev.type === "final") {
+            finished = true;
+            removeTyping();
+            if (bubbleWrap) bubbleWrap.remove();
+            addMessage("bot", ev.response, ev.context);
+          } else if (ev.type === "error") {
+            throw new Error(ev.detail || "Stream failed");
+          }
+        });
+        if (!finished) throw new Error("The answer was cut off. Please try again.");
+      }
       renderConvoList(await loadConversations()); // picks up auto-generated title
     } catch (err) {
       removeTyping();
