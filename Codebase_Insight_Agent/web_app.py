@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
@@ -69,6 +69,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Codebase Insight Agent - public site", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Always answer with JSON. Without this, uvicorn returns the plain-text
+    body 'Internal Server Error', which the frontend can't res.json()."""
+    import traceback
+    traceback.print_exc()  # keep the real cause in the container logs
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong on my side. Please try again."},
+    )
 
 
 class AskRequest(BaseModel):
@@ -149,7 +161,14 @@ async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db))
     # running inside uvicorn's event loop. run_in_threadpool moves the
     # whole blocking call to a worker thread, which has no event loop of
     # its own, so llama_index's asyncio.run() works fine there.
-    result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
+    # One retry: the first call after an idle period can hit a transient
+    # Qdrant / Gemini connection error (stale keep-alive, brief 503).
+    try:
+        result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
 
     output_guard = guard_output(result["answer"])
     answer = strip_markdown(output_guard["text"])
