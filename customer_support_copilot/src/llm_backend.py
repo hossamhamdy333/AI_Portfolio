@@ -60,6 +60,20 @@ def _generate_llamacpp(prompt: str) -> str:
     return output["choices"][0]["text"].strip()
 
 
+def _generate_llamacpp_stream(prompt: str):
+    """Yields the answer piece by piece as llama.cpp produces it."""
+    for chunk in _model(
+        prompt,
+        max_tokens=MAX_NEW_TOKENS,
+        stop=["<|user|>", "<|system|>"],
+        temperature=0.0,
+        stream=True,
+    ):
+        piece = chunk["choices"][0]["text"]
+        if piece:
+            yield piece
+
+
 def _generate_vllm(prompt: str) -> str:
     response = requests.post(
         f"{settings.VLLM_BASE_URL}/completions",
@@ -94,3 +108,13 @@ def generate(prompt: str) -> str:
     if settings.LLM_BACKEND == "vllm":
         return _generate_vllm(prompt)
     return _generate_llamacpp(prompt)
+
+
+def generate_stream(prompt: str):
+    """Like generate(), but yields text pieces as they are produced, so the
+    page can show the answer while it is still being written. The vLLM
+    backend just yields its whole answer at once."""
+    if settings.LLM_BACKEND == "vllm":
+        yield _generate_vllm(prompt)
+        return
+    yield from _generate_llamacpp_stream(prompt)

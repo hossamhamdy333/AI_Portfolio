@@ -5,13 +5,15 @@ Supports multiple named conversations per user, like Claude's chat
 sidebar, instead of one endless thread per account.
 """
 
+import json
 import logging
 import threading
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
@@ -50,6 +52,45 @@ _retriever = None
 # model work runs in a worker thread (below) so it no longer freezes the whole
 # server while it generates; this lock keeps generations one at a time.
 _model_lock = threading.Lock()
+
+# The model is deterministic (temperature 0), so the same question always gets
+# the same answer. Remembering recent answers makes a repeated question
+# instant instead of another 15-20 seconds of CPU inference. In memory only:
+# it resets on restart, and the answer still goes through the output guard
+# every time it is served.
+_ANSWER_CACHE_MAX = 200
+_answer_cache: "OrderedDict[str, tuple[str, str]]" = OrderedDict()
+_answer_cache_lock = threading.Lock()
+
+
+def _cache_key(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _cache_get(key: str):
+    with _answer_cache_lock:
+        hit = _answer_cache.get(key)
+        if hit is not None:
+            _answer_cache.move_to_end(key)
+        return hit
+
+
+def _cache_put(key: str, value) -> None:
+    with _answer_cache_lock:
+        _answer_cache[key] = value
+        _answer_cache.move_to_end(key)
+        while len(_answer_cache) > _ANSWER_CACHE_MAX:
+            _answer_cache.popitem(last=False)
+
+
+def _build_prompt(context: str, text: str) -> str:
+    return f"""<|system|>
+{SYSTEM_PROMPT}
+<|user|>
+Context: {context}
+Query: {text}
+<|assistant|>
+"""
 
 
 @asynccontextmanager
@@ -247,16 +288,15 @@ async def chat_endpoint(
 
     try:
         def _run_model(text: str):
+            key = _cache_key(text)
+            hit = _cache_get(key)
+            if hit is not None:
+                return hit
             with _model_lock:
                 ctx = _retriever.retrieve(text)
-                prompt = f"""<|system|>
-{SYSTEM_PROMPT}
-<|user|>
-Context: {ctx}
-Query: {text}
-<|assistant|>
-"""
-                return ctx, llm_backend.generate(prompt)
+                out = llm_backend.generate(_build_prompt(ctx, text))
+            _cache_put(key, (ctx, out))
+            return ctx, out
 
         context, ai_text = await run_in_threadpool(_run_model, input_guard["redacted_text"])
 
@@ -285,6 +325,92 @@ Query: {text}
     except Exception as e:
         logger.exception("Chat generation failed for user %d", user.id)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _ndjson(obj: dict) -> str:
+    return json.dumps(obj) + "\n"
+
+
+@app.post("/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Same as /chat, but the answer is sent piece by piece (one JSON object
+    per line) so the page can show it while it is still being written.
+    Events: {"type":"token","text":...} repeated, then one
+    {"type":"final","response":...,"context":...,"blocked":...} (the
+    guarded text, which replaces what was shown), or {"type":"error",...}."""
+    if not llm_backend.is_ready() or _retriever is None:
+        raise HTTPException(status_code=503, detail="Model is still loading, try again shortly.")
+
+    convo = db.query(Conversation).filter(Conversation.id == request.conversation_id, Conversation.user_id == user.id).first()
+    if convo is None:
+        raise HTTPException(404, "Conversation not found")
+    user_id, convo_id = user.id, convo.id
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    input_guard = guard_input(request.query)
+    if input_guard["blocked"]:
+        logger.warning("Blocked a suspected prompt injection from user %d: %s", user_id, input_guard["injection_match"])
+        blocked = _ndjson({"type": "final", "response": "I can't process that request.", "context": "", "blocked": True})
+        return StreamingResponse(iter([blocked]), media_type="application/x-ndjson", headers=headers)
+
+    if input_guard["pii_redactions"]:
+        logger.info("Redacted %d PII match(es) from user %d's message.", input_guard["pii_redactions"], user_id)
+
+    text = input_guard["redacted_text"]
+    query = request.query
+
+    def events():
+        try:
+            key = _cache_key(text)
+            hit = _cache_get(key)
+            if hit is not None:
+                ctx, ai_text = hit
+                yield _ndjson({"type": "token", "text": ai_text})
+            else:
+                parts, started = [], False
+                with _model_lock:
+                    ctx = _retriever.retrieve(text)
+                    for piece in llm_backend.generate_stream(_build_prompt(ctx, text)):
+                        if not started:
+                            piece = piece.lstrip()
+                            if not piece:
+                                continue
+                            started = True
+                        parts.append(piece)
+                        yield _ndjson({"type": "token", "text": piece})
+                ai_text = "".join(parts).strip()
+                _cache_put(key, (ctx, ai_text))
+
+            output_guard = guard_output(ai_text)
+            if output_guard["blocked"]:
+                logger.warning("Blocked disallowed output for user %d: %s", user_id, output_guard["match"])
+            final_text = output_guard["text"]
+
+            # Own session: the request's session may already be closed once
+            # a streaming response is under way.
+            with SessionLocal() as sdb:
+                if settings.ENABLE_EVAL:
+                    eval_result = evaluate_faithfulness(query, ctx, final_text, sdb)
+                    if eval_result and not eval_result.get("is_faithful", True):
+                        logger.warning("Faithfulness check flagged this response: %s", eval_result.get("reason"))
+                sdb.add(ChatMessage(conversation_id=convo_id, user_id=user_id, role=MessageRole.user, content=query))
+                sdb.add(ChatMessage(conversation_id=convo_id, user_id=user_id, role=MessageRole.assistant, content=final_text))
+                c = sdb.query(Conversation).filter(Conversation.id == convo_id).first()
+                c.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                if c.title == "New chat":
+                    c.title = query.strip()[:50]
+                sdb.commit()
+
+            yield _ndjson({"type": "final", "response": final_text, "context": ctx, "blocked": output_guard["blocked"]})
+        except Exception:
+            logger.exception("Streaming chat failed for user %d", user_id)
+            yield _ndjson({"type": "error", "detail": "Something went wrong on my side. Please try again."})
+
+    return StreamingResponse(events(), media_type="application/x-ndjson", headers=headers)
 
 
 @app.get("/health/db")
