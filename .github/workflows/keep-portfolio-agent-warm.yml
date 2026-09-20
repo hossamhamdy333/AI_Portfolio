@@ -1,0 +1,28 @@
+name: Keep portfolio agent warm
+
+# OPTIONAL. Wakes the serverless Azure SQL database behind the portfolio
+# chat so the first visitor after a quiet period doesn't wait for it.
+#
+# COST NOTE: pinging more often than the database's auto-pause delay (60 min)
+# keeps it awake around the clock, which is billed the same as turning
+# auto-pause off. It's off by default (manual only). To enable, remove the
+# two '#' in front of the schedule lines below.
+#
+# Not needed for the chat itself to work: web_app.py now logs in the
+# background, so a paused database no longer blocks or breaks an answer.
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "*/30 * * * *"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping site and database
+        run: |
+          BASE="https://portfolio-agent.livelystone-91518072.germanywestcentral.azurecontainerapps.io"
+          curl -fsS --max-time 120 "$BASE/health"
+          echo
+          curl -sS --max-time 120 "$BASE/health/db" || true
