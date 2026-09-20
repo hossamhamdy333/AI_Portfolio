@@ -25,14 +25,6 @@ class Settings(BaseSettings):
     # native HF/safetensors weights, not GGUF files - see README's
     # "Setting up vLLM" section for how to get that checkpoint onto HF Hub.
     LLM_BACKEND: str = "llamacpp"
-
-    # llama.cpp speed-up: "prompt lookup decoding". Support answers reuse a lot
-    # of wording from the retrieved KB article, so the model can guess the next
-    # few words by finding them in the prompt and verify them all in one step
-    # instead of producing them one at a time. Output is unchanged; it just
-    # arrives sooner. Value = how many words ahead to guess; llama-cpp-python's
-    # docs recommend 2 for CPU-only machines. Set to 0 to turn it off.
-    LLM_PROMPT_LOOKUP_TOKENS: int = 2
     VLLM_BASE_URL: str = "http://localhost:8001/v1"
     VLLM_MODEL: str = "hossam3759180/support-copilot-merged"
 

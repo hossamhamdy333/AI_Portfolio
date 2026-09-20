@@ -19,15 +19,11 @@ runs is decided once, by settings.LLM_BACKEND - nothing in app.py needs
 to know which backend is actually behind that call.
 """
 
-import logging
 import os
-import time
 
 import requests
 
 from src.config import settings
-
-logger = logging.getLogger(__name__)
 
 MAX_NEW_TOKENS = 100
 
@@ -41,18 +37,6 @@ def load_llamacpp_model():
     from llama_cpp import Llama
 
     model_path = hf_hub_download(repo_id=settings.GGUF_REPO, filename=settings.GGUF_FILENAME)
-
-    extra = {}
-    if settings.LLM_PROMPT_LOOKUP_TOKENS > 0:
-        try:
-            from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
-            extra["draft_model"] = LlamaPromptLookupDecoding(
-                num_pred_tokens=settings.LLM_PROMPT_LOOKUP_TOKENS
-            )
-        except Exception:
-            logger.exception("Prompt lookup decoding unavailable; continuing without it.")
-    logger.info("Prompt lookup decoding: %s", "on" if "draft_model" in extra else "off")
-
     _model = Llama(
         model_path=model_path,
         n_ctx=1024,
@@ -63,62 +47,31 @@ def load_llamacpp_model():
         n_threads_batch=4,  # threads used during prompt processing specifically
         n_batch=512,        # larger prompt-processing batch = faster prompt ingestion
         verbose=False,
-        **extra,
     )
 
 
-def _lookup_state() -> str:
-    return "on" if settings.LLM_PROMPT_LOOKUP_TOKENS > 0 else "off"
-
-
 def _generate_llamacpp(prompt: str) -> str:
-    started = time.perf_counter()
     output = _model(
         prompt,
         max_tokens=MAX_NEW_TOKENS,
         stop=["<|user|>", "<|system|>"],
         temperature=0.0,
     )
-    elapsed = time.perf_counter() - started
-    tokens = output.get("usage", {}).get("completion_tokens", 0)
-    logger.info("Generated %d tokens in %.1fs (%.1f tok/s, prompt lookup %s)",
-                tokens, elapsed, tokens / elapsed if elapsed else 0.0, _lookup_state())
     return output["choices"][0]["text"].strip()
 
 
 def _generate_llamacpp_stream(prompt: str):
     """Yields the answer piece by piece as llama.cpp produces it."""
-    started = time.perf_counter()
-    pieces = 0
-    try:
-        for chunk in _model(
-            prompt,
-            max_tokens=MAX_NEW_TOKENS,
-            stop=["<|user|>", "<|system|>"],
-            temperature=0.0,
-            stream=True,
-        ):
-            piece = chunk["choices"][0]["text"]
-            if piece:
-                pieces += 1
-                yield piece
-    finally:
-        elapsed = time.perf_counter() - started
-        logger.info("Streamed ~%d tokens in %.1fs (%.1f tok/s, prompt lookup %s)",
-                    pieces, elapsed, pieces / elapsed if elapsed else 0.0, _lookup_state())
-
-
-def warm_up(prompt: str) -> None:
-    """One tiny generation at startup. The model file is memory-mapped, so its
-    weights are only read from disk the first time they're used; doing that
-    now means the first real visitor doesn't wait for it. Using the real
-    prompt template also leaves its shared beginning cached for the next
-    request."""
-    if settings.LLM_BACKEND != "llamacpp" or _model is None:
-        return
-    started = time.perf_counter()
-    _model(prompt, max_tokens=8, temperature=0.0)
-    logger.info("Model warm-up done in %.1fs.", time.perf_counter() - started)
+    for chunk in _model(
+        prompt,
+        max_tokens=MAX_NEW_TOKENS,
+        stop=["<|user|>", "<|system|>"],
+        temperature=0.0,
+        stream=True,
+    ):
+        piece = chunk["choices"][0]["text"]
+        if piece:
+            yield piece
 
 
 def _generate_vllm(prompt: str) -> str:
