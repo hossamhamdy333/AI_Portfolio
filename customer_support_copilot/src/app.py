@@ -6,6 +6,7 @@ sidebar, instead of one endless thread per account.
 """
 
 import json
+import re
 import logging
 import threading
 from collections import OrderedDict
@@ -55,11 +56,17 @@ _model_lock = threading.Lock()
 
 # The model is deterministic (temperature 0), so the same question always gets
 # the same answer. Remembering recent answers makes a repeated question
-# instant instead of another 15-20 seconds of CPU inference. In memory only:
-# it resets on restart, and the answer still goes through the output guard
-# every time it is served.
+# instant instead of another 30+ seconds of CPU inference. In memory only: it
+# resets on restart, and the answer still goes through the output guard every
+# time it is served.
+#
+# A REWORDED question ("where is my order please") also hits the cache, but
+# only if it retrieves the same knowledge-base article AND its meaning is very
+# close (embedding similarity >= settings.CACHE_SIMILARITY). Requiring the same
+# article means it can never serve an answer written for a different topic.
 _ANSWER_CACHE_MAX = 200
-_answer_cache: "OrderedDict[str, tuple[str, str]]" = OrderedDict()
+# key -> (context, answer, question vector or None, hit_token_cap)
+_answer_cache: "OrderedDict[str, tuple]" = OrderedDict()
 _answer_cache_lock = threading.Lock()
 
 
@@ -81,6 +88,45 @@ def _cache_put(key: str, value) -> None:
         _answer_cache.move_to_end(key)
         while len(_answer_cache) > _ANSWER_CACHE_MAX:
             _answer_cache.popitem(last=False)
+
+
+def _embed(text: str):
+    """Unit-length embedding of the question, or None if unavailable."""
+    try:
+        return _retriever.model.encode([text], normalize_embeddings=True, show_progress_bar=False)[0]
+    except Exception:
+        return None
+
+
+def _semantic_get(context: str, vec):
+    """A cached (answer, hit_token_cap) for a reworded version of this question."""
+    if vec is None:
+        return None
+    best, best_sim = None, settings.CACHE_SIMILARITY
+    with _answer_cache_lock:
+        for cached_ctx, cached_answer, cached_vec, cached_cut in _answer_cache.values():
+            if cached_vec is None or cached_ctx != context:
+                continue
+            sim = float((vec * cached_vec).sum())
+            if sim >= best_sim:
+                best, best_sim = (cached_answer, cached_cut), sim
+    return best
+
+
+_SENTENCE_END = re.compile(r"(?<!\d)[.!?](?=\s|$)")
+
+
+def _tidy(answer: str, hit_cap: bool) -> str:
+    """If the answer was cut off by the token cap, end it at the last complete
+    sentence instead of mid-word. Leaves it alone if that would throw away
+    more than half of it, and never touches an answer that finished on its own."""
+    a = answer.strip()
+    if not hit_cap or not a or a[-1] in ".!?\"')":
+        return a
+    ends = [m.end() for m in _SENTENCE_END.finditer(a)]
+    if ends and ends[-1] >= 30 and ends[-1] >= len(a) / 2:
+        return a[: ends[-1]]
+    return a
 
 
 def _build_prompt(context: str, text: str) -> str:
@@ -291,14 +337,21 @@ async def chat_endpoint(
             key = _cache_key(text)
             hit = _cache_get(key)
             if hit is not None:
-                return hit
+                return hit[0], hit[1], hit[3]
             with _model_lock:
                 ctx = _retriever.retrieve(text)
-                out = llm_backend.generate(_build_prompt(ctx, text))
-            _cache_put(key, (ctx, out))
-            return ctx, out
+                vec = _embed(text)
+                similar = _semantic_get(ctx, vec)
+                if similar is not None:
+                    out, cut = similar
+                else:
+                    out = llm_backend.generate(_build_prompt(ctx, text))
+                    cut = getattr(llm_backend, "last_finish_reason", "stop") == "length"
+            _cache_put(key, (ctx, out, vec, cut))
+            return ctx, out, cut
 
-        context, ai_text = await run_in_threadpool(_run_model, input_guard["redacted_text"])
+        context, ai_text, hit_cap = await run_in_threadpool(_run_model, input_guard["redacted_text"])
+        ai_text = _tidy(ai_text, hit_cap)
 
         output_guard = guard_output(ai_text)
         if output_guard["blocked"]:
@@ -368,22 +421,31 @@ async def chat_stream(
             key = _cache_key(text)
             hit = _cache_get(key)
             if hit is not None:
-                ctx, ai_text = hit
+                ctx, ai_text, _vec, hit_cap = hit
                 yield _ndjson({"type": "token", "text": ai_text})
             else:
-                parts, started = [], False
+                parts, started, similar = [], False, None
                 with _model_lock:
                     ctx = _retriever.retrieve(text)
-                    for piece in llm_backend.generate_stream(_build_prompt(ctx, text)):
-                        if not started:
-                            piece = piece.lstrip()
-                            if not piece:
-                                continue
-                            started = True
-                        parts.append(piece)
-                        yield _ndjson({"type": "token", "text": piece})
-                ai_text = "".join(parts).strip()
-                _cache_put(key, (ctx, ai_text))
+                    vec = _embed(text)
+                    similar = _semantic_get(ctx, vec)
+                    if similar is None:
+                        for piece in llm_backend.generate_stream(_build_prompt(ctx, text)):
+                            if not started:
+                                piece = piece.lstrip()
+                                if not piece:
+                                    continue
+                                started = True
+                            parts.append(piece)
+                            yield _ndjson({"type": "token", "text": piece})
+                        hit_cap = getattr(llm_backend, "last_finish_reason", "stop") == "length"
+                if similar is not None:
+                    ai_text, hit_cap = similar
+                    yield _ndjson({"type": "token", "text": ai_text})
+                else:
+                    ai_text = "".join(parts).strip()
+                _cache_put(key, (ctx, ai_text, vec, hit_cap))
+            ai_text = _tidy(ai_text, hit_cap)
 
             output_guard = guard_output(ai_text)
             if output_guard["blocked"]:

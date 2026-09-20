@@ -25,7 +25,12 @@ import requests
 
 from src.config import settings
 
-MAX_NEW_TOKENS = 100
+MAX_NEW_TOKENS = settings.LLM_MAX_NEW_TOKENS
+
+# Why the last generation stopped: "stop" (finished on its own) or "length"
+# (hit the token cap, so the answer may end mid-sentence). Only read while
+# holding the model lock in app.py, which serialises generations.
+last_finish_reason = "stop"
 
 _model = None  # only used by the llamacpp backend
 
@@ -40,28 +45,32 @@ def load_llamacpp_model():
     _model = Llama(
         model_path=model_path,
         n_ctx=1024,
-        n_threads=4,        # matches the Container App's actual CPU allocation --
+        n_threads=settings.LLM_THREADS,  # matches the Container App's actual CPU allocation --
                              # os.cpu_count() reads the HOST's core count, not
                              # what this container is limited to, which was
                              # oversubscribing threads and slowing things down.
-        n_threads_batch=4,  # threads used during prompt processing specifically
+        n_threads_batch=settings.LLM_THREADS,  # threads used during prompt processing specifically
         n_batch=512,        # larger prompt-processing batch = faster prompt ingestion
         verbose=False,
     )
 
 
 def _generate_llamacpp(prompt: str) -> str:
+    global last_finish_reason
     output = _model(
         prompt,
         max_tokens=MAX_NEW_TOKENS,
         stop=["<|user|>", "<|system|>"],
         temperature=0.0,
     )
+    last_finish_reason = output["choices"][0].get("finish_reason") or "stop"
     return output["choices"][0]["text"].strip()
 
 
 def _generate_llamacpp_stream(prompt: str):
     """Yields the answer piece by piece as llama.cpp produces it."""
+    global last_finish_reason
+    last_finish_reason = "stop"
     for chunk in _model(
         prompt,
         max_tokens=MAX_NEW_TOKENS,
@@ -69,12 +78,16 @@ def _generate_llamacpp_stream(prompt: str):
         temperature=0.0,
         stream=True,
     ):
-        piece = chunk["choices"][0]["text"]
+        choice = chunk["choices"][0]
+        if choice.get("finish_reason"):
+            last_finish_reason = choice["finish_reason"]
+        piece = choice["text"]
         if piece:
             yield piece
 
 
 def _generate_vllm(prompt: str) -> str:
+    global last_finish_reason
     response = requests.post(
         f"{settings.VLLM_BASE_URL}/completions",
         json={
@@ -87,7 +100,9 @@ def _generate_vllm(prompt: str) -> str:
         timeout=60,
     )
     response.raise_for_status()
-    return response.json()["choices"][0]["text"].strip()
+    choice = response.json()["choices"][0]
+    last_finish_reason = choice.get("finish_reason") or "stop"
+    return choice["text"].strip()
 
 
 def load_model():

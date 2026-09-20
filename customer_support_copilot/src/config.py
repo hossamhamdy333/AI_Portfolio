@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     # native HF/safetensors weights, not GGUF files - see README's
     # "Setting up vLLM" section for how to get that checkpoint onto HF Hub.
     LLM_BACKEND: str = "llamacpp"
+
+    # Longest answer, in tokens (~0.75 words each). Shorter = proportionally
+    # faster, since answers are generated one token at a time. If an answer hits
+    # this cap it is trimmed back to its last complete sentence.
+    LLM_MAX_NEW_TOKENS: int = 60
+
+    # CPU threads for llama.cpp. Must match the CPUs the container really has
+    # (4 on the Consumption plan). Raise it together with the CPU allocation.
+    LLM_THREADS: int = 4
+
+    # A reworded question re-uses a cached answer if it retrieves the same KB
+    # article AND its meaning is at least this similar (0-1). Set above 1 to
+    # switch this off and only re-use exact repeats.
+    CACHE_SIMILARITY: float = 0.85
     VLLM_BASE_URL: str = "http://localhost:8001/v1"
     VLLM_MODEL: str = "hossam3759180/support-copilot-merged"
 
