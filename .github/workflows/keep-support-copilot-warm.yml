@@ -1,0 +1,19 @@
+name: Warm up support copilot
+
+# Manual only. Run it a minute before showing the app to someone: it wakes the
+# serverless Azure SQL database so the first login isn't slow.
+# (Pinging on a schedule would keep the database awake all day and bill for it.)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the app and its database
+        run: |
+          BASE="https://support-copilot-app.blackpebble-352cd42a.francecentral.azurecontainerapps.io"
+          curl -fsS --max-time 120 "$BASE/health"
+          echo
+          curl -sS --max-time 180 "$BASE/health/db" || true
