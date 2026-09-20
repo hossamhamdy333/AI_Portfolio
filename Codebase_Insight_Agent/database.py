@@ -15,10 +15,15 @@ import config
 
 if config.DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
-else:
-    # pyodbc login timeout (seconds). Azure SQL serverless can take a while
-    # to resume from auto-pause, so don't give up after the 15s default.
+elif config.DATABASE_URL.startswith("postgres"):
+    # psycopg2 / libpq option (seconds). A serverless or idle Postgres can
+    # take a while to wake up, so allow a generous connection window.
+    connect_args = {"connect_timeout": 30}
+elif config.DATABASE_URL.startswith("mssql"):
+    # pyodbc login timeout (seconds), for Azure SQL.
     connect_args = {"timeout": 30}
+else:
+    connect_args = {}
 
 engine = create_engine(
     config.DATABASE_URL,
