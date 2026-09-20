@@ -20,6 +20,9 @@ Run it with: uvicorn web_app:app --reload --port 8000
 
 import os
 import re
+import threading
+import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -44,6 +47,61 @@ from auth import (
     require_admin,
 )
 
+# --- Speed: instant replies for greetings and repeated questions -----------
+# A full answer is several LLM calls in a row (look-up, draft, fact-check), so
+# anything that can be answered without them is answered without them.
+
+_GREETING_RE = re.compile(
+    r"^\s*(hi|hello|hey|hiya|good\s+(morning|afternoon|evening)|thanks|thank\s+you|thx)"
+    r"(\s+there)?\s*[!.?]*\s*$",
+    re.IGNORECASE,
+)
+_GREETING_REPLY = (
+    "Hi! Ask me anything about Hossam's AI/ML projects - what a project does, "
+    "which tools it uses, how it was built, or how well it performed."
+)
+
+_CACHE_MAX = 100
+_CACHE_TTL_SECONDS = 6 * 3600  # short, so a re-indexed portfolio never stays stale for long
+_answer_cache: "OrderedDict[str, tuple[float, dict]]" = OrderedDict()
+_answer_cache_lock = threading.Lock()
+
+
+def _cache_key(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _cache_get(key: str):
+    with _answer_cache_lock:
+        entry = _answer_cache.get(key)
+        if entry is None:
+            return None
+        stored_at, result = entry
+        if time.time() - stored_at > _CACHE_TTL_SECONDS:
+            del _answer_cache[key]
+            return None
+        _answer_cache.move_to_end(key)
+        return result
+
+
+def _cache_put(key: str, result: dict) -> None:
+    with _answer_cache_lock:
+        _answer_cache[key] = (time.time(), result)
+        _answer_cache.move_to_end(key)
+        while len(_answer_cache) > _CACHE_MAX:
+            _answer_cache.popitem(last=False)
+
+
+def _warm_up(agent_ref):
+    """Runs one throwaway question in the background after startup, so the
+    first real visitor doesn't pay for lazy imports and cold connections."""
+    try:
+        portfolio.ask(agent_ref, "What does this portfolio contain?")
+        print("Warm-up question done.")
+    except Exception as exc:
+        print(f"Warm-up skipped: {exc}")
+
+
 # Built once at startup, shared across every request - see lifespan below.
 indexes = None
 router = None
@@ -65,6 +123,7 @@ async def lifespan(app: FastAPI):
     router = portfolio.build_router()
     agent = portfolio.build_agent(indexes, router)
     print(f"Ready. {len(indexes)} project(s) loaded.")
+    threading.Thread(target=_warm_up, args=(agent,), daemon=True).start()
 
     yield
 
@@ -192,21 +251,31 @@ async def ask(body: AskRequest, request: Request, background: BackgroundTasks):
     if agent is None:
         raise HTTPException(503, "Still starting up, try again in a moment.")
 
-    # portfolio.ask() is synchronous and ends up calling llama_index's
-    # Gemini client, which internally does asyncio.run() - that blows up
-    # if called directly from here, since this endpoint is already
-    # running inside uvicorn's event loop. run_in_threadpool moves the
-    # whole blocking call to a worker thread, which has no event loop of
-    # its own, so llama_index's asyncio.run() works fine there.
-    #
-    # One retry: the first call after an idle period can hit a transient
-    # Qdrant / Gemini connection error (stale keep-alive, brief 503).
-    try:
-        result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
+    if _GREETING_RE.match(body.question):
+        background.add_task(
+            save_log, ip_address=ip, question=body.question, answer=_GREETING_REPLY, target_projects="",
+        )
+        return {"answer": _GREETING_REPLY, "blocked": False, "projects": []}
+
+    cache_key = _cache_key(input_guard["redacted_text"])
+    result = _cache_get(cache_key)
+    if result is None:
+        # portfolio.ask() is synchronous and ends up calling llama_index's
+        # Gemini client, which internally does asyncio.run() - that blows up
+        # if called directly from here, since this endpoint is already
+        # running inside uvicorn's event loop. run_in_threadpool moves the
+        # whole blocking call to a worker thread, which has no event loop of
+        # its own, so llama_index's asyncio.run() works fine there.
+        #
+        # One retry: the first call after an idle period can hit a transient
+        # Qdrant / Gemini connection error (stale keep-alive, brief 503).
+        try:
+            result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            result = await run_in_threadpool(portfolio.ask, agent, input_guard["redacted_text"])
+        _cache_put(cache_key, result)
 
     output_guard = guard_output(result["answer"])
     answer = strip_markdown(output_guard["text"])

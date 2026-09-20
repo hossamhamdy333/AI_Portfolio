@@ -2,6 +2,7 @@
 # `import portfolio` instead of repeating this code five times.
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypedDict
 
@@ -446,16 +447,33 @@ def build_agent(indexes, router):
         if state.get("feedback"):
             query += f" (also cover: {state['feedback']})"
 
-        parts = []
-        for name in state["target_projects"]:
+        def query_project(name):
             top_k = config.OVERVIEW_TOP_K if name == config.OVERVIEW_PROJECT else 8
             engine = indexes[name].as_query_engine(similarity_top_k=top_k)
             response = engine.query(query)
             excerpts = _source_excerpts(response)
-            parts.append(
+            return (
                 f"From the {name} project:\n{response}"
                 + (f"\n\nExact excerpts from its README:\n{excerpts}" if excerpts else "")
             )
+
+        names = state["target_projects"]
+        if len(names) <= 1:
+            parts = [query_project(name) for name in names]
+        else:
+            # Each project's lookup is an independent LLM call, so run them
+            # side by side instead of one after another. Order is preserved.
+            # If a parallel lookup fails for any reason, redo just that one
+            # in this thread, so parallelism can never make an answer fail
+            # that would have worked sequentially.
+            parts = []
+            with ThreadPoolExecutor(max_workers=len(names)) as pool:
+                futures = [pool.submit(query_project, name) for name in names]
+                for name, future in zip(names, futures):
+                    try:
+                        parts.append(future.result())
+                    except Exception:
+                        parts.append(query_project(name))
         context = "\n\n".join(parts)
 
         prompt = (
