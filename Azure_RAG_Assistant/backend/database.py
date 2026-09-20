@@ -65,7 +65,7 @@ def get_db():
         db.close()
 
 
-def init_db(max_attempts: int = 5, initial_delay_seconds: float = 3.0) -> None:
+def init_db(max_attempts: int = 10, initial_delay_seconds: float = 3.0) -> None:
     """
     Creates every table that doesn't exist yet. Safe to call on every app
     startup - it's a no-op for tables that already exist. Fine for a
@@ -99,4 +99,4 @@ def init_db(max_attempts: int = 5, initial_delay_seconds: float = 3.0) -> None:
                 attempt, max_attempts, delay,
             )
             time.sleep(delay)
-            delay *= 2
+            delay = min(delay * 2, 15)
