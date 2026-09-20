@@ -6,10 +6,13 @@ sidebar, instead of one endless thread per account.
 """
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -21,7 +24,7 @@ from src.evaluate import evaluate_faithfulness
 from src import llm_backend
 from src.guardrails import guard_input, guard_output
 from src.config import settings
-from src.database import get_db, init_db
+from src.database import get_db, init_db, SessionLocal
 from src.models import User, Conversation, ChatMessage, MessageRole, Role
 from src.auth import (
     hash_password, verify_password,
@@ -42,6 +45,11 @@ SYSTEM_PROMPT = (
 
 _retriever = None
 
+# llama.cpp's model object isn't safe to call from two threads at once. The
+# model work runs in a worker thread (below) so it no longer freezes the whole
+# server while it generates; this lock keeps generations one at a time.
+_model_lock = threading.Lock()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,6 +65,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Support Copilot API", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Always answer with JSON. Without this, an unexpected error comes back
+    as the plain text 'Internal Server Error', which the frontend can't
+    parse ("Unexpected token 'I' ... is not valid JSON")."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong on my side. Please try again."},
+    )
+
+
 app.include_router(oauth.router)
 
 
@@ -219,16 +241,19 @@ async def chat_endpoint(
         logger.info("Redacted %d PII match(es) from user %d's message.", input_guard["pii_redactions"], user.id)
 
     try:
-        context = _retriever.retrieve(input_guard["redacted_text"])
-
-        prompt = f"""<|system|>
+        def _run_model(text: str):
+            with _model_lock:
+                ctx = _retriever.retrieve(text)
+                prompt = f"""<|system|>
 {SYSTEM_PROMPT}
 <|user|>
-Context: {context}
-Query: {input_guard['redacted_text']}
+Context: {ctx}
+Query: {text}
 <|assistant|>
 """
-        ai_text = llm_backend.generate(prompt)
+                return ctx, llm_backend.generate(prompt)
+
+        context, ai_text = await run_in_threadpool(_run_model, input_guard["redacted_text"])
 
         output_guard = guard_output(ai_text)
         if output_guard["blocked"]:
@@ -255,6 +280,20 @@ Query: {input_guard['redacted_text']}
     except Exception as e:
         logger.exception("Chat generation failed for user %d", user.id)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/health/db")
+async def health_db():
+    """Runs a trivial query so a paused database starts waking up."""
+    from sqlalchemy import text
+    def _ping():
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    try:
+        await run_in_threadpool(_ping)
+        return {"db": "ok"}
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"db": "unavailable", "detail": str(exc)[:200]})
 
 
 @app.get("/health")
