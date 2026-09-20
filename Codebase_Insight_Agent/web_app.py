@@ -23,8 +23,9 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
@@ -34,7 +35,7 @@ import config
 import portfolio
 from guardrails import guard_input, guard_output
 from rate_limit import is_rate_limited
-from database import get_db, init_db
+from database import get_db, init_db, SessionLocal
 from models import AdminUser, QueryLog
 from auth import (
     verify_password,
@@ -96,6 +97,25 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+def save_log(**fields) -> None:
+    """Best-effort query logging, run AFTER the response has been sent.
+
+    The log lives in a serverless Azure SQL database that pauses when idle
+    and can take a minute to wake. Visitors must never wait on it (or get an
+    error because of it), so a failure here is printed to the container logs
+    and otherwise ignored."""
+    try:
+        db = SessionLocal()
+        try:
+            db.add(QueryLog(**fields))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+
+
 def strip_markdown(text: str) -> str:
     text = text.replace("**", "")
     return re.sub(r"^[ \t]*\*[ \t]+", "- ", text, flags=re.MULTILINE)
@@ -127,17 +147,35 @@ async def health():
     return {"status": "ok", "ready": agent is not None}
 
 
+@app.get("/health/db")
+async def health_db():
+    """Runs a trivial query so a paused database starts waking up. Used by
+    the optional keep-warm workflow; never called by the chat page."""
+    from sqlalchemy import text
+    def _ping():
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    try:
+        await run_in_threadpool(_ping)
+        return {"db": "ok"}
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"db": "unavailable", "detail": str(exc)[:200]})
+
+
 @app.post("/ask")
-async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db)):
+async def ask(body: AskRequest, request: Request, background: BackgroundTasks):
     ip = get_client_ip(request)
 
     if is_rate_limited(ip):
-        db.add(QueryLog(ip_address=ip, question=body.question, rate_limited=True))
-        db.commit()
-        raise HTTPException(
-            429,
-            f"Rate limit reached ({config.RATE_LIMIT_MAX_REQUESTS} questions per "
-            f"{config.RATE_LIMIT_WINDOW_SECONDS // 60} minutes). Try again shortly.",
+        return JSONResponse(
+            status_code=429,
+            content={"detail": (
+                f"Rate limit reached ({config.RATE_LIMIT_MAX_REQUESTS} questions per "
+                f"{config.RATE_LIMIT_WINDOW_SECONDS // 60} minutes). Try again shortly."
+            )},
+            background=BackgroundTask(
+                save_log, ip_address=ip, question=body.question, rate_limited=True,
+            ),
         )
 
     if not body.question.strip():
@@ -145,11 +183,10 @@ async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db))
 
     input_guard = guard_input(body.question)
     if input_guard["blocked"]:
-        db.add(QueryLog(
-            ip_address=ip, question=body.question, blocked=True,
+        background.add_task(
+            save_log, ip_address=ip, question=body.question, blocked=True,
             block_reason=input_guard["injection_match"],
-        ))
-        db.commit()
+        )
         return {"answer": "I can't process that request.", "blocked": True}
 
     if agent is None:
@@ -161,6 +198,7 @@ async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db))
     # running inside uvicorn's event loop. run_in_threadpool moves the
     # whole blocking call to a worker thread, which has no event loop of
     # its own, so llama_index's asyncio.run() works fine there.
+    #
     # One retry: the first call after an idle period can hit a transient
     # Qdrant / Gemini connection error (stale keep-alive, brief 503).
     try:
@@ -173,15 +211,17 @@ async def ask(body: AskRequest, request: Request, db: Session = Depends(get_db))
     output_guard = guard_output(result["answer"])
     answer = strip_markdown(output_guard["text"])
 
-    db.add(QueryLog(
+    # Logged in the background: the answer is returned immediately, even if
+    # the database is paused or unreachable.
+    background.add_task(
+        save_log,
         ip_address=ip,
         question=body.question,
         answer=answer,
         blocked=output_guard["blocked"],
         block_reason=output_guard["match"] if output_guard["blocked"] else None,
         target_projects=",".join(result["projects"]),
-    ))
-    db.commit()
+    )
 
     return {"answer": answer, "blocked": output_guard["blocked"], "projects": result["projects"]}
 
