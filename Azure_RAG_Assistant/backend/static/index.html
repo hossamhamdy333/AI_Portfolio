@@ -158,6 +158,40 @@
     authStatusEl.className = cls || "";
   }
 
+  // Reads a response body without throwing on non-JSON (e.g. a plain-text
+  // "Internal Server Error" page), so the UI can show a real message.
+  async function readJson(res) {
+    const raw = await res.text();
+    try { return JSON.parse(raw); } catch { return { detail: raw || res.statusText }; }
+  }
+
+  // POST for login/register. After a quiet period the database has to wake
+  // up, which can take up to a minute: say so, and retry if the server
+  // answers with a 5xx in the meantime.
+  async function postAuth(url, payload) {
+    let res, data;
+    const slowTimer = setTimeout(
+      () => setAuthStatus("Waking up the database after a quiet period - this can take up to a minute..."),
+      4000
+    );
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        data = await readJson(res);
+        if (res.status < 500) break;
+        setAuthStatus("Waking up the server, one moment...");
+        await new Promise(r => setTimeout(r, 4000));
+      }
+    } finally {
+      clearTimeout(slowTimer);
+    }
+    return { res, data };
+  }
+
   function setStatus(text, cls) {
     statusEl.textContent = text;
     statusEl.className = cls || "";
@@ -181,9 +215,15 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
-    if (!res.ok) { clearRefreshToken(); return false; }
+    if (!res.ok) {
+      // Only an explicit rejection means the token is bad. A temporary
+      // server error (e.g. the database waking up) must NOT throw away a
+      // perfectly good login.
+      if (res.status === 401 || res.status === 403) clearRefreshToken();
+      return false;
+    }
 
-    const data = await res.json();
+    const data = await readJson(res);
     accessToken = data.access_token;
     return true;
   }
@@ -199,12 +239,7 @@
     const password = document.getElementById("password").value;
     setAuthStatus("Logging in...");
     try {
-      const res = await fetch("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
+      const { res, data } = await postAuth("/auth/login", { email, password });
       if (!res.ok) { setAuthStatus(data.detail || "Login failed", "error"); return; }
       await handleAuthSuccess(data);
     } catch (e) {
@@ -217,12 +252,7 @@
     const password = document.getElementById("password").value;
     setAuthStatus("Creating account...");
     try {
-      const res = await fetch("/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
+      const { res, data } = await postAuth("/auth/register", { email, password });
       if (!res.ok) { setAuthStatus(data.detail || "Registration failed", "error"); return; }
       await handleAuthSuccess(data);
     } catch (e) {
@@ -278,7 +308,7 @@
 
     try {
       const res = await authedFetch("/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.ok) {
         let msg = `Indexed ${data.chunks} chunks.`;
         if (!data.blob_url) msg += " (Blob storage archival skipped in this environment.)";
@@ -318,7 +348,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       pending.classList.remove("pending");
       pending.textContent = res.ok ? data.answer : "Error: " + (data.detail || res.statusText);
     } catch (err) {
@@ -332,6 +362,10 @@
   // from a previous visit to silently resume, or neither and the login
   // form just stays showing.
   (async function init() {
+    // Start waking a paused database right away, while the visitor is still
+    // typing their email and password. Fire and forget; failures don't matter.
+    fetch("/warm").catch(() => {});
+
     const params = new URLSearchParams(window.location.search);
     if (params.has("access_token") && params.has("refresh_token")) {
       accessToken = params.get("access_token");
