@@ -20,5 +20,5 @@ jobs:
     steps:
       - name: Ping /health
         run: |
-          URL="${{ vars.RAG_APP_URL || 'https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net' }}"
+          URL="${{ vars.RAG_APP_URL || 'https://rag-assistant-hossam-dhfjgrfwcaf6g9e6.francecentral-01.azurewebsites.net' }}"
           curl -fsS --max-time 90 "$URL/health" || echo "::warning::$URL/health did not answer"
