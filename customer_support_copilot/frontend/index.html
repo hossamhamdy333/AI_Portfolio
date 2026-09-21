@@ -308,16 +308,26 @@
   // database waking up after being idle), tell the user and retry.
   async function postAuth(url, payload) {
     let res, data;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      data = await readJson(res);
-      if (res.status < 500) break;
-      setAuthStatus("Waking up the server, one moment...");
-      await new Promise(r => setTimeout(r, 4000));
+    // After a quiet period the database has to wake up, which can take up to a
+    // minute. Say so, instead of leaving "Logging in..." on screen.
+    const slowTimer = setTimeout(
+      () => setAuthStatus("Waking up the database after a quiet period - this can take up to a minute..."),
+      4000
+    );
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        data = await readJson(res);
+        if (res.status < 500) break;
+        setAuthStatus("Waking up the server, one moment...");
+        await new Promise(r => setTimeout(r, 4000));
+      }
+    } finally {
+      clearTimeout(slowTimer);
     }
     return { res, data };
   }
@@ -617,6 +627,10 @@
   });
 
   (async function init() {
+    // Start waking a paused database right away, while the visitor is still
+    // typing their email and password. Fire and forget; failures don't matter.
+    fetch("/health/db").catch(() => {});
+
     if (getRefreshToken()) {
       if (await refreshAccessToken()) { await showLoggedIn(); return; }
     }
