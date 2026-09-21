@@ -475,10 +475,28 @@ async def chat_stream(
     return StreamingResponse(events(), media_type="application/x-ndjson", headers=headers)
 
 
+# The page pings /health/db as soon as it loads, so a paused database starts
+# waking up while the visitor is still typing their email and password. To keep
+# a flood of page loads (or a crawler) from holding the database awake and
+# billing for it, a real query is only sent once every few minutes.
+_DB_PING_MIN_INTERVAL = 300  # seconds
+_last_db_ping = 0.0
+_db_ping_lock = threading.Lock()
+
+
 @app.get("/health/db")
 async def health_db():
     """Runs a trivial query so a paused database starts waking up."""
+    global _last_db_ping
+    import time
     from sqlalchemy import text
+
+    with _db_ping_lock:
+        now = time.monotonic()
+        if _last_db_ping and now - _last_db_ping < _DB_PING_MIN_INTERVAL:
+            return {"db": "recent"}
+        _last_db_ping = now
+
     def _ping():
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
@@ -486,6 +504,8 @@ async def health_db():
         await run_in_threadpool(_ping)
         return {"db": "ok"}
     except Exception as exc:
+        with _db_ping_lock:
+            _last_db_ping = 0.0  # failed: let the next visitor try again right away
         return JSONResponse(status_code=503, content={"db": "unavailable", "detail": str(exc)[:200]})
 
 
