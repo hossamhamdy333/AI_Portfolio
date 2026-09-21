@@ -1,3 +1,4 @@
+import re
 import threading
 
 from langchain.agents import create_agent
@@ -6,6 +7,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, Filter, FieldCondition, MatchValue, PayloadSchemaType
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.prompts import PromptTemplate
+from langchain_core.retrievers import BaseRetriever
 from langchain_core.tools.retriever import create_retriever_tool
 from config import settings, embeddings, logger
 from safe_math import safe_calculate
@@ -18,9 +22,35 @@ SYSTEM_PROMPT = (
     "You are Azure RAG Assistant, a helpful enterprise assistant. "
     "Always check the company_knowledge_base tool first for questions that "
     "might be answered by uploaded documents. Use the calculator tool for "
-    "any arithmetic. Answer concisely and cite which document a fact came "
-    "from when you used the knowledge base."
+    "any arithmetic. Answer concisely. When your answer used the knowledge "
+    "base, end with one final line in exactly this form: "
+    "Source: <document name>  (separate several names with commas). Use the "
+    "document names shown in the knowledge base results, and put nothing "
+    "after that line. If you did not use the knowledge base, do not write a "
+    "Source line."
 )
+
+# How each retrieved chunk is shown to the model. Including the document's
+# real filename lets it cite "Hossam_Hamdy_CV.pdf" instead of paraphrasing
+# ("Hossam's Resume").
+SOURCE_DOCUMENT_PROMPT = PromptTemplate.from_template("[Document: {source}]\n{page_content}")
+
+
+class SourceTaggedRetriever(BaseRetriever):
+    """Wraps a retriever so every chunk it returns has a 'source' name.
+
+    The prompt above requires one, and a chunk without it (an old upload,
+    say) would otherwise make the whole search fail with a missing-variable
+    error. A real filename is never overwritten.
+    """
+
+    inner: BaseRetriever
+
+    def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun):
+        docs = self.inner.invoke(query, config={"callbacks": run_manager.get_child()})
+        for doc in docs:
+            doc.metadata.setdefault("source", "unknown document")
+        return docs
 
 
 @tool
@@ -148,9 +178,10 @@ def build_agent(user_id: int, top_k=3):
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k, "filter": user_filter})
 
     retriever_tool = create_retriever_tool(
-        retriever,
+        SourceTaggedRetriever(inner=retriever),
         "company_knowledge_base",
         "Search this user's previously uploaded documents for relevant context.",
+        document_prompt=SOURCE_DOCUMENT_PROMPT,
     )
 
     return create_agent(
@@ -185,3 +216,43 @@ def run_agent(query: str, user_id: int) -> str:
     agent = build_agent(user_id)
     result = agent.invoke({"messages": [{"role": "user", "content": query}]})
     return _extract_text(result["messages"][-1].content)
+
+
+# ---------------------------------------------------------------- sources
+
+_SOURCE_LINE = re.compile(r"^\W*(?:sources?|source documents?)\s*:\s*(.+)$", re.IGNORECASE)
+_NO_SOURCE = {"none", "n/a", "na", "unknown", "-", "no source", "no sources"}
+MAX_SOURCES = 5
+
+
+def split_sources(text: str) -> tuple[str, list[str]]:
+    """Separates a trailing "Source: ..." line from an answer.
+
+    The model is asked to end a knowledge-base answer with one line such as
+    "Source: report.pdf, notes.txt" (a few variants - "(Source: ...)",
+    "**Sources:** ...", "Sources: a and b" - are understood too). It comes
+    back separately so the page can show it as "From:" badges instead of
+    a sentence inside the answer. Only the LAST line is considered, so a
+    sentence that merely contains the word "source" is never touched, and if
+    there is no such line the answer is returned unchanged.
+    """
+    lines = text.rstrip().split("\n")
+    if not lines:
+        return text, []
+
+    last = lines[-1].strip()
+    match = _SOURCE_LINE.match(last)
+    if not match:
+        return text, []
+
+    rest = match.group(1).strip().strip("*_)").strip().rstrip(".").strip()
+    body = "\n".join(lines[:-1]).rstrip()
+    if not body:  # the whole reply was just a citation: keep it as the answer
+        return text, []
+
+    names = []
+    for name in re.split(r",|;|\s+and\s+|\s+&\s+", rest):
+        name = name.strip().strip("*_()[]\"' ").strip()
+        if name and name.lower() not in _NO_SOURCE and name not in names:
+            names.append(name[:80])
+    return body, names[:MAX_SOURCES]

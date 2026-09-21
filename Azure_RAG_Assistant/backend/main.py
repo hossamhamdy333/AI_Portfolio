@@ -14,7 +14,7 @@ from sqlalchemy import func
 
 from azure_storage import upload_to_blob_storage
 from text_processing import process_and_upsert, delete_document_chunks
-from agent import run_agent, get_qdrant_client
+from agent import run_agent, get_qdrant_client, split_sources
 from guardrails import guard_input, guard_output
 from config import settings, logger
 from database import get_db, init_db, SessionLocal
@@ -254,7 +254,8 @@ def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Sessi
     if output_guard["blocked"]:
         logger.warning("Blocked disallowed output for user %d: %s", user.id, output_guard["match"])
 
-    return {"answer": output_guard["text"], "blocked": output_guard["blocked"]}
+    answer_text, sources = split_sources(output_guard["text"])
+    return {"answer": answer_text, "sources": sources, "blocked": output_guard["blocked"]}
 
 
 @app.post("/upload")
