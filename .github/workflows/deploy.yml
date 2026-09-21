@@ -14,6 +14,15 @@ on:
       - ".github/workflows/deploy.yml"
   workflow_dispatch:  # lets you redeploy by hand from the Actions tab
 
+# One deploy at a time. Uploading several files as separate commits starts
+# several runs at once, and whichever FINISHES last becomes the live version -
+# which can be an older, partial one. With this, runs queue up in order (and a
+# newer queued run replaces an older queued one), so the newest commit is
+# always deployed last.
+concurrency:
+  group: deploy-azure-rag-assistant
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
