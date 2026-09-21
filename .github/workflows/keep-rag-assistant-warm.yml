@@ -1,0 +1,24 @@
+name: Keep Azure RAG Assistant warm
+
+# Pings the app every 10 minutes so Azure App Service doesn't unload it when
+# idle (a cold start means reloading all the AI libraries: 20-40 seconds for
+# the next visitor). It only calls /health, which never touches the database,
+# so it does NOT keep the paused Azure SQL database awake or cost anything.
+#
+# If your live URL differs from the one below, add a repository VARIABLE named
+# RAG_APP_URL (Settings > Secrets and variables > Actions > Variables) and it
+# is used instead.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: |
+          URL="${{ vars.RAG_APP_URL || 'https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net' }}"
+          curl -fsS --max-time 90 "$URL/health" || echo "::warning::$URL/health did not answer"
