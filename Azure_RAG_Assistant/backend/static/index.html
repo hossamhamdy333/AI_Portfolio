@@ -324,6 +324,32 @@
     }
   });
 
+  // Shows the assistant's answer properly: **bold** becomes bold and "* item"
+  // lines become bullets. It is built from DOM nodes, never innerHTML, so
+  // nothing inside an answer can inject HTML or scripts.
+  function renderAnswer(el, text) {
+    el.textContent = "";
+    const lines = String(text).split("\n");
+    lines.forEach((line, i) => {
+      let body = line;
+      const bullet = line.match(/^(\s*)[*-]\s+(.*)$/);
+      if (bullet) {
+        el.appendChild(document.createTextNode(bullet[1] + "\u2022 "));
+        body = bullet[2];
+      }
+      body.split(/(\*\*[^*]+\*\*)/).forEach(part => {
+        if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) {
+          const strong = document.createElement("strong");
+          strong.textContent = part.slice(2, -2);
+          el.appendChild(strong);
+        } else if (part) {
+          el.appendChild(document.createTextNode(part));
+        }
+      });
+      if (i < lines.length - 1) el.appendChild(document.createTextNode("\n"));
+    });
+  }
+
   function addMessage(role, text) {
     const div = document.createElement("div");
     div.className = "msg " + role;
@@ -350,7 +376,8 @@
       });
       const data = await readJson(res);
       pending.classList.remove("pending");
-      pending.textContent = res.ok ? data.answer : "Error: " + (data.detail || res.statusText);
+      if (res.ok) renderAnswer(pending, data.answer);
+      else pending.textContent = "Error: " + (data.detail || res.statusText);
     } catch (err) {
       pending.classList.remove("pending");
       pending.textContent = "Connection to backend failed: " + err.message;
