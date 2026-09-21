@@ -3,6 +3,16 @@ name: Build and deploy to Azure
 on:
   push:
     branches: [main]
+    # Only redeploy the Azure RAG Assistant when something that is actually
+    # part of it changed. This monorepo holds many unrelated projects, and
+    # without this filter EVERY push to main (a fix in any other project)
+    # rebuilt and restarted this app's container - each restart is a minute
+    # or two of downtime, which showed up as random "crashes".
+    paths:
+      - "Azure_RAG_Assistant/backend/**"
+      - "Dockerfile"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:  # lets you redeploy by hand from the Actions tab
 
 jobs:
   build-and-deploy:
