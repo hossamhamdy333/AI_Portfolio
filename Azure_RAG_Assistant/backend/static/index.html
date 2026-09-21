@@ -77,6 +77,27 @@
   .msg.user { align-self: flex-end; background: #111; color: white; }
   .msg.assistant { align-self: flex-start; background: #eee; color: #111; }
   .msg.assistant.pending { color: #888; font-style: italic; }
+  .msg.assistant .sources {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    white-space: normal;
+  }
+  .msg.assistant .sources-label { font-size: 0.75rem; color: #777; }
+  .msg.assistant .source-badge {
+    font-size: 0.75rem;
+    color: #444;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+    padding: 2px 10px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   form#chat-form {
     position: fixed;
@@ -350,6 +371,26 @@
     });
   }
 
+  // "From:" followed by one badge per source document, like the Codebase
+  // Insight page. Built from DOM nodes, so a file name can't inject HTML.
+  function renderSources(el, sources) {
+    if (!sources || !sources.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "sources";
+    const label = document.createElement("span");
+    label.className = "sources-label";
+    label.textContent = "From:";
+    wrap.appendChild(label);
+    sources.forEach((name) => {
+      const badge = document.createElement("span");
+      badge.className = "source-badge";
+      badge.textContent = name;
+      badge.title = name;
+      wrap.appendChild(badge);
+    });
+    el.appendChild(wrap);
+  }
+
   function addMessage(role, text) {
     const div = document.createElement("div");
     div.className = "msg " + role;
@@ -376,8 +417,12 @@
       });
       const data = await readJson(res);
       pending.classList.remove("pending");
-      if (res.ok) renderAnswer(pending, data.answer);
-      else pending.textContent = "Error: " + (data.detail || res.statusText);
+      if (res.ok) {
+        renderAnswer(pending, data.answer);
+        renderSources(pending, data.sources);
+      } else {
+        pending.textContent = "Error: " + (data.detail || res.statusText);
+      }
     } catch (err) {
       pending.classList.remove("pending");
       pending.textContent = "Connection to backend failed: " + err.message;
