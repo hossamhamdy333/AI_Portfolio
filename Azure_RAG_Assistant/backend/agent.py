@@ -92,7 +92,7 @@ _vectorstore = None
 # Chat and upload run in worker threads (several at once), so first-time
 # setup must not run twice in parallel - two threads both creating the
 # collection would make one of them fail with "already exists".
-_init_lock = threading.Lock()
+_init_lock = threading.RLock()
 
 # Fields every per-user search / per-document delete filters on. Qdrant
 # refuses to filter on a field with no index ("Index required but not found
@@ -123,7 +123,7 @@ def get_qdrant_client():
         return _qdrant_client
     with _init_lock:
         if _qdrant_client is None:
-            client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+            client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY, timeout=30)
             if not client.collection_exists(settings.QDRANT_COLLECTION_NAME):
                 # The collection is normally created on first document upload
                 # (text_processing.py). If someone chats before uploading

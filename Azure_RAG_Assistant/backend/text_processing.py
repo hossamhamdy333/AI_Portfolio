@@ -56,6 +56,7 @@ def process_and_upsert(file_bytes: bytes, filename: str, user_id: int, document_
         url=settings.QDRANT_URL,
         api_key=settings.QDRANT_API_KEY,
         collection_name=settings.QDRANT_COLLECTION_NAME,
+        timeout=30,
     )
     logger.info("Indexed %d chunks from %s for user %d (document_id=%d)", len(docs), filename, user_id, document_id)
     return len(docs)
