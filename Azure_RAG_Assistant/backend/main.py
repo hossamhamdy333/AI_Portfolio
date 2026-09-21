@@ -1,10 +1,12 @@
 import os
+import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -15,7 +17,7 @@ from text_processing import process_and_upsert, delete_document_chunks
 from agent import run_agent, get_qdrant_client
 from guardrails import guard_input, guard_output
 from config import settings, logger
-from database import get_db, init_db
+from database import get_db, init_db, SessionLocal
 from models import User, Document, Role
 from auth import (
     hash_password, verify_password,
@@ -43,6 +45,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Azure RAG Assistant API", lifespan=lifespan)
 app.include_router(oauth.router)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Always answer with JSON. Without this, an unexpected error (for
+    example the database being briefly unreachable) came back as the plain
+    text 'Internal Server Error', which the page could not read and showed
+    as "Unexpected token 'I' ... is not valid JSON"."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong on my side. Please try again."},
+    )
 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "static"))
 
@@ -93,6 +108,36 @@ async def health():
     Azure's own health probe can't be taken down by a slow/paused DB and
     restart-loop the whole container over something that isn't a crash."""
     return {"status": "ok"}
+
+
+# The page calls /warm as soon as it loads, so a paused database starts waking
+# up while the visitor is still typing their email and password. A real query
+# is sent at most once every few minutes, so a flood of page loads (or a
+# crawler) can't keep the database awake around the clock and bill for it.
+_WARM_MIN_INTERVAL = 300  # seconds
+_last_warm = 0.0
+_warm_lock = threading.Lock()
+
+
+@app.get("/warm")
+def warm():
+    global _last_warm
+    from sqlalchemy import text
+
+    with _warm_lock:
+        now = time.monotonic()
+        if _last_warm and now - _last_warm < _WARM_MIN_INTERVAL:
+            return {"db": "recent"}
+        _last_warm = now
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        return {"db": "ok"}
+    except Exception:
+        with _warm_lock:
+            _last_warm = 0.0  # failed: let the next visitor try again right away
+        logger.warning("Warm-up ping could not reach the database yet", exc_info=True)
+        return JSONResponse(status_code=503, content={"db": "unavailable"})
 
 
 @app.get("/health/db")
@@ -182,7 +227,7 @@ def me(user: User = Depends(get_current_user)):
 # ---------------------------------------------------------------- chat + upload (per-user)
 
 @app.post("/chat")
-async def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     enforce_rate_limit(
         db, key=f"user:{user.id}", endpoint="chat",
         max_requests=settings.CHAT_RATE_LIMIT_PER_HOUR, window_minutes=60,
@@ -213,7 +258,7 @@ async def chat(request: ChatRequest, user: User = Depends(get_current_user), db:
 
 
 @app.post("/upload")
-async def upload_document(
+def upload_document(
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -225,7 +270,7 @@ async def upload_document(
 
     document = None
     try:
-        file_bytes = await file.read()
+        file_bytes = file.file.read()
         if not file_bytes:
             raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
@@ -234,6 +279,11 @@ async def upload_document(
         # document be found and deleted later without touching a different
         # upload that happens to share the same filename. If anything below
         # fails, this row is never committed, so it never actually persists.
+        # Makes sure the vector collection and its filter indexes exist BEFORE
+        # the first document is indexed (a collection created by the upload
+        # itself has no indexes, and the next chat would then fail).
+        get_qdrant_client()
+
         document = Document(user_id=user.id, filename=file.filename, blob_url=None, chunks_indexed=0)
         db.add(document)
         db.flush()

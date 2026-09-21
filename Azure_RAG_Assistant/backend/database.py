@@ -15,7 +15,7 @@ for the actual account setup.
 
 import time
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import OperationalError
 
@@ -51,6 +51,42 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=280,
 )
+
+
+def install_connect_retry(target_engine, attempts: int = 6, delay: float = 6.0):
+    """Retry the initial database connection while Azure SQL serverless wakes
+    up from auto-pause.
+
+    init_db() below already survives a paused database at *startup*, but a
+    paused database at *request time* (nobody used the app for an hour, then
+    someone logs in) had no protection: the first login failed with an
+    unhandled error and returned a plain-text 500. A resuming database
+    refuses logins for roughly 30-60 seconds; retrying the connection
+    makes that first request just take longer and then succeed. A wrong
+    password (error 18456) is NOT retried - that would only delay the error.
+    """
+    @event.listens_for(target_engine, "do_connect")
+    def _connect_with_retry(dialect, conn_rec, cargs, cparams):
+        last_exc = None
+        for attempt in range(1, attempts + 1):
+            try:
+                return dialect.dbapi.connect(*cargs, **cparams)
+            except dialect.dbapi.Error as exc:
+                if "18456" in str(exc):  # login failed: bad credentials
+                    raise
+                last_exc = exc
+                logger.warning(
+                    "Database connect attempt %d/%d failed (database may be waking up): %s",
+                    attempt, attempts, str(exc)[:160],
+                )
+                if attempt < attempts:
+                    time.sleep(delay)
+        raise last_exc
+
+
+if settings.DATABASE_URL.startswith("mssql"):
+    install_connect_retry(engine)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -88,6 +124,7 @@ def init_db(max_attempts: int = 10, initial_delay_seconds: float = 3.0) -> None:
     for attempt in range(1, max_attempts + 1):
         try:
             Base.metadata.create_all(bind=engine)
+            _repair_google_id_index()
             return
         except OperationalError:
             if attempt == max_attempts:
@@ -100,3 +137,31 @@ def init_db(max_attempts: int = 10, initial_delay_seconds: float = 3.0) -> None:
             )
             time.sleep(delay)
             delay = min(delay * 2, 15)
+
+
+def _repair_google_id_index() -> None:
+    """Safety net for a database whose tables were created BEFORE the
+    filtered index in models.py existed. create_all() never alters an
+    existing table, so such a database still has a plain unique index on
+    users.google_id - which on SQL Server allows only ONE NULL, so every
+    email/password registration after the first fails. This swaps it for the
+    filtered one. Idempotent: does nothing once the filtered index is in
+    place, and only runs against SQL Server."""
+    if not settings.DATABASE_URL.startswith("mssql"):
+        return
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                IF EXISTS (SELECT 1 FROM sys.indexes
+                           WHERE name = 'ix_users_google_id'
+                             AND object_id = OBJECT_ID('users') AND has_filter = 0)
+                    DROP INDEX ix_users_google_id ON users;
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes
+                               WHERE name = 'ix_users_google_id'
+                                 AND object_id = OBJECT_ID('users'))
+                    CREATE UNIQUE INDEX ix_users_google_id ON users (google_id)
+                    WHERE google_id IS NOT NULL;
+            """))
+    except Exception:
+        # Never stop the app from starting over this; log it instead.
+        logger.exception("Could not verify the users.google_id index")

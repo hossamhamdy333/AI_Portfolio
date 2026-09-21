@@ -1,3 +1,5 @@
+import threading
+
 from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -5,7 +7,7 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, Filter, FieldCondition, MatchValue, PayloadSchemaType
 from langchain_core.tools.retriever import create_retriever_tool
-from config import settings, embeddings
+from config import settings, embeddings, logger
 from safe_math import safe_calculate
 
 # Must match the embedding model's output dimensionality
@@ -45,6 +47,8 @@ def get_llm():
         model=settings.GEMINI_MODEL,
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0.1,
+        timeout=60,      # a stuck call fails after a minute instead of hanging the request forever
+        max_retries=3,   # the default of 6 can keep one request waiting for minutes under rate limiting
     )
 
 
@@ -54,33 +58,73 @@ def get_llm():
 # it's what carries the per-user filter, and that has to be different for
 # every user.
 _qdrant_client = None
+_vectorstore = None
+# Chat and upload run in worker threads (several at once), so first-time
+# setup must not run twice in parallel - two threads both creating the
+# collection would make one of them fail with "already exists".
+_init_lock = threading.Lock()
+
+# Fields every per-user search / per-document delete filters on. Qdrant
+# refuses to filter on a field with no index ("Index required but not found
+# for metadata.user_id"), so both need one.
+_INDEXED_FIELDS = ("metadata.user_id", "metadata.document_id")
+
+
+def _ensure_payload_indexes(client) -> None:
+    """Creating an index that already exists is a harmless no-op, so this is
+    safe to run on every start. It has to run even when the collection
+    already exists: the first document upload creates the collection
+    itself (text_processing.py) WITHOUT these indexes, and the next chat
+    would then fail."""
+    for field in _INDEXED_FIELDS:
+        try:
+            client.create_payload_index(
+                collection_name=settings.QDRANT_COLLECTION_NAME,
+                field_name=field,
+                field_schema=PayloadSchemaType.INTEGER,
+            )
+        except Exception as exc:
+            logger.warning("Could not ensure the Qdrant index on %s: %s", field, str(exc)[:160])
 
 
 def get_qdrant_client():
     global _qdrant_client
-    if _qdrant_client is None:
-        _qdrant_client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
-        if not _qdrant_client.collection_exists(settings.QDRANT_COLLECTION_NAME):
-            # The collection is normally created on first document upload
-            # (text_processing.py). If someone chats before uploading
-            # anything, it won't exist yet - create an empty one here so
-            # the agent doesn't crash on startup with no documents indexed.
-            _qdrant_client.create_collection(
-                collection_name=settings.QDRANT_COLLECTION_NAME,
-                vectors_config=VectorParams(size=EMBEDDING_DIMENSIONS, distance=Distance.COSINE),
-            )
-            # Every search in build_agent() below filters on this field to
-            # keep users' documents isolated from each other. Qdrant
-            # refuses to filter on a field with no index, so without this
-            # line every chat request fails with "Index required but not
-            # found for metadata.user_id" the moment a second user (or the
-            # first query on a fresh collection) shows up.
-            _qdrant_client.create_payload_index(
-                collection_name=settings.QDRANT_COLLECTION_NAME,
-                field_name="metadata.user_id",
-                field_schema=PayloadSchemaType.INTEGER,
-            )
+    if _qdrant_client is not None:
+        return _qdrant_client
+    with _init_lock:
+        if _qdrant_client is None:
+            client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
+            if not client.collection_exists(settings.QDRANT_COLLECTION_NAME):
+                # The collection is normally created on first document upload
+                # (text_processing.py). If someone chats before uploading
+                # anything, it won't exist yet - create an empty one here so
+                # the agent doesn't crash on startup with no documents indexed.
+                client.create_collection(
+                    collection_name=settings.QDRANT_COLLECTION_NAME,
+                    vectors_config=VectorParams(size=EMBEDDING_DIMENSIONS, distance=Distance.COSINE),
+                )
+            _ensure_payload_indexes(client)
+            _qdrant_client = client
     return _qdrant_client
+
+
+def _get_vectorstore():
+    """One shared vector store. Building it makes a network round trip to
+    Qdrant (it checks the collection's configuration), which used to
+    happen again on every single chat message. It holds no per-user state -
+    the per-user filter is applied on the retriever in build_agent() - so it
+    is safe to share."""
+    global _vectorstore
+    if _vectorstore is not None:
+        return _vectorstore
+    with _init_lock:
+        if _vectorstore is None:
+            _vectorstore = QdrantVectorStore(
+                client=get_qdrant_client(),
+                collection_name=settings.QDRANT_COLLECTION_NAME,
+                embedding=embeddings,
+            )
+    return _vectorstore
 
 
 def build_agent(user_id: int, top_k=3):
@@ -94,11 +138,7 @@ def build_agent(user_id: int, top_k=3):
     and show the difference in the observability trace.
     """
     llm = get_llm()
-    vectorstore = QdrantVectorStore(
-        client=get_qdrant_client(),
-        collection_name=settings.QDRANT_COLLECTION_NAME,
-        embedding=embeddings,
-    )
+    vectorstore = _get_vectorstore()
 
     # This filter is the actual security boundary - it's checked by
     # Qdrant itself on every search, not just something the UI happens to

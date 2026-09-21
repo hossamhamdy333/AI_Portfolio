@@ -1,4 +1,8 @@
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -81,8 +85,59 @@ logger = logging.getLogger("AzureRAGAssistant-Backend")
 
 settings = Settings()
 
-embeddings = HuggingFaceEndpointEmbeddings(
-    model=settings.HF_EMBEDDING_MODEL,
-    huggingfacehub_api_token=settings.HF_TOKEN,
-)
+class ResilientEmbeddings(Embeddings):
+    """Wraps the Hugging Face embedding endpoint with three protections.
 
+    The hosted endpoint is a free, shared service: it answers 429 (rate
+    limited) or 503 (model still loading) from time to time, and it can
+    reject a single huge request. Without this, one such answer turned into
+    a 500 on chat, or a failed upload of a large document.
+
+      - retries with growing pauses (1s, 2s, 4s) before giving up,
+      - documents are embedded in batches instead of one giant request,
+      - several batches run at once, which makes indexing a large file
+        noticeably faster (it is network-bound, not CPU-bound).
+
+    Results always come back in the original order.
+    """
+
+    def __init__(self, inner, batch_size: int = 32, max_workers: int = 4, attempts: int = 4, base_delay: float = 1.0):
+        self._inner = inner
+        self._batch_size = batch_size
+        self._max_workers = max_workers
+        self._attempts = attempts
+        self._base_delay = base_delay
+
+    def _with_retry(self, fn, *args):
+        for attempt in range(1, self._attempts + 1):
+            try:
+                return fn(*args)
+            except Exception as exc:
+                if attempt == self._attempts:
+                    raise
+                pause = self._base_delay * (2 ** (attempt - 1))
+                logger.warning("Embedding request failed (attempt %d/%d), retrying in %.0fs: %s",
+                               attempt, self._attempts, pause, str(exc)[:160])
+                time.sleep(pause)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._with_retry(self._inner.embed_query, text)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        texts = list(texts)
+        if not texts:
+            return []
+        batches = [texts[i:i + self._batch_size] for i in range(0, len(texts), self._batch_size)]
+        if len(batches) == 1:
+            return self._with_retry(self._inner.embed_documents, batches[0])
+        with ThreadPoolExecutor(max_workers=min(self._max_workers, len(batches))) as pool:
+            results = list(pool.map(lambda batch: self._with_retry(self._inner.embed_documents, batch), batches))
+        return [vector for batch_result in results for vector in batch_result]
+
+
+embeddings = ResilientEmbeddings(
+    HuggingFaceEndpointEmbeddings(
+        model=settings.HF_EMBEDDING_MODEL,
+        huggingfacehub_api_token=settings.HF_TOKEN,
+    )
+)
