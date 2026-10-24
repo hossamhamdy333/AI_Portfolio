@@ -359,17 +359,17 @@ async def chat_endpoint(
         final_text = output_guard["text"]
 
         if settings.ENABLE_EVAL:
-            eval_result = evaluate_faithfulness(request.query, context, final_text, db)
+            eval_result = evaluate_faithfulness(input_guard["redacted_text"], context, final_text, db)
             if eval_result and not eval_result.get("is_faithful", True):
                 logger.warning("Faithfulness check flagged this response: %s", eval_result.get("reason"))
 
-        db.add(ChatMessage(conversation_id=convo.id, user_id=user.id, role=MessageRole.user, content=request.query))
+        db.add(ChatMessage(conversation_id=convo.id, user_id=user.id, role=MessageRole.user, content=input_guard["redacted_text"]))
         db.add(ChatMessage(conversation_id=convo.id, user_id=user.id, role=MessageRole.assistant, content=final_text))
         convo.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Auto-title a fresh conversation from its first message.
         if convo.title == "New chat":
-            convo.title = request.query.strip()[:50]
+            convo.title = input_guard["redacted_text"].strip()[:50]
 
         db.commit()
 
@@ -414,7 +414,7 @@ async def chat_stream(
         logger.info("Redacted %d PII match(es) from user %d's message.", input_guard["pii_redactions"], user_id)
 
     text = input_guard["redacted_text"]
-    query = request.query
+    query = text
 
     def events():
         try:

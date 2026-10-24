@@ -44,8 +44,8 @@ def redact_pii(text):
     """Replace anything PII-shaped with a placeholder.
     Returns (redacted_text, number_of_redactions)."""
     text, n_email = _EMAIL_RE.subn("[EMAIL]", text)
-    text, n_phone = _PHONE_RE.subn("[PHONE]", text)
     text, n_id = _NATIONAL_ID_RE.subn("[ID_NUMBER]", text)
+    text, n_phone = _PHONE_RE.subn("[PHONE]", text)
     return text, n_email + n_phone + n_id
 
 
