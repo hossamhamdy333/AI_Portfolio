@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # Longest answer, in tokens (~0.75 words each). Shorter = proportionally
     # faster, since answers are generated one token at a time. If an answer hits
     # this cap it is trimmed back to its last complete sentence.
-    LLM_MAX_NEW_TOKENS: int = 60
+    LLM_MAX_NEW_TOKENS: int = 150
 
     # CPU threads for llama.cpp. Must match the CPUs the container really has
     # (4 on the Consumption plan). Raise it together with the CPU allocation.
