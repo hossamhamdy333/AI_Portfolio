@@ -155,3 +155,8 @@ REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", 10))
 RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", 3600))  # 1 hour
+
+# Gemini list prices in USD per million tokens. Only the dashboard's cost
+# estimate uses them. Change them in .env if Google changes the price.
+INPUT_COST_PER_M = float(os.environ.get("INPUT_COST_PER_M", 0.30))
+OUTPUT_COST_PER_M = float(os.environ.get("OUTPUT_COST_PER_M", 2.50))

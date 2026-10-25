@@ -114,3 +114,41 @@ def test_no_public_registration_route_exists():
     failing instead of silently reopening that surface."""
     response = client.post("/auth/register", json={"email": "x@example.com", "password": "whatever123"})
     assert response.status_code == 404
+
+
+def test_metrics_route_requires_login():
+    response = client.get("/admin/metrics")
+    assert response.status_code in (401, 403)
+
+
+def test_metrics_route_reads_the_trace_file(tmp_path, monkeypatch):
+    import json
+    import tracing
+
+    path = tmp_path / "traces.jsonl"
+    path.write_text(json.dumps({
+        "name": "ask", "start": 1, "duration_s": 2.5, "error": False,
+        "attributes": {"retries": 0, "projects": "sentiment_forge"},
+    }) + "\n")
+    monkeypatch.setattr(tracing, "TRACE_FILE", str(path))
+
+    db = SessionLocal()
+    if db.query(AdminUser).filter(AdminUser.email == "metrics@example.com").first() is None:
+        db.add(AdminUser(email="metrics@example.com", password_hash=hash_password("a-real-password-123")))
+        db.commit()
+    db.close()
+    login = client.post("/auth/login", json={"email": "metrics@example.com", "password": "a-real-password-123"})
+    token = login.json()["access_token"]
+
+    response = client.get("/admin/metrics", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["questions"] == 1
+    assert body["avg_s"] == 2.5
+    assert body["recent"][0]["projects"] == "sentiment_forge"
+
+
+def test_dashboard_page_is_served_without_data():
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "Latency, cost and errors" in response.text

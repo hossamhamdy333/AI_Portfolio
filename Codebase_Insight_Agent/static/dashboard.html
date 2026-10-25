@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard | Codebase Insight Agent</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f8; --card: #ffffff; --line: #e5e5e5; --text: #111111;
+    --muted: #666666; --bar: #4a6fa5; --warn: #d98e04; --bad: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151517; --card: #1f1f22; --line: #333338; --text: #ececec;
+      --muted: #9a9aa2; --bar: #7fa3d6; --warn: #e5a82a; --bad: #e5675a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    max-width: 900px; margin: 0 auto; padding: 28px 16px 60px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1rem; margin: 28px 0 10px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+  a { color: var(--bar); }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  button {
+    background: var(--text); color: var(--bg); border: none; padding: 8px 16px;
+    border-radius: 8px; font-size: 0.88rem; cursor: pointer;
+  }
+  input {
+    padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text); font-size: 0.95rem; width: 100%; margin-bottom: 8px;
+  }
+  #login { max-width: 320px; margin-top: 40px; }
+  #msg { color: var(--bad); font-size: 0.85rem; margin-top: 8px; min-height: 1.2em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card .label { font-size: 0.75rem; color: var(--muted); }
+  .card .value { font-size: 1.35rem; font-weight: 600; margin-top: 2px; }
+  .card .note { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; font-size: 0.78rem; }
+  tr:last-child td { border-bottom: none; }
+  .legend { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+  .legend span { margin-right: 14px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+  .foot { color: var(--muted); font-size: 0.8rem; line-height: 1.5; margin-top: 24px; }
+  .empty { color: var(--muted); font-size: 0.9rem; padding: 8px 0; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>Dashboard</h1>
+  <div class="sub">Admin login</div>
+  <input type="email" id="email" placeholder="Email" />
+  <input type="password" id="password" placeholder="Password" />
+  <button id="login-btn" style="width:100%;">Log in</button>
+  <div id="msg"></div>
+  <p class="sub"><a href="/">Back to the chat</a></p>
+</div>
+
+<div id="main" style="display:none;">
+  <div class="top">
+    <h1>Latency, cost and errors</h1>
+    <div>
+      <button id="refresh-btn">Refresh</button>
+      <button id="logout-btn" style="background:transparent; color:var(--text); border:1px solid var(--line);">Log out</button>
+    </div>
+  </div>
+  <div class="sub" id="updated"></div>
+
+  <div class="grid" id="cards"></div>
+
+  <h2>Last questions, seconds each</h2>
+  <div class="panel" id="chart"></div>
+
+  <h2>Time per step</h2>
+  <div class="panel" id="spans"></div>
+
+  <h2>Slowest questions</h2>
+  <div class="panel" id="slowest"></div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+  function esc(value) {
+    return String(value).replace(/[&<>"']/g, ch => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+    ));
+  }
+
+  let token = null;
+  const loginBox = document.getElementById("login");
+  const mainBox = document.getElementById("main");
+  const msg = document.getElementById("msg");
+
+  async function refreshToken() {
+    const saved = localStorage.getItem("admin_refresh_token");
+    if (!saved) return false;
+    const res = await fetch("/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: saved }),
+    });
+    if (!res.ok) { localStorage.removeItem("admin_refresh_token"); return false; }
+    token = (await res.json()).access_token;
+    return true;
+  }
+
+  document.getElementById("login-btn").addEventListener("click", async () => {
+    msg.textContent = "Logging in...";
+    try {
+      const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: document.getElementById("email").value.trim(),
+          password: document.getElementById("password").value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { msg.textContent = data.detail || "Login failed"; return; }
+      token = data.access_token;
+      localStorage.setItem("admin_refresh_token", data.refresh_token);
+      msg.textContent = "";
+      await load();
+    } catch (err) {
+      msg.textContent = "Could not reach the server: " + err.message;
+    }
+  });
+
+  document.getElementById("logout-btn").addEventListener("click", async () => {
+    const saved = localStorage.getItem("admin_refresh_token");
+    if (saved) {
+      await fetch("/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: saved }),
+      });
+    }
+    localStorage.removeItem("admin_refresh_token");
+    token = null;
+    mainBox.style.display = "none";
+    loginBox.style.display = "block";
+  });
+
+  document.getElementById("refresh-btn").addEventListener("click", load);
+
+  const fmt = n => Number(n).toLocaleString();
+  const secs = n => Number(n).toFixed(2) + " s";
+  const usd = n => "$" + Number(n).toFixed(n < 0.01 ? 4 : 2);
+
+  function card(label, value, note) {
+    return `<div class="card"><div class="label">${esc(label)}</div>` +
+      `<div class="value">${esc(value)}</div>` +
+      (note ? `<div class="note">${esc(note)}</div>` : "") + `</div>`;
+  }
+
+  function drawChart(rows) {
+    if (!rows.length) return '<div class="empty">No questions traced yet.</div>';
+    const width = 840, height = 150, pad = 4;
+    const top = Math.max(...rows.map(r => r.duration_s), 1);
+    const slot = (width - pad * 2) / rows.length;
+    const bars = rows.map((r, i) => {
+      const h = Math.max(2, (r.duration_s / top) * (height - 20));
+      const color = r.error ? "var(--bad)" : r.retries > 0 ? "var(--warn)" : "var(--bar)";
+      const when = new Date(r.start * 1000).toLocaleTimeString();
+      const tip = `${when}, ${r.duration_s.toFixed(2)} s` + (r.retries ? `, ${r.retries} failed checks` : "") + (r.error ? ", error" : "");
+      return `<rect x="${(pad + i * slot).toFixed(1)}" y="${(height - h).toFixed(1)}" ` +
+        `width="${Math.max(2, slot - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}">` +
+        `<title>${esc(tip)}</title></rect>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Seconds per question">` +
+      `<text x="${pad}" y="11" font-size="11" fill="var(--muted)">${top.toFixed(1)} s</text>${bars}</svg>` +
+      `<div class="legend"><span><i class="dot" style="background:var(--bar)"></i>answered</span>` +
+      `<span><i class="dot" style="background:var(--warn)"></i>failed the check at least once</span>` +
+      `<span><i class="dot" style="background:var(--bad)"></i>error</span></div>`;
+  }
+
+  function drawSpans(rows) {
+    if (!rows.length) return '<div class="empty">Nothing traced yet.</div>';
+    return "<table><tr><th>step</th><th>count</th><th>avg</th><th>p95</th><th>max</th><th>errors</th></tr>" +
+      rows.map(r => `<tr><td>${esc(r.name)}</td><td>${fmt(r.count)}</td><td>${secs(r.avg_s)}</td>` +
+        `<td>${secs(r.p95_s)}</td><td>${secs(r.max_s)}</td><td>${fmt(r.errors)}</td></tr>`).join("") +
+      "</table>";
+  }
+
+  function drawSlowest(rows) {
+    if (!rows.length) return '<div class="empty">Nothing traced yet.</div>';
+    return "<table><tr><th>projects</th><th>failed checks</th><th>time</th></tr>" +
+      rows.map(r => `<tr><td>${esc(r.projects || "none")}</td><td>${fmt(r.retries)}</td>` +
+        `<td>${secs(r.duration_s)}</td></tr>`).join("") + "</table>";
+  }
+
+  async function load() {
+    let res = await fetch("/admin/metrics", { headers: { Authorization: "Bearer " + token } });
+    if (res.status === 401 && await refreshToken()) {
+      res = await fetch("/admin/metrics", { headers: { Authorization: "Bearer " + token } });
+    }
+    if (!res.ok) {
+      loginBox.style.display = "block";
+      mainBox.style.display = "none";
+      msg.textContent = "Please log in.";
+      return;
+    }
+    const m = await res.json();
+    loginBox.style.display = "none";
+    mainBox.style.display = "block";
+
+    document.getElementById("cards").innerHTML = [
+      card("Questions", fmt(m.questions), m.retried ? fmt(m.retried) + " failed the check" : ""),
+      card("Average time", secs(m.avg_s)),
+      card("Slowest 5%", secs(m.p95_s), "p95, max " + secs(m.max_s)),
+      card("Errors", (m.error_rate * 100).toFixed(1) + "%", fmt(m.failed) + " of " + fmt(m.questions)),
+      card("Tokens", fmt(m.input_tokens + m.output_tokens), fmt(m.input_tokens) + " in, " + fmt(m.output_tokens) + " out"),
+      card("Estimated cost", usd(m.est_cost_usd), usd(m.cost_per_question_usd) + " per question"),
+    ].join("");
+
+    document.getElementById("chart").innerHTML = drawChart(m.recent);
+    document.getElementById("spans").innerHTML = drawSpans(m.spans);
+    document.getElementById("slowest").innerHTML = drawSlowest(m.slowest);
+    document.getElementById("updated").textContent = "Updated " + new Date().toLocaleTimeString();
+    document.getElementById("foot").textContent =
+      "Cost is an estimate: the tokens Gemini reported times the list price of $" +
+      m.price_per_m.input.toFixed(2) + " per million input and $" + m.price_per_m.output.toFixed(2) +
+      " per million output. A free-tier key may not be billed at all. " +
+      "Only questions that reached the agent are counted. Cached answers, greetings and blocked " +
+      "questions never start a trace. The retrieve step includes its lookups and the draft call, " +
+      "so it overlaps with them. An error counts every failed attempt, even when the retry then worked.";
+  }
+
+  (async function start() {
+    if (await refreshToken()) await load();
+  })();
+</script>
+
+</body>
+</html>

@@ -36,6 +36,7 @@ from sqlalchemy import func
 
 import config
 import portfolio
+import tracing
 from guardrails import guard_input, guard_output
 from rate_limit import is_rate_limited
 from database import get_db, init_db, SessionLocal
@@ -197,6 +198,13 @@ def get_client_ip(request: Request) -> str:
 @app.get("/", response_class=HTMLResponse)
 async def index():
     html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    with open(html_path, encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    html_path = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
     with open(html_path, encoding="utf-8") as f:
         return f.read()
 
@@ -367,3 +375,9 @@ def admin_logs(
         }
         for q in logs
     ]
+
+
+@app.get("/admin/metrics")
+def admin_metrics(admin: AdminUser = Depends(require_admin)):
+    spans = tracing.read_spans(tracing.TRACE_FILE)
+    return tracing.summarize(spans, config.INPUT_COST_PER_M, config.OUTPUT_COST_PER_M)
