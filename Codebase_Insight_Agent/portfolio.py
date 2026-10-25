@@ -442,7 +442,8 @@ def build_agent(indexes, router):
         model=config.LLM_MODEL,
         temperature=0.2,
         thinking_level="minimal",
-        max_retries=2,
+        max_retries=3,
+        timeout=8,
     )
 
     def plan(state):
