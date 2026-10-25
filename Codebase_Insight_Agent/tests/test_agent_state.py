@@ -19,13 +19,13 @@ class FakeResponse:
         self.content = content
 
 
-class FakeEngine:
+class FakeRetriever:
     def __init__(self, seen):
         self.seen = seen
 
-    def query(self, query):
+    def retrieve(self, query):
         self.seen.append(query)
-        return "some context"
+        return []
 
 
 class FakeIndex:
@@ -33,9 +33,9 @@ class FakeIndex:
         self.seen = seen
         self.top_ks = top_ks if top_ks is not None else []
 
-    def as_query_engine(self, similarity_top_k=5):
+    def as_retriever(self, similarity_top_k=5):
         self.top_ks.append(similarity_top_k)
-        return FakeEngine(self.seen)
+        return FakeRetriever(self.seen)
 
 
 class FakeRouter:

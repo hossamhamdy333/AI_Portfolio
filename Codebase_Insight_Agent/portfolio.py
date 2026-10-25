@@ -309,13 +309,16 @@ def load_all_indexes():
 
 
 def _source_excerpts(response, limit=8):
-    """Raw text of the chunks a query engine retrieved, so exact figures
-    (F1 scores, latencies) survive - the engine's own summary tends to
-    paraphrase them away. Returns "" if the response has no source nodes."""
+    return _nodes_text(getattr(response, "source_nodes", None), limit)
+
+
+def _nodes_text(nodes, limit=8):
+    """Raw text of the retrieved chunks, so exact figures (F1 scores,
+    latencies) survive. Returns "" if there are no nodes."""
     import re as _re
 
     out = []
-    for node in (getattr(response, "source_nodes", None) or [])[:limit]:
+    for node in (nodes or [])[:limit]:
         try:
             text = node.get_content()
         except Exception:
@@ -461,13 +464,9 @@ def build_agent(indexes, router):
             try:
                 with tracing.span("lookup", project=name):
                     top_k = config.OVERVIEW_TOP_K if name == config.OVERVIEW_PROJECT else 8
-                    engine = indexes[name].as_query_engine(similarity_top_k=top_k)
-                    response = engine.query(query)
-                    excerpts = _source_excerpts(response)
-                    return (
-                        f"From the {name} project:\n{response}"
-                        + (f"\n\nExact excerpts from its README:\n{excerpts}" if excerpts else "")
-                    )
+                    nodes = indexes[name].as_retriever(similarity_top_k=top_k).retrieve(query)
+                    excerpts = _nodes_text(nodes)
+                    return f"From the {name} project, README excerpts:\n{excerpts}"
             finally:
                 otel_context.detach(token)
 
