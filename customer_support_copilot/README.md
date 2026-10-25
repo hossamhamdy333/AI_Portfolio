@@ -4,7 +4,7 @@ A customer support chatbot. I fine-tuned Llama-3-8B on support conversations, ga
 
 **Demo video:** [watch it on YouTube](https://www.youtube.com/watch?v=5AhMi_Rz57M)
 
-> **How the demo was run:** the app ran locally in Docker. The model was served from a free Colab T4 GPU (see [`notebooks/colab_gpu_server.ipynb`](notebooks/colab_gpu_server.ipynb)), because an 8B model is too slow on my laptop CPU. It is not hosted live. It ran on Azure Container Apps until my credit ran out.
+> **How the demo was run:** the app ran locally in Docker. The model was served from a free Colab T4 GPU (see [`notebooks/colab_gpu_server.ipynb`](notebooks/colab_gpu_server1.ipynb)), because an 8B model is too slow on my laptop CPU. It is not hosted live. It ran on Azure Container Apps until my credit ran out.
 
 `Unsloth` `llama.cpp` `FastAPI` `ChromaDB` `SQLAlchemy` `Docker` `pytest`
 
