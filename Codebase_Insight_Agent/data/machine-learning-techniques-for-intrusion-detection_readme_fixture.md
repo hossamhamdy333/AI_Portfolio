@@ -743,7 +743,7 @@ torch==2.3.0
 
 
 
--e 
+
 
 ---
 
@@ -805,7 +805,7 @@ shutil.make_archive('xgboost_plots', 'zip', plots_dir)
 ```
 
 Download the zip from the Kaggle notebook output panel and extract into the corresponding subfolder here.
--e 
+
 
 ---
 
@@ -869,7 +869,7 @@ All plots are saved to `/kaggle/working/plots_eda/` and zipped for download.
 - **Multiple highly correlated pairs** identified (e.g. MAX_IP_PKT_LEN / LONGEST_FLOW_PKT)
 - **PCA explains only 27.3% variance in 2 components** — high intrinsic dimensionality, non-linear separability
 - **Top MI features:** `LONGEST_FLOW_PKT`, `MAX_IP_PKT_LEN`, `IN_BYTES`, `SRC_TO_DST_AVG_THROUGHPUT`, `MIN_TTL`, `MAX_TTL`
--e 
+
 
 ---
 
@@ -962,7 +962,7 @@ Transforms the raw sampled data into clean, scaled, split arrays ready for model
 | Train | ~13.7M → subsampled to ~5.2M in DL models notebooks | 42 |
 | Val | ~4.6M | 42 |
 | Test | ~4.6M | 42 |
--e 
+
 
 ---
 
@@ -1050,7 +1050,7 @@ Each model produces:
 - Per-class Precision/Recall heatmap *(multiclass models)*
 - Feature importance bar chart (top 20, engineered features highlighted in red)
 - Comparison bar chart vs published papers on NF-UQ-NIDS-v2
--e 
+
 
 ---
 
@@ -1153,7 +1153,7 @@ Each model produces:
 - Per-class Precision/Recall heatmap *(multiclass models)*
 - Feature importance bar chart (top 20, engineered features highlighted)
 - Comparison bar chart vs published papers on NF-UQ-NIDS-v2
--e 
+
 
 ---
 
@@ -1236,7 +1236,7 @@ Each model produces:
 - Feature importance (TabNet `feature_importances_`, top 20)
 - Attention mask visualisation (mean + per-class heatmap)
 - Comparison bar chart vs published papers
--e 
+
 
 ---
 

@@ -166,7 +166,7 @@ embedding selector's only real advantage is cost and latency.
 - `DVC` for data and model artifact versioning
 - `pytest`, 30 tests covering pure logic plus in-memory Qdrant and real
   LlamaIndex routing, no API keys required to run them
--e 
+
 
 ---
 

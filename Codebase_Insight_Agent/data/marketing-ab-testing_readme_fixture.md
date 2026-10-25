@@ -122,7 +122,7 @@ The top 1% of `ad`-group users (200+ ads shown each) account for 13.2% of total 
 - `plotly` (dashboard-side charting, per `requirements.txt`)
 - `jupyter`/`nbformat`/`nbconvert`/`ipykernel` for the notebook pipeline
 - Plain `pytest`-free scripts (`test_ab_analysis.py`, `test_dashboard.py`, `test_sql.py` run directly, not via a `pytest` collector) validating stats logic against three synthetic scenarios and the dashboard/SQL against a shared fixture, before any of it touches the real 588,101-row dataset
--e 
+
 
 ---
 

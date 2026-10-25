@@ -265,7 +265,7 @@ average 95% reorder point of 82.16 units per SKU.
 - `Power BI` for the 4-page dashboard, fed by `sql/09_bi_exports.sql`'s
   flat exports plus a BI-specific forecast export from
   `03_forecasting_models.ipynb`
--e 
+
 
 ---
 
@@ -347,7 +347,7 @@ The unpredictable, no-warning demand spikes described above are the main thing s
 ## If this continued
 
 The most direct next step would be turning the classification threshold into a cost-weighted decision rather than a pure WAPE-minimizing one — if a missed spike costs more in stockouts than a false positive costs in holding inventory, the threshold should reflect that tradeoff instead of a metric that treats both kinds of error as equally expensive. That needs an actual cost ratio from whoever owns the inventory decision, so it wasn't something to guess at here. Beyond that, the most useful additions would be external signals for the promotions/restock problem described above, and possibly splitting the very high-volume SKUs from the long tail of intermittent ones into separate models rather than asking one model to serve both regimes well.
--e 
+
 
 ---
 

@@ -119,7 +119,7 @@ These cells sum to 1,391, not 1,409. The missing 18 are customers whose predicte
 - `PostgreSQL`, run via `psql`/pgAdmin, for the independent SQL segmentation layer
 - `Streamlit` 1.61.1 for the 4-page interactive dashboard
 - `Power BI` for the 2-page stakeholder dashboard (`churn_dashboard.pbix`), DAX for the live Expected Profit measure
--e 
+
 
 ---
 

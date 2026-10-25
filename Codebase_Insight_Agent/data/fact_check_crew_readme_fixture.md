@@ -98,7 +98,7 @@ The crew's hallucination rate is a third lower than the baseline's (0.08 vs. 0.1
 - `pandas` for the eval-set sample and results handling
 - `pytest`, 23 tests (retry-loop control flow with mocked CrewAI calls, search-tool payload parsing against a real LlamaIndex-populated Qdrant collection, faithfulness-judge JSON parsing including the "unparseable means unknown, not clean" case)
 - Test-only dependency: `llama-index-core` / `llama-index-embeddings-huggingface`, used solely to build a realistic Qdrant fixture for `test_search_tool.py`, not used by any of the project's own `src/` code
--e 
+
 
 ---
 

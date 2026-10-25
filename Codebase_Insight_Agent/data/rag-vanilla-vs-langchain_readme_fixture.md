@@ -374,7 +374,7 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
 - `datasets` 2.19.0 for `csebuetnlp/xlsum`, `pandas` 2.2.2, `numpy` <2
 - `pytest` 8.2.0, 29 tests, plus GitHub Actions on pushes touching
   `rag-vanilla-vs-langchain/**`
--e 
+
 
 ---
 
@@ -439,7 +439,7 @@ Both implementations use the same corpus (XLSum Arabic), the same 100-question e
 ## Not yet measured
 
 Cost and latency per query. Both implementations log per-query cost (`impl_vanilla` via `shared/llm_client.py`, `impl_langchain` via LangSmith). `ParentDocumentRetriever`'s larger context windows are expected to increase input tokens per generation call relative to `impl_vanilla`'s flat chunks; not yet quantified.
--e 
+
 
 ---
 
@@ -482,7 +482,7 @@ See [../COMPARISON.md](../COMPARISON.md) for how this stacks up against `impl_va
 cd rag-vanilla-vs-langchain
 PYTHONPATH=impl_langchain:. pytest impl_langchain/tests/ -v
 ```
--e 
+
 
 ---
 
