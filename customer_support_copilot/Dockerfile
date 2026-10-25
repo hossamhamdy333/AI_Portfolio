@@ -38,9 +38,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 # app simply downloads the models at startup, exactly as it did before.
 ENV HF_HOME=/opt/hf-cache \
     SENTENCE_TRANSFORMERS_HOME=/opt/hf-cache
+ARG BAKE_MODELS=1
 COPY scripts/bake_models.py /tmp/bake_models.py
-RUN python /tmp/bake_models.py \
-    || echo "WARNING: could not pre-download models; they will download at startup instead"
+RUN if [ "$BAKE_MODELS" = "1" ]; then python /tmp/bake_models.py \
+    || echo "WARNING: could not pre-download models; they will download at startup instead"; fi
 
 COPY . .
 
