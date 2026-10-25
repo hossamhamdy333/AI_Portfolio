@@ -433,7 +433,12 @@ def build_agent(indexes, router):
     from langgraph.graph import StateGraph, END
     from langchain_google_genai import ChatGoogleGenerativeAI
 
-    llm = ChatGoogleGenerativeAI(model=config.LLM_MODEL, temperature=0.2)
+    llm = ChatGoogleGenerativeAI(
+        model=config.LLM_MODEL,
+        temperature=0.2,
+        thinking_level="minimal",
+        max_retries=2,
+    )
 
     def plan(state):
         projects = router.select(state["question"])
