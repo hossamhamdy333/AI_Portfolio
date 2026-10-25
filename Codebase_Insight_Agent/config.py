@@ -5,7 +5,7 @@ GITHUB_ORG = "hossamhamdy333"
 GITHUB_REPO = "AI_Portfolio"
 GITHUB_BRANCH = "main"
 
-LLM_MODEL = "gemini-3.1-flash-lite"
+LLM_MODEL = "gemini-3.5-flash-lite"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # free, local, no API key/quota
 
 CHUNK_SIZE = 512
