@@ -15,6 +15,7 @@ RUN python -c "import config; from sentence_transformers import SentenceTransfor
 COPY data/ data/
 COPY static/ static/
 COPY portfolio.py .
+COPY tracing.py .
 COPY database.py .
 COPY models.py .
 COPY auth.py .

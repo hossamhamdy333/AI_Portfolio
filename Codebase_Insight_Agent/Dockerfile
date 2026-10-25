@@ -12,6 +12,7 @@ RUN python -c "import config; from sentence_transformers import SentenceTransfor
 
 COPY data/ data/
 COPY portfolio.py .
+COPY tracing.py .
 COPY mcp_server.py .
 
 # GOOGLE_API_KEY, QDRANT_URL and QDRANT_API_KEY are set at deploy time.

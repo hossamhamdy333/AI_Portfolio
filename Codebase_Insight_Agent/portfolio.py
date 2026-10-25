@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import TypedDict
 
 import requests
+from opentelemetry import context as otel_context
 
 import config
+import tracing
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -441,26 +443,33 @@ def build_agent(indexes, router):
     )
 
     def plan(state):
-        projects = router.select(state["question"])
-        projects = [p for p in projects if p in indexes]
-        if not projects:
-            projects = list(indexes.keys())[:1]
-        return {"target_projects": projects}
+        with tracing.span("plan"):
+            projects = router.select(state["question"])
+            projects = [p for p in projects if p in indexes]
+            if not projects:
+                projects = list(indexes.keys())[:1]
+            return {"target_projects": projects}
 
-    def retrieve(state):
+    def retrieve_step(state):
+        parent_context = otel_context.get_current()
         query = state["question"]
         if state.get("feedback"):
             query += f" (also cover: {state['feedback']})"
 
         def query_project(name):
-            top_k = config.OVERVIEW_TOP_K if name == config.OVERVIEW_PROJECT else 8
-            engine = indexes[name].as_query_engine(similarity_top_k=top_k)
-            response = engine.query(query)
-            excerpts = _source_excerpts(response)
-            return (
-                f"From the {name} project:\n{response}"
-                + (f"\n\nExact excerpts from its README:\n{excerpts}" if excerpts else "")
-            )
+            token = otel_context.attach(parent_context)
+            try:
+                with tracing.span("lookup", project=name):
+                    top_k = config.OVERVIEW_TOP_K if name == config.OVERVIEW_PROJECT else 8
+                    engine = indexes[name].as_query_engine(similarity_top_k=top_k)
+                    response = engine.query(query)
+                    excerpts = _source_excerpts(response)
+                    return (
+                        f"From the {name} project:\n{response}"
+                        + (f"\n\nExact excerpts from its README:\n{excerpts}" if excerpts else "")
+                    )
+            finally:
+                otel_context.detach(token)
 
         names = state["target_projects"]
         if len(names) <= 1:
@@ -498,8 +507,15 @@ def build_agent(indexes, router):
             "metric by its real name: say F1 when it is F1, not accuracy.\n\n"
             f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
         )
-        draft = _extract_text(llm.invoke(prompt))
+        with tracing.span("draft") as s:
+            reply = llm.invoke(prompt)
+            s.set_attributes(tracing.token_counts(reply))
+        draft = _extract_text(reply)
         return {"context": context, "draft": draft}
+
+    def retrieve(state):
+        with tracing.span("retrieve"):
+            return retrieve_step(state)
 
     def critique(state):
         prompt = (
@@ -508,8 +524,12 @@ def build_agent(indexes, router):
             f"Context:\n{state['context']}\n\nAnswer:\n{state['draft']}\n\n"
             "Reply with exactly one line: PASS or FAIL: <reason>"
         )
-        result = _extract_text(llm.invoke(prompt))
-        passed = result.strip().upper().startswith("PASS")
+        with tracing.span("critique") as s:
+            reply = llm.invoke(prompt)
+            result = _extract_text(reply)
+            passed = result.strip().upper().startswith("PASS")
+            s.set_attributes(tracing.token_counts(reply))
+            s.set_attribute("passed", passed)
         feedback = None if passed else (result.split(":", 1)[1].strip() if ":" in result else result)
         return {
             "passed": passed,
@@ -542,7 +562,12 @@ def build_agent(indexes, router):
 
 def ask(agent, question):
     """Run the agent on one question, return the answer plus how it got there."""
-    result = agent.invoke({"question": question, "retries": 0})
+    with tracing.span("ask", question_chars=len(question)) as s:
+        result = agent.invoke({"question": question, "retries": 0})
+        s.set_attributes({
+            "projects": ",".join(result["target_projects"]),
+            "retries": result["retries"],
+        })
     projects = result["target_projects"]
     attempts = result["retries"] + 1
     return {
