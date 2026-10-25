@@ -445,6 +445,14 @@ def build_agent(indexes, router):
         max_retries=3,
         timeout=15,
     )
+    judge = ChatGoogleGenerativeAI(
+        model=config.LLM_MODEL,
+        temperature=0,
+        thinking_level="minimal",
+        max_output_tokens=100,
+        max_retries=3,
+        timeout=15,
+    )
 
     def plan(state):
         with tracing.span("plan"):
@@ -525,7 +533,7 @@ def build_agent(indexes, router):
             "Reply with exactly one line: PASS or FAIL: <reason>"
         )
         with tracing.span("critique") as s:
-            reply = llm.invoke(prompt)
+            reply = judge.invoke(prompt)
             result = _extract_text(reply)
             passed = result.strip().upper().startswith("PASS")
             s.set_attributes(tracing.token_counts(reply))
