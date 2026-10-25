@@ -443,7 +443,7 @@ def build_agent(indexes, router):
         temperature=0.2,
         thinking_level="minimal",
         max_retries=3,
-        timeout=8,
+        timeout=15,
     )
 
     def plan(state):
