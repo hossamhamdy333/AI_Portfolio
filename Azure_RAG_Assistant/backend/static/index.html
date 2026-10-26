@@ -86,6 +86,9 @@
     white-space: normal;
   }
   .msg.assistant .sources-label { font-size: 0.75rem; color: #777; }
+  .msg.assistant .grounding { margin-top: 6px; font-size: 0.75rem; white-space: normal; }
+  .msg.assistant .grounding.ok { color: #15803d; }
+  .msg.assistant .grounding.weak { color: #b45309; }
   .msg.assistant .source-badge {
     font-size: 0.75rem;
     color: #444;
@@ -391,6 +394,42 @@
     el.appendChild(wrap);
   }
 
+  // One badge per cited chunk, like "[1] policy.pdf p.3". Hovering a badge
+  // shows the start of the text the answer was based on.
+  function renderCitations(el, citations) {
+    if (!citations || !citations.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "sources";
+    const label = document.createElement("span");
+    label.className = "sources-label";
+    label.textContent = "From:";
+    wrap.appendChild(label);
+    citations.forEach((c) => {
+      const badge = document.createElement("span");
+      badge.className = "source-badge";
+      badge.textContent = "[" + c.ref + "] " + c.label;
+      badge.title = c.snippet;
+      wrap.appendChild(badge);
+    });
+    el.appendChild(wrap);
+  }
+
+  // A short line saying whether the cited sentences matched their sources.
+  function renderGrounding(el, grounding) {
+    if (!grounding || grounding.status === "unchecked") return;
+    const line = document.createElement("div");
+    if (grounding.status === "grounded") {
+      line.className = "grounding ok";
+      line.textContent = "Checked against the cited text.";
+    } else {
+      line.className = "grounding weak";
+      line.textContent = "Some statements may not match the cited text. Check the sources.";
+      const bad = (grounding.checks || []).filter((c) => !c.ok).map((c) => c.claim);
+      if (bad.length) line.title = "Not backed up:\n" + bad.join("\n");
+    }
+    el.appendChild(line);
+  }
+
   function addMessage(role, text) {
     const div = document.createElement("div");
     div.className = "msg " + role;
@@ -419,7 +458,12 @@
       pending.classList.remove("pending");
       if (res.ok) {
         renderAnswer(pending, data.answer);
-        renderSources(pending, data.sources);
+        if (data.citations && data.citations.length) {
+          renderCitations(pending, data.citations);
+        } else {
+          renderSources(pending, data.sources);
+        }
+        renderGrounding(pending, data.grounding);
       } else {
         pending.textContent = "Error: " + (data.detail || res.statusText);
       }
