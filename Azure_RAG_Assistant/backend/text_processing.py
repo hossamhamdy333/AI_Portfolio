@@ -1,4 +1,5 @@
 import io
+import time
 import pypdfium2 as pdfium
 import pytesseract
 from PIL import Image
@@ -38,7 +39,9 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 
 
 def process_and_upsert(file_bytes: bytes, filename: str, user_id: int, document_id: int) -> int:
+    t0 = time.time()
     pages = extract_pages(file_bytes, filename)
+    t_read = time.time() - t0
 
     if not any(text.strip() for _, text in pages):
         raise ValueError("No text could be extracted from this file.")
@@ -52,6 +55,7 @@ def process_and_upsert(file_bytes: bytes, filename: str, user_id: int, document_
     # accidentally touching a different upload that happens to share the
     # same filename. Each page is split on its own, so a chunk never
     # crosses a page and its page number is always exact.
+    t0 = time.time()
     docs = []
     for page_number, text in pages:
         for chunk in splitter.split_text(text):
@@ -60,6 +64,8 @@ def process_and_upsert(file_bytes: bytes, filename: str, user_id: int, document_
                 metadata["page"] = page_number
             docs.append(Document(page_content=chunk, metadata=metadata))
 
+    t_split = time.time() - t0
+    t0 = time.time()
     QdrantVectorStore.from_documents(
         docs,
         embeddings,
@@ -68,6 +74,7 @@ def process_and_upsert(file_bytes: bytes, filename: str, user_id: int, document_
         collection_name=settings.QDRANT_COLLECTION_NAME,
         timeout=30,
     )
+    logger.info("Upload timing: read %.1fs, split %.1fs, embed+store %.1fs", t_read, t_split, time.time() - t0)
     logger.info("Indexed %d chunks from %s for user %d (document_id=%d)", len(docs), filename, user_id, document_id)
     return len(docs)
 
