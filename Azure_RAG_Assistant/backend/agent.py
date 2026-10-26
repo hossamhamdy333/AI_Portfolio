@@ -257,15 +257,60 @@ def warm_up() -> None:
         logger.warning("Warm-up skipped after %.1fs: %s", time.time() - start, str(exc)[:160])
 
 
-def run_agent_cited(query: str, user_id: int) -> tuple[str, list[dict]]:
-    """Like run_agent, but also returns the chunks the agent retrieved."""
+NOT_FOUND = "I could not find this in your uploaded documents."
+
+RAG_PROMPT = (
+    "You answer questions using only the numbered passages from the user's "
+    "documents. Be specific: use the exact terms, definitions, formulas, "
+    "numbers and examples that appear in the passages, and do not give a "
+    "general textbook answer. Put the passage number in square brackets "
+    "right after each sentence that uses it, like [1] or [2]. Only use "
+    "numbers that appear in the passages. If the passages do not contain "
+    f"the answer, reply exactly: {NOT_FOUND} Do not write a Source line."
+)
+
+RETRIEVE_K = 6
+
+_MATH = re.compile(r"[\d\s.+\-*/()%^]+")
+_MATH_LEAD = re.compile(r"^(what is|what's|calculate|compute)\s+", re.IGNORECASE)
+
+
+def _is_math(query: str) -> bool:
+    text = _MATH_LEAD.sub("", query.strip()).rstrip("?= ").strip()
+    return bool(text) and bool(_MATH.fullmatch(text)) and any(op in text for op in "+-*/%^") and any(c.isdigit() for c in text)
+
+
+def retrieve_chunks(query: str, user_id: int, k: int = RETRIEVE_K) -> list[dict]:
+    """Searches this user's documents. Always runs, so the answer never
+    depends on the model choosing to look."""
+    user_filter = Filter(must=[FieldCondition(key="metadata.user_id", match=MatchValue(value=user_id))])
+    retriever = _get_vectorstore().as_retriever(search_kwargs={"k": k, "filter": user_filter})
     chunks: list[dict] = []
-    token = _retrieved.set(chunks)
-    try:
-        answer = run_agent(query, user_id)
-    finally:
-        _retrieved.reset(token)
-    return answer, chunks
+    for doc in retriever.invoke(query):
+        doc.metadata.setdefault("source", "unknown document")
+        _ref_for(doc, chunks)
+    return chunks
+
+
+def run_agent_cited(query: str, user_id: int) -> tuple[str, list[dict]]:
+    """Returns the answer and the chunks it was built from.
+
+    Questions about the documents always search first, then one model call
+    answers from the found passages. Plain arithmetic still goes to the
+    agent, which has the calculator."""
+    if _is_math(query):
+        return run_agent(query, user_id), []
+
+    chunks = retrieve_chunks(query, user_id)
+    if not chunks:
+        return NOT_FOUND, []
+
+    passages = "\n\n".join(f"[{c['ref']}] {_chunk_label(c['source'], c['page'])}\n{c['text']}" for c in chunks)
+    reply = get_llm().invoke([
+        ("system", RAG_PROMPT),
+        ("user", f"Passages:\n\n{passages}\n\nQuestion: {query}"),
+    ])
+    return _extract_text(reply.content), chunks
 
 
 # ---------------------------------------------------------------- sources
