@@ -323,3 +323,11 @@ def test_identical_chunks_are_shown_once_and_the_limit_is_kept():
     inner = _FixedRetriever(docs=[same, same, same, other])
     docs = agent.SourceTaggedRetriever(inner=inner, limit=2).invoke("loss")
     assert [d.page_content for d in docs] == ["Cost function intuition", "Gradient descent steps"]
+
+
+def test_a_stuck_gemini_call_is_cancelled_quickly(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(agent, "ChatGoogleGenerativeAI", lambda **kwargs: seen.update(kwargs))
+    monkeypatch.setattr(agent.settings, "LLM_BACKEND", "gemini")
+    agent.get_llm()
+    assert seen["timeout"] == agent.settings.GEMINI_TIMEOUT_SECONDS <= 20

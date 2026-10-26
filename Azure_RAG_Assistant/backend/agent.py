@@ -114,7 +114,7 @@ def get_llm():
         model=settings.GEMINI_MODEL,
         google_api_key=settings.GEMINI_API_KEY,
         temperature=0.1,
-        timeout=60,      # a stuck call fails after a minute instead of hanging the request forever
+        timeout=settings.GEMINI_TIMEOUT_SECONDS,  # a stuck call is cancelled and retried instead of holding the answer for a minute
         max_retries=3,   # the default of 6 can keep one request waiting for minutes under rate limiting
     )
 
@@ -276,8 +276,10 @@ RAG_PROMPT = (
     "textbook answer. Put the passage number in square brackets right "
     "after each sentence that uses it, like [1] or [2]. Only use numbers "
     "that appear in the passages. If the passages only cover part of the "
-    "question, answer that part and say what is missing. Only if the "
-    f"passages have nothing related, reply exactly: {NOT_FOUND} "
+    "question, answer that part and then say what is missing. Start with "
+    "the answer. Only if the passages have nothing related at all, reply "
+    f"with exactly this sentence and nothing more: {NOT_FOUND} "
+    "Never use that sentence when you also give an answer. "
     "Do not write a Source line."
 )
 

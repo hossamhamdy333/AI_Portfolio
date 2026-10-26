@@ -12,6 +12,9 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+    # A normal answer takes 1 to 3 seconds. A call that is still silent
+    # after this long is stuck, so it is cancelled and retried.
+    GEMINI_TIMEOUT_SECONDS: int = 15
 
     # Run one real question through the whole path at startup, in the
     # background, so the first visitor does not pay the cold-start cost.
