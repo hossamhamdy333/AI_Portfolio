@@ -2,7 +2,7 @@
 
 # Azure RAG Assistant
 
-**Live demo:** [rag.13-60-106-4.sslip.io](https://rag.13-60-106-4.sslip.io) (runs on one small AWS server that is switched off when not in use, so it may be down)
+**Live demo:** [rag.13-60-106-4.sslip.io](https://rag.13-60-106-4.sslip.io)
 
 `FastAPI` `LangChain` `Qdrant` `Gemini` `Docker` `AWS EC2` `Caddy` `GitHub Actions` `pytest`
 
