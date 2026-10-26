@@ -76,7 +76,6 @@ class Document(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     filename = Column(String(500), nullable=False)
-    blob_url = Column(String(1000), nullable=True)
     chunks_indexed = Column(Integer, nullable=False, default=0)
     uploaded_at = Column(DateTime, nullable=False, default=utcnow)
 

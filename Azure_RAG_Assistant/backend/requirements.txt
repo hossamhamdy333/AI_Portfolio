@@ -24,7 +24,6 @@ pytesseract==0.3.13
 Pillow==11.0.0
 
 python-dotenv==1.0.1
-azure-storage-blob==12.30.0
 
 # Observability (ENABLE_OBSERVABILITY=true)
 arize-phoenix-otel>=0.8.0

@@ -185,7 +185,6 @@ def test_upload_prepares_qdrant_before_indexing(monkeypatch):
     order = []
     monkeypatch.setattr(main, "get_qdrant_client", lambda: order.append("qdrant-ready"))
     monkeypatch.setattr(main, "process_and_upsert", lambda *a, **k: (order.append("indexed"), 3)[1])
-    monkeypatch.setattr(main, "upload_to_blob_storage", lambda *a, **k: None)
 
     client = TestClient(main.app)
     token = _token(client, "uploader@example.com")

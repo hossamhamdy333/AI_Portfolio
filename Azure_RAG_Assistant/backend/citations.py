@@ -1,6 +1,7 @@
 import re
 
 _REF = re.compile(r"\[(\d{1,2})\]")
+_GROUP = re.compile(r"\[(\d{1,2}(?:\s*,\s*\d{1,2})+)\]")
 MAX_SOURCES = 5
 
 
@@ -19,6 +20,8 @@ def build_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict], lis
     and the chunk text. A number the model made up (no such chunk was
     retrieved) is removed from the answer and listed in `invalid`.
     """
+    # "[1, 2, 3]" becomes "[1][2][3]" so every number is read as a citation.
+    text = _GROUP.sub(lambda m: "".join(f"[{n.strip()}]" for n in m.group(1).split(",")), text)
     by_ref = {c["ref"]: c for c in chunks}
     cited: list[int] = []
     invalid: list[int] = []

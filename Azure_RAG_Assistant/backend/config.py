@@ -23,9 +23,6 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str
     QDRANT_COLLECTION_NAME: str = "azure-rag-assistant"
 
-    AZURE_STORAGE_CONNECTION_STRING: str = ""
-    AZURE_STORAGE_CONTAINER_NAME: str = "omnirag-documents"
-
     # Observability (Arize Phoenix). Off by default so tests and local
     # runs never require a running Phoenix collector.
     ENABLE_OBSERVABILITY: bool = False

@@ -334,10 +334,7 @@
       const res = await authedFetch("/upload", { method: "POST", body: formData });
       const data = await readJson(res);
       if (res.ok) {
-        let msg = `Indexed ${data.chunks} chunks.`;
-        if (!data.blob_url) msg += " (Blob storage archival skipped in this environment.)";
-        else msg += " Archived to Azure Blob Storage.";
-        setStatus(msg, "success");
+        setStatus(`Indexed ${data.chunks} chunks.`, "success");
       } else {
         setStatus("Upload failed: " + (data.detail || res.statusText), "error");
       }

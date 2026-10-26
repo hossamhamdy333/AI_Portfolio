@@ -12,7 +12,6 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from azure_storage import upload_to_blob_storage
 from text_processing import process_and_upsert, delete_document_chunks
 from agent import run_agent_cited, get_qdrant_client, split_sources
 from citations import build_citations, source_labels
@@ -300,18 +299,16 @@ def upload_document(
         # itself has no indexes, and the next chat would then fail).
         get_qdrant_client()
 
-        document = Document(user_id=user.id, filename=file.filename, blob_url=None, chunks_indexed=0)
+        document = Document(user_id=user.id, filename=file.filename, chunks_indexed=0)
         db.add(document)
         db.flush()
 
         chunks = process_and_upsert(file_bytes, file.filename, user_id=user.id, document_id=document.id)
-        blob_url = upload_to_blob_storage(file_bytes, file.filename)  # best-effort, may be None
 
-        document.blob_url = blob_url
         document.chunks_indexed = chunks
         db.commit()
 
-        return {"status": "success", "document_id": document.id, "blob_url": blob_url, "chunks": chunks}
+        return {"status": "success", "document_id": document.id, "chunks": chunks}
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

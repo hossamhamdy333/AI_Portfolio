@@ -1,17 +1,6 @@
-# Optional - for local development only. The real cloud deployment (see
-# README) doesn't use this file at all.
+# Optional - for local development only. The real deployment uses
+# docker-compose.prod.yml and does not use this file.
 services:
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:latest
-    container_name: azurite_storage
-    # Azurite is Microsoft's official, free, open-source local emulator for
-    # Azure Storage (Blob/Queue/Table) - the Azure equivalent of LocalStack.
-    ports:
-      - "10000:10000"  # Blob service
-    volumes:
-      - "azurite_data:/data"
-    command: "azurite-blob --blobHost 0.0.0.0 --location /data"
-
   backend:
     build: ./backend
     container_name: omnirag_backend
@@ -19,19 +8,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      # Azurite's well-known default development connection string.
-      # This only works for local Azurite - never use this for real Azure.
-      - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
-    depends_on:
-      - azurite
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-    # Once running, open http://localhost:8000 in your browser - that's
-    # both the API and the chat UI, served from this one container.
-
-volumes:
-  azurite_data:
+    # Open http://localhost:8000 - that is both the API and the chat page.

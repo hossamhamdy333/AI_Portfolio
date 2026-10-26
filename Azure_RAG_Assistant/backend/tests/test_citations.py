@@ -199,3 +199,22 @@ def test_chat_returns_citations_with_the_page(monkeypatch):
     assert body["citations"] == [
         {"ref": 1, "source": "policy.pdf", "page": 3, "label": "policy.pdf p.3", "snippet": "Refunds take 30 days."}
     ]
+
+
+def test_grouped_numbers_are_each_a_citation():
+    chunks = [
+        {"ref": 1, "source": "a.pdf", "page": 1, "text": "one"},
+        {"ref": 2, "source": "a.pdf", "page": 2, "text": "two"},
+        {"ref": 3, "source": "b.pdf", "page": None, "text": "three"},
+    ]
+    answer, citations, invalid = build_citations("Some claim [1, 2, 3].", chunks)
+    assert answer == "Some claim [1][2][3]."
+    assert [c["ref"] for c in citations] == [1, 2, 3]
+    assert invalid == []
+
+
+def test_grouped_number_that_was_never_retrieved_is_dropped():
+    chunks = [{"ref": 1, "source": "a.pdf", "page": 1, "text": "one"}]
+    answer, citations, invalid = build_citations("Claim [1, 7].", chunks)
+    assert [c["ref"] for c in citations] == [1]
+    assert invalid == [7]
