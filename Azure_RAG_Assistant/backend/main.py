@@ -320,6 +320,15 @@ def upload_document(
         chunks = process_and_upsert(file_bytes, file.filename, user_id=user.id, document_id=document.id)
 
         document.chunks_indexed = chunks
+
+        # Uploading the same file name again replaces the old copy, so
+        # the same text is never stored twice for one user.
+        older = db.query(Document).filter(
+            Document.user_id == user.id, Document.filename == file.filename, Document.id != document.id
+        ).all()
+        for old in older:
+            delete_document_chunks(get_qdrant_client(), document_id=old.id, user_id=user.id)
+            db.delete(old)
         db.commit()
 
         return {"status": "success", "document_id": document.id, "chunks": chunks}

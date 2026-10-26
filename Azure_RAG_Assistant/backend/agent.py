@@ -69,9 +69,19 @@ class SourceTaggedRetriever(BaseRetriever):
     """
 
     inner: BaseRetriever
+    limit: int = 0
 
     def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun):
         docs = self.inner.invoke(query, config={"callbacks": run_manager.get_child()})
+        # The same file uploaded twice is stored twice. Identical chunks
+        # would fill every result slot, so only the first of each is kept.
+        unique, seen_text = [], set()
+        for doc in docs:
+            key = (doc.metadata.get("source"), doc.metadata.get("page"), doc.page_content)
+            if key not in seen_text:
+                seen_text.add(key)
+                unique.append(doc)
+        docs = unique[: self.limit] if self.limit else unique
         seen = _retrieved.get()
         for position, doc in enumerate(docs, start=1):
             doc.metadata.setdefault("source", "unknown document")
@@ -202,10 +212,10 @@ def build_agent(user_id: int, top_k=3):
     # respect. See tests/test_agent_isolation.py for proof this can't be
     # bypassed by asking about "all documents" or similar.
     user_filter = Filter(must=[FieldCondition(key="metadata.user_id", match=MatchValue(value=user_id))])
-    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k, "filter": user_filter})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k * 4, "filter": user_filter})
 
     retriever_tool = create_retriever_tool(
-        SourceTaggedRetriever(inner=retriever),
+        SourceTaggedRetriever(inner=retriever, limit=top_k),
         "company_knowledge_base",
         "Search this user's previously uploaded documents for relevant context.",
         document_prompt=SOURCE_DOCUMENT_PROMPT,

@@ -262,3 +262,11 @@ def test_a_real_pdf_gives_the_right_text_on_the_right_page():
     pages = text_processing.extract_pages(pdf, "policy.pdf")
     assert [n for n, _ in pages] == [1, 2]
     assert "Refunds" in pages[0][1] and "Shipping" in pages[1][1]
+
+
+def test_identical_chunks_are_shown_once_and_the_limit_is_kept():
+    same = LCDocument(page_content="Cost function intuition", metadata={"source": "a.pdf", "page": 39})
+    other = LCDocument(page_content="Gradient descent steps", metadata={"source": "a.pdf", "page": 40})
+    inner = _FixedRetriever(docs=[same, same, same, other])
+    docs = agent.SourceTaggedRetriever(inner=inner, limit=2).invoke("loss")
+    assert [d.page_content for d in docs] == ["Cost function intuition", "Gradient descent steps"]

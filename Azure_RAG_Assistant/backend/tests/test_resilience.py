@@ -195,6 +195,23 @@ def test_upload_prepares_qdrant_before_indexing(monkeypatch):
     assert order == ["qdrant-ready", "indexed"]
 
 
+def test_uploading_the_same_file_name_again_replaces_the_old_copy(monkeypatch):
+    deleted = []
+    monkeypatch.setattr(main, "get_qdrant_client", lambda: "qdrant")
+    monkeypatch.setattr(main, "process_and_upsert", lambda *a, **k: 3)
+    monkeypatch.setattr(main, "delete_document_chunks", lambda client, document_id, user_id: deleted.append(document_id))
+
+    client = TestClient(main.app)
+    headers = {"Authorization": "Bearer " + _token(client, "replace@example.com")}
+    first = client.post("/upload", headers=headers, files={"file": ("a.pdf", b"x", "application/pdf")}).json()
+    other = client.post("/upload", headers=headers, files={"file": ("b.pdf", b"x", "application/pdf")}).json()
+    second = client.post("/upload", headers=headers, files={"file": ("a.pdf", b"x", "application/pdf")}).json()
+
+    assert deleted == [first["document_id"]]
+    ids = [d["id"] for d in client.get("/documents", headers=headers).json()]
+    assert sorted(ids) == sorted([other["document_id"], second["document_id"]])
+
+
 def test_upload_error_is_reported_as_json(monkeypatch):
     monkeypatch.setattr(main, "get_qdrant_client", lambda: None)
     def fail(*a, **k):
