@@ -52,7 +52,7 @@ class _FakePdf:
 
 
 def _fake_pdf(monkeypatch, pages):
-    monkeypatch.setattr(text_processing.pdfplumber, "open", lambda _: _FakePdf(pages))
+    monkeypatch.setattr(text_processing, "PdfReader", lambda _: _FakePdf(pages))
 
 
 def test_pdf_pages_keep_their_real_numbers_and_blank_pages_are_skipped(monkeypatch):
@@ -218,3 +218,36 @@ def test_grouped_number_that_was_never_retrieved_is_dropped():
     answer, citations, invalid = build_citations("Claim [1, 7].", chunks)
     assert [c["ref"] for c in citations] == [1]
     assert invalid == [7]
+
+
+def _tiny_pdf(page_texts):
+    """A real, minimal PDF with one line of text per page."""
+    objects = []
+    kids = " ".join(f"{3 + 2 * i} 0 R" for i in range(len(page_texts)))
+    objects.append("<< /Type /Catalog /Pages 2 0 R >>")
+    objects.append(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_texts)} >>")
+    for i, text in enumerate(page_texts):
+        content_id = 4 + 2 * i
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents {content_id} 0 R "
+            "/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>"
+        )
+        stream = f"BT /F1 12 Tf 20 100 Td ({text}) Tj ET"
+        objects.append(f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream")
+    out = "%PDF-1.4\n"
+    offsets = []
+    for n, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{n} 0 obj\n{body}\nendobj\n"
+    xref_at = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n"
+    out += "".join(f"{o:010d} 00000 n \n" for o in offsets)
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n"
+    return out.encode("latin-1")
+
+
+def test_a_real_pdf_gives_the_right_text_on_the_right_page():
+    pdf = _tiny_pdf(["Refunds take thirty days", "Shipping is free"])
+    pages = text_processing.extract_pages(pdf, "policy.pdf")
+    assert [n for n, _ in pages] == [1, 2]
+    assert "Refunds" in pages[0][1] and "Shipping" in pages[1][1]
