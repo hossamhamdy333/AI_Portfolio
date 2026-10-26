@@ -16,6 +16,7 @@ from azure_storage import upload_to_blob_storage
 from text_processing import process_and_upsert, delete_document_chunks
 from agent import run_agent_cited, get_qdrant_client, split_sources
 from citations import build_citations, source_labels
+from grounding import check_grounding
 from guardrails import guard_input, guard_output
 from config import settings, logger
 from database import get_db, init_db, SessionLocal
@@ -260,7 +261,16 @@ def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Sessi
     if invalid:
         logger.warning("Answer for user %d cited chunk numbers that were never retrieved: %s", user.id, invalid)
     sources = source_labels(citations) or legacy_sources
-    return {"answer": answer_text, "sources": sources, "citations": citations, "blocked": output_guard["blocked"]}
+    grounding = check_grounding(answer_text, chunks, invalid)
+    if grounding["status"] == "weak":
+        logger.warning("Weakly grounded answer for user %d: %s", user.id, [c for c in grounding["checks"] if not c["ok"]])
+    return {
+        "answer": answer_text,
+        "sources": sources,
+        "citations": citations,
+        "grounding": grounding,
+        "blocked": output_guard["blocked"],
+    }
 
 
 @app.post("/upload")

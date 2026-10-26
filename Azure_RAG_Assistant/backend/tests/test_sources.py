@@ -85,12 +85,16 @@ def _chat(monkeypatch, reply, email):
 def test_chat_returns_the_sources_separately(monkeypatch):
     resp = _chat(monkeypatch, "He is an engineer.\n\nSource: Hossam_Hamdy_CV.pdf", "src1@example.com")
     assert resp.status_code == 200
-    assert resp.json() == {"answer": "He is an engineer.", "sources": ["Hossam_Hamdy_CV.pdf"], "citations": [], "blocked": False}
+    body = resp.json()
+    assert (body["answer"], body["sources"], body["citations"], body["blocked"]) == (
+        "He is an engineer.", ["Hossam_Hamdy_CV.pdf"], [], False)
 
 
 def test_chat_without_a_source_line_returns_an_empty_list(monkeypatch):
     resp = _chat(monkeypatch, "55 * 3 = 165", "src2@example.com")
-    assert resp.json() == {"answer": "55 * 3 = 165", "sources": [], "citations": [], "blocked": False}
+    body = resp.json()
+    assert (body["answer"], body["sources"], body["citations"], body["blocked"]) == ("55 * 3 = 165", [], [], False)
+    assert body["grounding"]["status"] == "unchecked"
 
 
 # ------------------------------------------------------------ retrieval formatting
