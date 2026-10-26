@@ -156,6 +156,28 @@ resume, which is not theoretical: the committed RAGAS output is full of
 Gemini free-tier 429s (15 requests/minute), and both runs were completed
 across multiple sessions.
 
+### Regression gate
+
+`eval/` holds a golden set (400 questions, 747 chunks) and two checks in
+GitHub Actions, so a worse change fails the build before it is merged.
+
+- **Retrieval gate** (`rag retrieval gate`, every push): builds an in-memory
+  Qdrant index from the committed chunks and runs all 400 questions through
+  `impl_vanilla`'s real embedder, search and reranker. It fails if MRR,
+  NDCG@10 or hit rate drop more than 0.02 below `eval/baseline.json`
+  (MRR 0.9058, NDCG@10 0.9095, hit rate 0.92). No API keys needed. These
+  numbers cover retrieval only, on 400 questions, so they are not directly
+  comparable to the 100-question table below.
+- **RAGAS job** (`rag ragas eval`, started by hand): answers 30 sampled
+  questions with Gemini and scores faithfulness, answer relevancy and
+  context recall. It fails if any drops more than 0.05 below
+  `eval/ragas_baseline.json` (1.0, 0.9651, 0.9667). It is manual because the
+  Gemini free tier allows 15 requests per minute and 500 per day.
+
+Proof that it works: on the `worse-embedder` branch, swapping the
+multilingual embedder for English-only `all-MiniLM-L6-v2` dropped MRR from
+0.9058 to 0.0143, and the build failed. The same code on `main` passes.
+
 ## Data
 
 - Source: `csebuetnlp/xlsum`, Arabic train split — 37,519 articles (BBC
