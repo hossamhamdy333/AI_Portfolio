@@ -171,14 +171,67 @@ class _VS:
         return _FixedRetriever(docs=[doc])
 
 
-def test_the_real_agent_loop_records_the_chunks_it_retrieved(monkeypatch):
+def _plain_model(text="Refunds take 30 days. [1]"):
+    return lambda: _FakeToolModel(messages=iter([AIMessage(content=text)]))
+
+
+def test_every_question_searches_first_and_records_the_chunks(monkeypatch):
     monkeypatch.setattr(agent, "_vectorstore", _VS())
-    monkeypatch.setattr(agent, "get_llm", _fake_model)
+    monkeypatch.setattr(agent, "get_llm", _plain_model())
 
     answer, chunks = agent.run_agent_cited("refund policy?", user_id=1)
 
     assert answer == "Refunds take 30 days. [1]"
     assert chunks == [{"ref": 1, "source": "policy.pdf", "page": 3, "text": "Refunds take 30 days."}]
+
+
+def test_no_passages_means_no_model_call(monkeypatch):
+    class _Empty:
+        def as_retriever(self, **kwargs):
+            return _FixedRetriever(docs=[])
+
+    def boom():
+        raise AssertionError("the model must not be called without passages")
+
+    monkeypatch.setattr(agent, "_vectorstore", _Empty())
+    monkeypatch.setattr(agent, "get_llm", boom)
+    assert agent.run_agent_cited("what is a loss function?", user_id=1) == (agent.NOT_FOUND, [])
+
+
+def test_the_passages_and_question_reach_the_model(monkeypatch):
+    sent = {}
+
+    class _Spy:
+        def invoke(self, messages):
+            sent["messages"] = messages
+            return AIMessage(content="ok [1]")
+
+    monkeypatch.setattr(agent, "_vectorstore", _VS())
+    monkeypatch.setattr(agent, "get_llm", lambda: _Spy())
+    agent.run_agent_cited("refund policy?", user_id=1)
+    assert "[1] policy.pdf, page 3\nRefunds take 30 days." in sent["messages"][1][1]
+    assert "Question: refund policy?" in sent["messages"][1][1]
+
+
+def test_copies_of_one_chunk_do_not_use_up_the_result_slots(monkeypatch):
+    same = LCDocument(page_content="Cost function title", metadata={"source": "a.pdf", "page": 39, "user_id": 1})
+    real = LCDocument(page_content="Loss measures the error of a prediction.", metadata={"source": "a.pdf", "page": 41, "user_id": 1})
+
+    class _Dupes:
+        def as_retriever(self, **kwargs):
+            return _FixedRetriever(docs=[same] * 6 + [real])
+
+    monkeypatch.setattr(agent, "_vectorstore", _Dupes())
+    chunks = agent.retrieve_chunks("loss function", user_id=1, k=3)
+    assert [c["page"] for c in chunks] == [39, 41]
+
+
+def test_plain_arithmetic_still_uses_the_agent(monkeypatch):
+    monkeypatch.setattr(agent, "run_agent", lambda q, uid: "165")
+    assert agent.run_agent_cited("what is 55 * 3", user_id=1) == ("165", [])
+    assert agent._is_math("(12 + 8) / 4")
+    assert not agent._is_math("what is 2024 revenue")
+    assert not agent._is_math("what is machine learning?")
 
 
 def test_the_model_is_shown_the_page(monkeypatch):
