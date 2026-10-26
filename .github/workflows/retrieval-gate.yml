@@ -1,0 +1,35 @@
+name: rag retrieval gate
+
+on:
+  push:
+    paths:
+      - 'rag-vanilla-vs-langchain/**'
+  pull_request:
+    paths:
+      - 'rag-vanilla-vs-langchain/**'
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-rag-gate-v1
+
+      - name: Install
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r rag-vanilla-vs-langchain/eval/requirements.txt
+
+      - name: Retrieval gate
+        run: |
+          cd rag-vanilla-vs-langchain
+          python eval/run_retrieval_eval.py
