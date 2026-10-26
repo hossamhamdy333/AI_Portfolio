@@ -1,0 +1,35 @@
+name: rag router gate
+
+on:
+  push:
+    paths:
+      - 'rag_router/**'
+  pull_request:
+    paths:
+      - 'rag_router/**'
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-router-gate-v1
+
+      - name: Install
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r rag_router/eval/requirements.txt
+
+      - name: Routing gate
+        run: |
+          cd rag_router
+          python eval/run_routing_eval.py
