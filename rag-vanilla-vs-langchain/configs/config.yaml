@@ -40,7 +40,7 @@ rag:
   max_output_tokens: 1024
 
 retrieval:
-  model_name: "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
   embedding_dim: 768
 
 reranker:
