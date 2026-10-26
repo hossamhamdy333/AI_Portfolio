@@ -42,6 +42,11 @@ set. Every question is traced with OpenTelemetry, a login-protected
 dashboard shows latency, errors and estimated cost, and the four
 questions I timed on the deployed site answered in 1.6 to 4.6 seconds.
 
+![The dashboard after 14 questions on the live server](docs/dashboard.png)
+
+*The dashboard on the live server after 14 questions. Orange bars are
+questions where the critique failed at least once.*
+
 ## Problem & motivation
 
 Most RAG demos retrieve from one fixed corpus. Here the corpus is 20
@@ -185,7 +190,7 @@ are joined behind a `# Supplementary document: <path>` header so each
 part stays traceable. The graduation project lives in two other repos,
 set in `config.PROJECT_REPO_OVERRIDES`: the modeling repo (eight README
 files) and `ids-deploy`, whose default branch is `master`, not `main`.
-Running the chunker over the saved copies gives 1,019 chunks. The live
+Running the chunker over the saved copies gives 1,020 chunks. The live
 index can differ, since it is built from GitHub's current files.
 
 The saved copies go stale whenever a README changes.
