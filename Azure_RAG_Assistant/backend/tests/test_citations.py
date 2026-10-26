@@ -331,3 +331,8 @@ def test_a_stuck_gemini_call_is_cancelled_quickly(monkeypatch):
     monkeypatch.setattr(agent.settings, "LLM_BACKEND", "gemini")
     agent.get_llm()
     assert seen["timeout"] == agent.settings.GEMINI_TIMEOUT_SECONDS <= 20
+
+
+def test_the_prompt_forbids_latex_and_the_search_is_wide_enough():
+    assert "Never use dollar signs or LaTeX" in agent.RAG_PROMPT
+    assert agent.RETRIEVE_K >= 8

@@ -280,10 +280,12 @@ RAG_PROMPT = (
     "the answer. Only if the passages have nothing related at all, reply "
     f"with exactly this sentence and nothing more: {NOT_FOUND} "
     "Never use that sentence when you also give an answer. "
+    "Write formulas in plain text, like J(w,b) = (1/2m) * sum of "
+    "(f(x) - y)^2. Never use dollar signs or LaTeX. "
     "Do not write a Source line."
 )
 
-RETRIEVE_K = 6
+RETRIEVE_K = 8
 
 _MATH = re.compile(r"[\d\s.+\-*/()%^]+")
 _MATH_LEAD = re.compile(r"^(what is|what's|calculate|compute)\s+", re.IGNORECASE)
