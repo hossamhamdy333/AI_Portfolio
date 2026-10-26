@@ -32,27 +32,38 @@ init_db()
 
 # ------------------------------------------------------------ ingestion
 
+class _FakeTextPage:
+    def __init__(self, text):
+        self._text = text
+
+    def get_text_range(self):
+        return self._text
+
+
 class _FakePage:
     def __init__(self, text):
         self._text = text
 
-    def extract_text(self):
-        return self._text
+    def get_textpage(self):
+        return _FakeTextPage(self._text)
 
 
 class _FakePdf:
     def __init__(self, pages):
-        self.pages = [_FakePage(t) for t in pages]
+        self._pages = [_FakePage(t or "") for t in pages]
 
-    def __enter__(self):
-        return self
+    def __len__(self):
+        return len(self._pages)
 
-    def __exit__(self, *args):
-        return False
+    def __getitem__(self, index):
+        return self._pages[index]
+
+    def close(self):
+        pass
 
 
 def _fake_pdf(monkeypatch, pages):
-    monkeypatch.setattr(text_processing, "PdfReader", lambda _: _FakePdf(pages))
+    monkeypatch.setattr(text_processing.pdfium, "PdfDocument", lambda _: _FakePdf(pages))
 
 
 def test_pdf_pages_keep_their_real_numbers_and_blank_pages_are_skipped(monkeypatch):

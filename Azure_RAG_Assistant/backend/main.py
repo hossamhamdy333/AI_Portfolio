@@ -47,6 +47,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Azure RAG Assistant API", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def log_slow_work(request: Request, call_next):
+    """One log line per upload and chat with the total time, so a slow
+    request can be found in the logs instead of guessed at."""
+    if request.url.path not in ("/upload", "/chat"):
+        return await call_next(request)
+    start = time.time()
+    response = await call_next(request)
+    logger.info("%s %s took %.1fs (status %d)", request.method, request.url.path, time.time() - start, response.status_code)
+    return response
 app.include_router(oauth.router)
 
 

@@ -19,7 +19,7 @@ qdrant-client==1.19.0
 langchain-openai>=1.0.0,<2.0
 
 # Document processing
-pypdf>=5.0,<7.0
+pypdfium2>=4.30,<6.0
 pytesseract==0.3.13
 Pillow==11.0.0
 

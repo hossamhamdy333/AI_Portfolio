@@ -1,5 +1,5 @@
 import io
-from pypdf import PdfReader
+import pypdfium2 as pdfium
 import pytesseract
 from PIL import Image
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -16,10 +16,14 @@ def extract_pages(file_bytes: bytes, filename: str) -> list[tuple[int | None, st
 
     if lower.endswith(".pdf"):
         pages = []
-        for number, page in enumerate(PdfReader(io.BytesIO(file_bytes)).pages, start=1):
-            extracted = page.extract_text()
-            if extracted and extracted.strip():
-                pages.append((number, extracted))
+        pdf = pdfium.PdfDocument(file_bytes)
+        try:
+            for number in range(1, len(pdf) + 1):
+                extracted = pdf[number - 1].get_textpage().get_text_range().replace("\r\n", "\n")
+                if extracted.strip():
+                    pages.append((number, extracted))
+        finally:
+            pdf.close()
         return pages
     if lower.endswith((".png", ".jpg", ".jpeg")):
         image = Image.open(io.BytesIO(file_bytes))
