@@ -9,9 +9,8 @@ name: Keep Azure RAG Assistant warm
 # RAG_APP_URL (Settings > Secrets and variables > Actions > Variables) and it
 # is used instead.
 
+# Schedule removed: the Azure app is down.
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 jobs:
