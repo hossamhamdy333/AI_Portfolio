@@ -21,7 +21,7 @@ COLLECTION = "gate"
 TOLERANCE = 0.02
 
 
-def run(cfg, chunks, questions, embedder, reranker):
+def build_index(chunks, embedder):
     client = QdrantClient(":memory:")
     dim = embedder.get_sentence_embedding_dimension()
     client.create_collection(COLLECTION, vectors_config=VectorParams(size=dim, distance=Distance.COSINE))
@@ -36,6 +36,11 @@ def run(cfg, chunks, questions, embedder, reranker):
         }
         points.append(PointStruct(id=i, vector=vectors[i].tolist(), payload=payload))
     client.upsert(COLLECTION, points=points)
+    return client
+
+
+def run(cfg, chunks, questions, embedder, reranker):
+    client = build_index(chunks, embedder)
 
     top_k = cfg["rag"]["top_k_retrieve"]
     top_k_rerank = cfg["rag"]["top_k_rerank"]

@@ -1,0 +1,46 @@
+name: rag ragas eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      n_questions:
+        description: 'How many questions to score'
+        default: '50'
+
+jobs:
+  ragas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-rag-gate-v1
+
+      - name: Install
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r rag-vanilla-vs-langchain/eval/requirements.txt
+          pip install "ragas==0.2.15" "langchain<1.0" "langchain-core<1.0" langchain-community langchain-google-genai google-genai
+          pip install "numpy<2"
+
+      - name: RAGAS eval
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          cd rag-vanilla-vs-langchain
+          python eval/run_ragas_eval.py --n ${{ github.event.inputs.n_questions }}
+
+      - name: Save per-question scores
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ragas-scores
+          path: rag-vanilla-vs-langchain/eval/ragas_last.csv
+          if-no-files-found: ignore
