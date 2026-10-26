@@ -28,7 +28,6 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r rag-vanilla-vs-langchain/eval/requirements.txt
           pip install "ragas==0.2.15" "langchain<1.0" "langchain-core<1.0" langchain-community langchain-google-genai google-genai
-          pip install "numpy<2"
 
       - name: RAGAS eval
         env:
