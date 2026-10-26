@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
 
-    HF_TOKEN: str
+    # "local" runs the model inside the container (no API, no credits).
+    # "hf" uses the Hugging Face hosted endpoint and needs HF_TOKEN.
+    EMBEDDING_BACKEND: str = "local"
+    HF_TOKEN: str = ""
     HF_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     QDRANT_URL: str
@@ -135,9 +138,35 @@ class ResilientEmbeddings(Embeddings):
         return [vector for batch_result in results for vector in batch_result]
 
 
-embeddings = ResilientEmbeddings(
-    HuggingFaceEndpointEmbeddings(
-        model=settings.HF_EMBEDDING_MODEL,
-        huggingfacehub_api_token=settings.HF_TOKEN,
+class LocalEmbeddings(Embeddings):
+    """Runs the embedding model inside the container with fastembed (ONNX).
+    Same model and same 384 numbers per text as the hosted endpoint, so
+    vectors already in Qdrant still match."""
+
+    def __init__(self, model_name: str):
+        self._model_name = model_name
+        self._model = None
+
+    def _load(self):
+        if self._model is None:
+            from fastembed import TextEmbedding
+
+            self._model = TextEmbedding(model_name=self._model_name)
+        return self._model
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([text])[0]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [vector.tolist() for vector in self._load().embed(list(texts))]
+
+
+if settings.EMBEDDING_BACKEND == "hf":
+    embeddings = ResilientEmbeddings(
+        HuggingFaceEndpointEmbeddings(
+            model=settings.HF_EMBEDDING_MODEL,
+            huggingfacehub_api_token=settings.HF_TOKEN,
+        )
     )
-)
+else:
+    embeddings = ResilientEmbeddings(LocalEmbeddings(settings.HF_EMBEDDING_MODEL), batch_size=16, max_workers=1)
