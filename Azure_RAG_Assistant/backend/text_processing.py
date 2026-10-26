@@ -9,46 +9,53 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from config import embeddings, settings, logger
 
 
-def extract_text(file_bytes: bytes, filename: str) -> str:
+def extract_pages(file_bytes: bytes, filename: str) -> list[tuple[int | None, str]]:
+    """Returns (page_number, text) pairs. Only PDFs have real page numbers,
+    other file types come back as one entry with page None."""
     lower = filename.lower()
-    text = ""
 
     if lower.endswith(".pdf"):
+        pages = []
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            for page in pdf.pages:
+            for number, page in enumerate(pdf.pages, start=1):
                 extracted = page.extract_text()
-                if extracted:
-                    text += extracted + "\n"
-    elif lower.endswith((".png", ".jpg", ".jpeg")):
+                if extracted and extracted.strip():
+                    pages.append((number, extracted))
+        return pages
+    if lower.endswith((".png", ".jpg", ".jpeg")):
         image = Image.open(io.BytesIO(file_bytes))
-        text = pytesseract.image_to_string(image)
-    elif lower.endswith((".txt", ".md")):
-        text = file_bytes.decode("utf-8", errors="ignore")
-    else:
-        raise ValueError(f"Unsupported file type for '{filename}'. Use PDF, PNG, JPG, TXT, or MD.")
+        return [(None, pytesseract.image_to_string(image))]
+    if lower.endswith((".txt", ".md")):
+        return [(None, file_bytes.decode("utf-8", errors="ignore"))]
+    raise ValueError(f"Unsupported file type for '{filename}'. Use PDF, PNG, JPG, TXT, or MD.")
 
-    return text
+
+def extract_text(file_bytes: bytes, filename: str) -> str:
+    return "".join(text + "\n" for _, text in extract_pages(file_bytes, filename))
 
 
 def process_and_upsert(file_bytes: bytes, filename: str, user_id: int, document_id: int) -> int:
-    text = extract_text(file_bytes, filename)
+    pages = extract_pages(file_bytes, filename)
 
-    if not text.strip():
+    if not any(text.strip() for _, text in pages):
         raise ValueError("No text could be extracted from this file.")
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_text(text)
     # user_id in the metadata is what makes per-user isolation possible -
     # agent.py's retriever filters on this field, so one user's documents
     # are never returned for another user's question, not just hidden by
     # the UI. document_id lets a specific upload's chunks be found and
     # removed later (see main.py's DELETE /documents/{id}) without
     # accidentally touching a different upload that happens to share the
-    # same filename.
-    docs = [
-        Document(page_content=c, metadata={"source": filename, "user_id": user_id, "document_id": document_id})
-        for c in chunks
-    ]
+    # same filename. Each page is split on its own, so a chunk never
+    # crosses a page and its page number is always exact.
+    docs = []
+    for page_number, text in pages:
+        for chunk in splitter.split_text(text):
+            metadata = {"source": filename, "user_id": user_id, "document_id": document_id}
+            if page_number is not None:
+                metadata["page"] = page_number
+            docs.append(Document(page_content=chunk, metadata=metadata))
 
     QdrantVectorStore.from_documents(
         docs,

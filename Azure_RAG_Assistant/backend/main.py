@@ -14,7 +14,8 @@ from sqlalchemy import func
 
 from azure_storage import upload_to_blob_storage
 from text_processing import process_and_upsert, delete_document_chunks
-from agent import run_agent, get_qdrant_client, split_sources
+from agent import run_agent_cited, get_qdrant_client, split_sources
+from citations import build_citations, source_labels
 from guardrails import guard_input, guard_output
 from config import settings, logger
 from database import get_db, init_db, SessionLocal
@@ -245,7 +246,7 @@ def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Sessi
         logger.info("Redacted %d PII match(es) from user %d's query before sending to the LLM.", input_guard["pii_redactions"], user.id)
 
     try:
-        answer = run_agent(input_guard["redacted_text"], user_id=user.id)
+        answer, chunks = run_agent_cited(input_guard["redacted_text"], user_id=user.id)
     except Exception as e:
         logger.exception("Chat request failed for user %d", user.id)
         raise HTTPException(status_code=500, detail=str(e))
@@ -254,8 +255,12 @@ def chat(request: ChatRequest, user: User = Depends(get_current_user), db: Sessi
     if output_guard["blocked"]:
         logger.warning("Blocked disallowed output for user %d: %s", user.id, output_guard["match"])
 
-    answer_text, sources = split_sources(output_guard["text"])
-    return {"answer": answer_text, "sources": sources, "blocked": output_guard["blocked"]}
+    body, legacy_sources = split_sources(output_guard["text"])
+    answer_text, citations, invalid = build_citations(body, chunks)
+    if invalid:
+        logger.warning("Answer for user %d cited chunk numbers that were never retrieved: %s", user.id, invalid)
+    sources = source_labels(citations) or legacy_sources
+    return {"answer": answer_text, "sources": sources, "citations": citations, "blocked": output_guard["blocked"]}
 
 
 @app.post("/upload")

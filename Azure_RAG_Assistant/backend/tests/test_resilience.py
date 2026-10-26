@@ -158,7 +158,7 @@ def test_chat_and_upload_run_in_worker_threads_not_on_the_event_loop():
 
 
 def test_the_server_stays_responsive_while_a_slow_chat_runs(monkeypatch):
-    monkeypatch.setattr(main, "run_agent", lambda q, user_id: (time.sleep(1.0), "done")[1])
+    monkeypatch.setattr(main, "run_agent_cited", lambda q, user_id: (time.sleep(1.0), ("done", []))[1])
 
     async def scenario():
         transport = httpx.ASGITransport(app=main.app)

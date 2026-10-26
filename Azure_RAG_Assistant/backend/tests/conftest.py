@@ -1,7 +1,15 @@
 import sys
 import os
+import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# A fresh database file on every run. The tests register fixed email
+# addresses, so a database left over from the last run made them fail.
+_test_db = os.path.join(tempfile.gettempdir(), "azure_rag_assistant_tests.db")
+if os.path.exists(_test_db):
+    os.remove(_test_db)
+os.environ["DATABASE_URL"] = "sqlite:///" + _test_db.replace("\\", "/")
 
 os.environ.setdefault("GEMINI_API_KEY", "test")
 os.environ.setdefault("HF_TOKEN", "test")

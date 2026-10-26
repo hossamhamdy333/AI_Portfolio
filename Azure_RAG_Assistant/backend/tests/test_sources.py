@@ -76,7 +76,7 @@ def test_very_long_names_are_shortened():
 # ------------------------------------------------------------ endpoint
 
 def _chat(monkeypatch, reply, email):
-    monkeypatch.setattr(main, "run_agent", lambda q, user_id: reply)
+    monkeypatch.setattr(main, "run_agent_cited", lambda q, user_id: (reply, []))
     client = TestClient(main.app)
     token = client.post("/auth/register", json={"email": email, "password": "a-real-password-123"}).json()["access_token"]
     return client.post("/chat", json={"query": "who is he?"}, headers={"Authorization": "Bearer " + token})
@@ -85,12 +85,12 @@ def _chat(monkeypatch, reply, email):
 def test_chat_returns_the_sources_separately(monkeypatch):
     resp = _chat(monkeypatch, "He is an engineer.\n\nSource: Hossam_Hamdy_CV.pdf", "src1@example.com")
     assert resp.status_code == 200
-    assert resp.json() == {"answer": "He is an engineer.", "sources": ["Hossam_Hamdy_CV.pdf"], "blocked": False}
+    assert resp.json() == {"answer": "He is an engineer.", "sources": ["Hossam_Hamdy_CV.pdf"], "citations": [], "blocked": False}
 
 
 def test_chat_without_a_source_line_returns_an_empty_list(monkeypatch):
     resp = _chat(monkeypatch, "55 * 3 = 165", "src2@example.com")
-    assert resp.json() == {"answer": "55 * 3 = 165", "sources": [], "blocked": False}
+    assert resp.json() == {"answer": "55 * 3 = 165", "sources": [], "citations": [], "blocked": False}
 
 
 # ------------------------------------------------------------ retrieval formatting
@@ -112,7 +112,7 @@ def _tool_output(docs):
 
 def test_retrieved_chunks_show_the_model_their_real_document_name():
     out = _tool_output([LCDocument(page_content="Refunds take 30 days.", metadata={"source": "policy.pdf", "user_id": 1})])
-    assert out == "[Document: policy.pdf]\nRefunds take 30 days."
+    assert out == "[1] policy.pdf\nRefunds take 30 days."
 
 
 def test_a_chunk_without_source_metadata_does_not_break_retrieval():
@@ -120,8 +120,8 @@ def test_a_chunk_without_source_metadata_does_not_break_retrieval():
         LCDocument(page_content="Old chunk.", metadata={"user_id": 1}),
         LCDocument(page_content="New chunk.", metadata={"source": "new.txt"}),
     ])
-    assert "[Document: unknown document]\nOld chunk." in out
-    assert "[Document: new.txt]\nNew chunk." in out   # a real name is never overwritten
+    assert "[1] unknown document\nOld chunk." in out
+    assert "[2] new.txt\nNew chunk." in out   # a real name is never overwritten
 
 
 def test_build_agent_wraps_the_retriever_and_passes_the_document_prompt(monkeypatch):

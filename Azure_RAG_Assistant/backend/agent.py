@@ -1,3 +1,4 @@
+import contextvars
 import re
 import threading
 
@@ -22,34 +23,59 @@ SYSTEM_PROMPT = (
     "You are Azure RAG Assistant, a helpful enterprise assistant. "
     "Always check the company_knowledge_base tool first for questions that "
     "might be answered by uploaded documents. Use the calculator tool for "
-    "any arithmetic. Answer concisely. When your answer used the knowledge "
-    "base, end with one final line in exactly this form: "
-    "Source: <document name>  (separate several names with commas). Use the "
-    "document names shown in the knowledge base results, and put nothing "
-    "after that line. If you did not use the knowledge base, do not write a "
-    "Source line."
+    "any arithmetic. Answer concisely. Every knowledge base result starts "
+    "with a number in square brackets, like [1], then the document name and "
+    "page. When a sentence of your answer comes from a result, put that "
+    "result's number in square brackets right after the sentence, like [1] "
+    "or [2]. Only use numbers that appeared in the results. Do not write a "
+    "Source line. If you did not use the knowledge base, write no numbers "
+    "in brackets."
 )
 
-# How each retrieved chunk is shown to the model. Including the document's
-# real filename lets it cite "Hossam_Hamdy_CV.pdf" instead of paraphrasing
-# ("Hossam's Resume").
-SOURCE_DOCUMENT_PROMPT = PromptTemplate.from_template("[Document: {source}]\n{page_content}")
+# How each retrieved chunk is shown to the model: its number, then the real
+# file name and page, e.g. "[2] policy.pdf, page 3".
+SOURCE_DOCUMENT_PROMPT = PromptTemplate.from_template("[{ref}] {label}\n{page_content}")
+
+# The chunks retrieved during one chat request, so the endpoint can turn the
+# [n] numbers in the answer back into file names and pages. A list is shared
+# by reference, so tool calls running in worker threads still append to it.
+_retrieved = contextvars.ContextVar("retrieved_chunks", default=None)
+
+
+def _chunk_label(source: str, page) -> str:
+    return f"{source}, page {page}" if page else source
+
+
+def _ref_for(doc, seen: list) -> int:
+    """Number of this chunk in the current request. The same chunk found twice
+    keeps the same number."""
+    page = doc.metadata.get("page")
+    for item in seen:
+        if item["source"] == doc.metadata["source"] and item["page"] == page and item["text"] == doc.page_content:
+            return item["ref"]
+    ref = len(seen) + 1
+    seen.append({"ref": ref, "source": doc.metadata["source"], "page": page, "text": doc.page_content})
+    return ref
 
 
 class SourceTaggedRetriever(BaseRetriever):
-    """Wraps a retriever so every chunk it returns has a 'source' name.
+    """Wraps a retriever so every chunk it returns has a 'source' name, a
+    number ('ref') and a readable 'label' with the page.
 
-    The prompt above requires one, and a chunk without it (an old upload,
-    say) would otherwise make the whole search fail with a missing-variable
-    error. A real filename is never overwritten.
+    The prompt above requires them, and a chunk without a source (an old
+    upload, say) would otherwise make the whole search fail with a
+    missing-variable error. A real filename is never overwritten.
     """
 
     inner: BaseRetriever
 
     def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun):
         docs = self.inner.invoke(query, config={"callbacks": run_manager.get_child()})
-        for doc in docs:
+        seen = _retrieved.get()
+        for position, doc in enumerate(docs, start=1):
             doc.metadata.setdefault("source", "unknown document")
+            doc.metadata["ref"] = _ref_for(doc, seen) if seen is not None else position
+            doc.metadata["label"] = _chunk_label(doc.metadata["source"], doc.metadata.get("page"))
         return docs
 
 
@@ -216,6 +242,17 @@ def run_agent(query: str, user_id: int) -> str:
     agent = build_agent(user_id)
     result = agent.invoke({"messages": [{"role": "user", "content": query}]})
     return _extract_text(result["messages"][-1].content)
+
+
+def run_agent_cited(query: str, user_id: int) -> tuple[str, list[dict]]:
+    """Like run_agent, but also returns the chunks the agent retrieved."""
+    chunks: list[dict] = []
+    token = _retrieved.set(chunks)
+    try:
+        answer = run_agent(query, user_id)
+    finally:
+        _retrieved.reset(token)
+    return answer, chunks
 
 
 # ---------------------------------------------------------------- sources
