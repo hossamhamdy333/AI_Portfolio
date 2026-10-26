@@ -11,6 +11,7 @@ if os.path.exists(_test_db):
     os.remove(_test_db)
 os.environ["DATABASE_URL"] = "sqlite:///" + _test_db.replace("\\", "/")
 
+os.environ.setdefault("WARMUP_ON_START", "false")
 os.environ.setdefault("GEMINI_API_KEY", "test")
 os.environ.setdefault("HF_TOKEN", "test")
 os.environ.setdefault("QDRANT_URL", "http://test:6333")

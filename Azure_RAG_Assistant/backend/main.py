@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from text_processing import process_and_upsert, delete_document_chunks
-from agent import run_agent_cited, get_qdrant_client, split_sources
+from agent import run_agent_cited, get_qdrant_client, split_sources, warm_up
 from citations import build_citations, source_labels
 from grounding import check_grounding
 from guardrails import guard_input, guard_output
@@ -41,6 +41,8 @@ async def lifespan(app: FastAPI):
 
         setup_observability()
         logger.info("Observability enabled - tracing to Phoenix.")
+    if settings.WARMUP_ON_START:
+        threading.Thread(target=warm_up, daemon=True).start()
     yield
 
 

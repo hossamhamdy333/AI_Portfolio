@@ -1,6 +1,7 @@
 import contextvars
 import re
 import threading
+import time
 
 from langchain.agents import create_agent
 from langchain.tools import tool
@@ -242,6 +243,18 @@ def run_agent(query: str, user_id: int) -> str:
     agent = build_agent(user_id)
     result = agent.invoke({"messages": [{"role": "user", "content": query}]})
     return _extract_text(result["messages"][-1].content)
+
+
+def warm_up() -> None:
+    """Runs one throwaway question so the embedding model, Qdrant connection,
+    Gemini client and agent code are all loaded before a visitor asks.
+    Never raises: a failed warm-up must not stop the app from starting."""
+    start = time.time()
+    try:
+        run_agent("hi", user_id=0)
+        logger.info("Warm-up finished in %.1fs", time.time() - start)
+    except Exception as exc:
+        logger.warning("Warm-up skipped after %.1fs: %s", time.time() - start, str(exc)[:160])
 
 
 def run_agent_cited(query: str, user_id: int) -> tuple[str, list[dict]]:

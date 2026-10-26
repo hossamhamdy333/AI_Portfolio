@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
 
+    # Run one real question through the whole path at startup, in the
+    # background, so the first visitor does not pay the cold-start cost.
+    WARMUP_ON_START: bool = True
+
     # "local" runs the model inside the container (no API, no credits).
     # "hf" uses the Hugging Face hosted endpoint and needs HF_TOKEN.
     EMBEDDING_BACKEND: str = "local"

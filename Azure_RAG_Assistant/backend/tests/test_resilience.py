@@ -290,3 +290,29 @@ def test_an_index_error_does_not_crash_startup(monkeypatch):
     monkeypatch.setattr(agent, "QdrantClient", Grumpy)
     monkeypatch.setattr(agent, "_qdrant_client", None)
     assert agent.get_qdrant_client() is not None
+
+
+def test_warm_up_never_raises(monkeypatch):
+    import agent
+
+    def boom(*a, **k):
+        raise RuntimeError("qdrant is down")
+
+    monkeypatch.setattr(agent, "run_agent", boom)
+    agent.warm_up()
+
+
+def test_startup_starts_the_warm_up_only_when_enabled(monkeypatch):
+    started = []
+    monkeypatch.setattr(main, "warm_up", lambda: started.append(1))
+    monkeypatch.setattr(main, "init_db", lambda: None)
+
+    monkeypatch.setattr(main.settings, "WARMUP_ON_START", False)
+    with TestClient(main.app):
+        pass
+    assert started == []
+
+    monkeypatch.setattr(main.settings, "WARMUP_ON_START", True)
+    with TestClient(main.app):
+        time.sleep(0.2)
+    assert started == [1]
