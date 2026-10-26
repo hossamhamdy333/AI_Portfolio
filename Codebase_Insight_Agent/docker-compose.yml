@@ -23,7 +23,13 @@ services:
       - caddy_data:/data
     depends_on:
       - web
+    networks:
+      - default
+      - edge
     restart: unless-stopped
+networks:
+  edge:
+    external: true
 volumes:
   appdata:
   caddy_data:

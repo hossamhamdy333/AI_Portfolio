@@ -1,0 +1,20 @@
+services:
+  rag-assistant:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/app.db
+    expose:
+      - "8000"
+    volumes:
+      - ragdata:/data
+    networks:
+      - edge
+    restart: unless-stopped
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  ragdata:
