@@ -1,7 +1,7 @@
 import crew as crew_module
 from crew import CriticVerdict
 from audit import AuditLog
-from supervisor import run_supervised
+from supervisor import run_supervised, prepare, finish
 
 
 class FakeTaskOutput:
@@ -83,3 +83,24 @@ def test_human_sees_critic_verdict_when_still_rejected(monkeypatch, tmp_path):
     assert seen == {"draft": "draft v1", "approved": False}
     assert result["n_revisions"] == 0
     assert result["critic_approved"] is False
+
+
+def test_prepare_stops_before_human_decision(monkeypatch, tmp_path):
+    patch_crew(monkeypatch, first_approved=True)
+    audit = AuditLog(tmp_path / "a.jsonl")
+    state = prepare(None, None, "q", audit)
+
+    assert state["draft"] == "draft v1"
+    assert steps(audit)[-1] == "approval_requested"
+    assert "human_decision" not in steps(audit)
+
+
+def test_finish_logs_decision_and_returns_result(monkeypatch, tmp_path):
+    patch_crew(monkeypatch, first_approved=True)
+    audit = AuditLog(tmp_path / "a.jsonl")
+    state = prepare(None, None, "q", audit)
+    result = finish(audit, state, True, "ok")
+
+    assert result["status"] == "approved"
+    assert result["answer"] == "draft v1"
+    assert steps(audit)[-2:] == ["human_decision", "final"]

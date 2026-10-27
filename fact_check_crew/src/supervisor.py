@@ -1,7 +1,7 @@
 import crew as crew_module
 
 
-def run_supervised(llm, search_tool, question, audit, approve, max_revisions=1):
+def prepare(llm, search_tool, question, audit, max_revisions=1):
     audit.log("start", question=question, max_revisions=max_revisions)
 
     draft, verdict, research_task, writer, critic = crew_module._run_initial_pass(llm, search_tool, question)
@@ -23,15 +23,23 @@ def run_supervised(llm, search_tool, question, audit, approve, max_revisions=1):
         audit.log("critique", attempt=n_revisions, approved=verdict.approved, feedback=verdict.feedback)
 
     audit.log("approval_requested", answer=draft, critic_approved=verdict.approved, critic_feedback=verdict.feedback)
-    human_ok, note = approve(draft, verdict)
-    audit.log("human_decision", approved=human_ok, note=note)
+    return {"draft": draft, "verdict": verdict, "n_revisions": n_revisions}
 
+
+def finish(audit, state, human_ok, note=""):
+    audit.log("human_decision", approved=human_ok, note=note)
     status = "approved" if human_ok else "rejected"
     audit.log("final", status=status)
     return {
         "status": status,
-        "answer": draft if human_ok else None,
-        "critic_approved": verdict.approved,
-        "n_revisions": n_revisions,
+        "answer": state["draft"] if human_ok else None,
+        "critic_approved": state["verdict"].approved,
+        "n_revisions": state["n_revisions"],
         "run_id": audit.run_id,
     }
+
+
+def run_supervised(llm, search_tool, question, audit, approve, max_revisions=1):
+    state = prepare(llm, search_tool, question, audit, max_revisions)
+    human_ok, note = approve(state["draft"], state["verdict"])
+    return finish(audit, state, human_ok, note)
