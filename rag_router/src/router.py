@@ -35,12 +35,12 @@ from llama_index.core.selectors import EmbeddingSingleSelector, LLMSingleSelecto
 from llama_index.core.tools import QueryEngineTool
 
 DOMAIN_DESCRIPTIONS = {
-    "sports": (
+    "tech": (
         "Sports, athletes, teams, games, matches, tournaments, championships, "
         "leagues, coaches, stadiums, and athletic competitions of any kind "
         "(football, basketball, tennis, cricket, olympics, etc.)."
     ),
-    "tech": (
+    "sports": (
         "Technology, computer science, software, hardware, the internet, "
         "programming, artificial intelligence, semiconductors, smartphones, "
         "tech companies, and computing systems. Not sports technology or "
