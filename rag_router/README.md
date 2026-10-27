@@ -115,6 +115,23 @@ corpus, the four domain descriptions aren't distinct enough in embedding
 space for similarity matching alone to match an LLM's judgment. The
 embedding selector's only real advantage is cost and latency.
 
+### Regression gate
+
+`eval/` holds the 400 golden questions and a routing check that runs in
+GitHub Actions on every push (`rag router gate`), so a worse change fails
+the build before it is merged.
+
+- It runs the real `EmbeddingSingleSelector` with the real domain
+  descriptions from `src/router.py` on all 400 questions. No API keys and
+  no Qdrant needed, so it takes about two minutes.
+- It fails if routing accuracy or the worst domain's accuracy drops more
+  than 0.03 below `eval/baseline.json` (0.655 and 0.4).
+- It checks routing only. Retrieval and answer quality are not gated here.
+
+Proof that it works: on the `worse-router` branch, swapping the `sports`
+and `tech` descriptions made the build fail. The same code on `main`
+passes.
+
 ## What I'd do differently / limitations
 
 - **The corpus is small and cleanly separated.** 300 articles per domain
