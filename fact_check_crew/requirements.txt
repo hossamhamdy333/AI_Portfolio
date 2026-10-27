@@ -6,7 +6,7 @@ pydantic
 pytest
 
 # Agents
-crewai
+crewai[google-genai]
 
 # Retrieval (reads rag_router's existing Qdrant collections -- same
 # embedding model rag_router used to build them, no LlamaIndex needed

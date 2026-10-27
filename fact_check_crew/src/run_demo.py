@@ -7,6 +7,7 @@ import yaml
 
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 os.environ["OTEL_SDK_DISABLED"] = "true"
+os.environ["CREWAI_TRACING_ENABLED"] = "false"
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -39,6 +40,15 @@ def main():
 
     qdrant_url = os.environ.get("QDRANT_URL", config["qdrant"]["url"])
     qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
+
+    prefix = config["qdrant"]["collection_prefix"]
+    try:
+        names = {c.name for c in qdrant_client.get_collections().collections}
+    except Exception as e:
+        sys.exit(f"Qdrant check failed: {e}\nCheck QDRANT_API_KEY and the url in configs/config.yaml.")
+    missing = [f"{prefix}_{d}" for d in config["domains"] if f"{prefix}_{d}" not in names]
+    if missing:
+        sys.exit(f"Missing Qdrant collections: {missing}")
     embed_model = SentenceTransformer(config["embedding"]["model_name"])
     search_tool = build_search_tool(
         qdrant_client,

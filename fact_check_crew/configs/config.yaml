@@ -19,7 +19,7 @@ llm:
 qdrant:
   # Same cluster/collections rag_router built -- fill in the same url
   # you used there.
-  url: https://ff3a5bed-2ea9-4149-a786-2db269606666.us-west-1-0.aws.cloud.qdrant.io
+  url: https://50992c4f-7703-4444-bed8-d12777da3c9b.eu-west-1-0.aws.cloud.qdrant.io
   collection_prefix: "wiki_router"
 
 embedding:
