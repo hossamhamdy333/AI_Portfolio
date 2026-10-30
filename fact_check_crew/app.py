@@ -24,6 +24,14 @@ MAX_RUNS = 5
 REPO_URL = "https://github.com/hossamhamdy333/AI_Portfolio/tree/main/fact_check_crew"
 
 
+for name in ("GEMINI_API_KEY", "QDRANT_API_KEY"):
+    if name not in os.environ:
+        try:
+            os.environ[name] = st.secrets[name]
+        except Exception:
+            pass
+
+
 @st.cache_resource(show_spinner="Loading models and connecting to Qdrant...")
 def get_tools():
     return build_tools(config)

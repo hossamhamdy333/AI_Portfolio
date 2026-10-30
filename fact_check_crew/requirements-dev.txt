@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest
+pandas
+mlflow
+llama-index-core
+llama-index-embeddings-huggingface
