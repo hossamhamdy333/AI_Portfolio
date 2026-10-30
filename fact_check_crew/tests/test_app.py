@@ -43,6 +43,11 @@ def get_button(at, label):
     return next(b for b in at.button if b.label == label)
 
 
+def ask(at, question):
+    at.text_input(key="question").set_value(question)
+    get_button(at, "Run crew").click().run()
+
+
 def logged_steps(log_path):
     with open(log_path, encoding="utf-8") as f:
         return [json.loads(line)["step"] for line in f if line.strip()]
@@ -53,12 +58,12 @@ def test_run_then_approve_releases_answer(monkeypatch, tmp_path):
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert not at.exception
 
-    get_button(at, "Run crew").click().run()
+    ask(at, "What is baseball?")
     assert "draft v1" in [m.value for m in at.markdown]
     assert logged_steps(log_path)[-1] == "approval_requested"
 
-    get_button(at, "Approve").click().run()
-    assert any("approved" in s.value for s in at.subheader)
+    get_button(at, "Approve and release").click().run()
+    assert any("Approved" in s.value for s in at.success)
     assert logged_steps(log_path)[-2:] == ["human_decision", "final"]
 
 
@@ -66,9 +71,18 @@ def test_reject_releases_no_answer(monkeypatch, tmp_path):
     log_path = setup_app(monkeypatch, tmp_path)
     at = AppTest.from_file(APP, default_timeout=30).run()
 
-    get_button(at, "Run crew").click().run()
+    ask(at, "What is baseball?")
     get_button(at, "Reject").click().run()
 
-    assert any("rejected" in s.value for s in at.subheader)
-    assert "No answer released." in [m.value for m in at.markdown]
+    assert any("No answer was released" in i.value for i in at.info)
     assert logged_steps(log_path)[-1] == "final"
+
+
+def test_empty_question_does_not_run_the_crew(monkeypatch, tmp_path):
+    log_path = setup_app(monkeypatch, tmp_path)
+    at = AppTest.from_file(APP, default_timeout=30).run()
+
+    ask(at, "   ")
+
+    assert any("Type a question" in w.value for w in at.warning)
+    assert not log_path.exists()
