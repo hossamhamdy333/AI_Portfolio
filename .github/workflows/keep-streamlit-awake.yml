@@ -26,6 +26,7 @@ jobs:
           URLS = [
               "https://semantic-search-arxiv-papers.streamlit.app",
               "https://documents-mind.streamlit.app",
+              "https://fact-check-crew.streamlit.app",
           ]
 
           with sync_playwright() as p:

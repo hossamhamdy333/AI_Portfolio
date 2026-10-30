@@ -2,7 +2,7 @@
 
 # fact_check_crew: Does a Verify-and-Revise Loop Catch Hallucinations?
 
-`CrewAI` `gemini/gemini-3.1-flash-lite` `qdrant-client` `sentence-transformers` `pydantic` `MLflow` `pandas` `pytest` `llama-index-core`
+`CrewAI` `gemini/gemini-3.1-flash-lite` `qdrant-client` `sentence-transformers` `pydantic` `MLflow` `pandas` `pytest` `llama-index-core` `Streamlit`
 
 </div>
 
@@ -11,8 +11,10 @@
 ### Contents
 
 - [Summary](#summary)
+- [Live demo](#live-demo)
 - [Problem & motivation](#problem--motivation)
 - [Approach](#approach)
+- [Human approval and audit log](#human-approval-and-audit-log)
 - [Data](#data)
 - [Results](#results)
 - [What I'd do differently / limitations](#what-id-do-differently--limitations)
@@ -23,6 +25,16 @@
 ## Summary
 
 A three-agent CrewAI system (Researcher, Writer, Critic) tests a specific question head-to-head against a single-pass baseline: does adding a verify-and-revise step actually catch unsupported claims that a plain "search then answer" call would let through? Both conditions retrieve from the same Qdrant collections, answer the same 100 questions, and get scored by the identical faithfulness judge, so neither side gets an easier check. Result: the crew's hallucination rate is a third lower than the baseline's (0.08 vs. 0.12), but the Writer only got sent back for revision on about 1 in 6 questions (`crew_avg_revisions` = 0.17) — most of the gain comes from having a Critic check the draft at all, not from the revision loop actually firing often. That's the real finding here: the architecture helps, but not for the reason you'd assume going in, and it costs roughly 2-3x the LLM calls per question to get it.
+
+## Live demo
+
+**https://fact-check-crew.streamlit.app**
+
+Ask a question about sports, technology, history or English literature. The Researcher, Writer and Critic produce a draft, and nothing is released until you click Approve. A good first question is "What is baseball?". Answers come only from the Wikipedia sample, so a question outside it gets "the material does not contain this" instead of a guess. That refusal is the intended behavior.
+
+- The free host puts the app to sleep when it is idle. If it is asleep, Streamlit shows a button to wake it.
+- Each browser session is limited to 5 runs, to protect the free Gemini quota.
+- The Gemini API sometimes answers 503 when it is busy. If a run fails, click Run crew again.
 
 ## Problem & motivation
 
@@ -54,9 +66,22 @@ There's a second, quieter trap: assuming the revision mechanism is where the val
 
 100 questions means roughly 600-800 LLM calls (baseline call + judge call + crew's research/write/critique calls, plus a revision pass on some fraction of questions) — comfortably over the ~500/day free-tier ceiling this project family has already hit twice elsewhere in the portfolio. `run_comparison` checkpoints to disk every 5 questions and resumes on restart; a question that fails outright (after 3 retries with linear backoff on 429/503 transient errors) is logged and excluded from every downstream stat, not silently treated as "0 revisions, rejected." Resuming specifically re-attempts previously-failed questions rather than skipping them forever, and discards any checkpointed row that isn't in the current run's question sample, so resuming after a differently-sized run (e.g. an earlier 50-question test) can't leak extra rows into the final count.
 
+## Human approval and audit log
+
+The crew does not release an answer on its own. `src/supervisor.py` runs the three agents, decides whether to send the draft back to the Writer, and then stops at a human approval step.
+
+- `prepare()` runs research, writing and critique and logs each step. If the Critic rejects the draft, it goes back to the Writer once. Then it is passed on either way.
+- A person approves or rejects. In the terminal that is a y/n prompt (`src/run_demo.py`), on the web page it is two buttons (`app.py`).
+- `finish()` records the decision and the final status.
+
+Every step is appended to a JSON Lines file, `outputs/audit/audit_log.jsonl`: `start`, `research`, `write`, `critique`, `decision`, `approval_requested`, `human_decision`, `final`. Each row carries a run id and a timestamp. `python src/show_audit.py --list` shows all runs and `python src/show_audit.py <run_id>` prints one run as a timeline. A run that crashed has no `final` row, so it shows as unfinished.
+
+One thing I found while testing: when the search backend could not be reached, the Researcher returned an apology instead of passages, the Writer refused to answer, and the Critic approved that refusal because it matched the empty sources. The approval step is what keeps that from reaching a user. A guard that stops the run when the Researcher returns no passages would be better, and it is not built yet.
+
 ## Data
 
 - Reuses `../rag_router`'s existing Qdrant Cloud collections (four domains: sports, tech, history, English literature) and its 400-question synthetic eval set — no new corpus or question set built for this project.
+- The old Qdrant cluster stopped responding in October 2026, so the four collections were rebuilt on a new cluster from the same DVC-tracked data with `rag_router`'s ingest code. The numbers under Results come from the original run, before the rebuild.
 - Evaluation sample: 100 of those 400 questions, fixed random seed 42.
 - `notebooks/02_evaluation.ipynb` ran end to end: 100/100 questions scored, 0 failed outright, 0 judge-parsing failures on either condition.
 
@@ -83,7 +108,6 @@ The crew's hallucination rate is a third lower than the baseline's (0.08 vs. 0.1
 - **The faithfulness judge is the same model family (Gemini) judging its own or a similar model's output**, with no separate, stronger, or human-labeled ground truth to check the judge against. A systematic blind spot in the judge's own reasoning (confidently missing a specific class of unsupported claim) would lower both conditions' hallucination rates by the same unmeasured amount without showing up as a gap between them.
 - **100 of the available 400 questions were evaluated, not all 400.** A larger sample would tighten confidence in the 0.08 vs. 0.12 gap; this run doesn't report a confidence interval or significance test on the difference.
 - **`max_revisions=1` was fixed by config, not swept.** Whether 2 revisions would meaningfully lower the hallucination rate further, or just add cost for the same 91% approval ceiling, isn't tested here.
-- **The README's stated test count (20) doesn't match what's actually in the `tests/` directory — 23 test functions across the three files** (`test_crew.py`: 5, `test_eval_factcheck.py`: 10, `test_search_tool.py`: 8). Small, harmless, but exactly the kind of number-drift this portfolio's other projects flag rather than silently leave uncorrected.
 - **The `_kickoff_in_thread` workaround is a real fix for a real CrewAI/notebook interaction bug, but it's a workaround around a library version behavior, not a fix upstream** — a future CrewAI release could change that detection logic in a way this thread-isolation trick no longer needs, or no longer works around, and nothing here would notice automatically.
 - **Cost is described qualitatively ("2-3x the LLM calls") rather than measured in tokens or dollars per question**, unlike some other projects in this portfolio that track exact per-call cost. A real cost comparison (e.g. total tokens across both conditions for the same 100 questions) would make the tradeoff in the summary concrete instead of approximate.
 
@@ -96,5 +120,6 @@ The crew's hallucination rate is a third lower than the baseline's (0.08 vs. 0.1
 - `pydantic` for the Critic's structured `CriticVerdict` output (`approved`, `feedback`)
 - `MLflow`, hosted via DagsHub, reusing `../rag_router/shared/tracking.py` directly rather than a third copy of the same tracking code
 - `pandas` for the eval-set sample and results handling
-- `pytest`, 23 tests (retry-loop control flow with mocked CrewAI calls, search-tool payload parsing against a real LlamaIndex-populated Qdrant collection, faithfulness-judge JSON parsing including the "unparseable means unknown, not clean" case)
+- `Streamlit` for the review page, hosted on Streamlit Community Cloud with the API keys in the host's secrets
+- `pytest`, 41 tests (retry-loop control flow with mocked CrewAI calls, search-tool payload parsing against a real LlamaIndex-populated Qdrant collection, faithfulness-judge JSON parsing including the "unparseable means unknown, not clean" case)
 - Test-only dependency: `llama-index-core` / `llama-index-embeddings-huggingface`, used solely to build a realistic Qdrant fixture for `test_search_tool.py`, not used by any of the project's own `src/` code
