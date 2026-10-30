@@ -48,4 +48,4 @@ def test_root_serves_html_ui():
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Azure RAG Assistant" in response.text
+    assert "Document RAG Assistant" in response.text

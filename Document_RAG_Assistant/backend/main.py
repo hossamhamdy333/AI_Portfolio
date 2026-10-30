@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Azure RAG Assistant API", lifespan=lifespan)
+app = FastAPI(title="Document RAG Assistant API", lifespan=lifespan)
 
 
 @app.middleware("http")

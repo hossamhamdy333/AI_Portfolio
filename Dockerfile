@@ -5,11 +5,11 @@
 # it doesn't reliably expose a subfolder path option. Rather than hand-edit
 # the auto-generated GitHub Actions workflow YAML (fragile, breaks if
 # Azure's template changes), this file just lives at the repo root and
-# points into Azure_RAG_Assistant/backend/ for everything it needs. This way
+# points into Document_RAG_Assistant/backend/ for everything it needs. This way
 # the default wizard behavior works with zero extra configuration.
 #
 # This file only matters for the Azure deploy - it's a thin proxy to the
-# real Dockerfile at Azure_RAG_Assistant/backend/Dockerfile, which is still
+# real Dockerfile at Document_RAG_Assistant/backend/Dockerfile, which is still
 # the one used for local docker-compose development.
 
 FROM python:3.11-slim
@@ -22,10 +22,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY Azure_RAG_Assistant/backend/requirements.txt .
+COPY Document_RAG_Assistant/backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY Azure_RAG_Assistant/backend/ .
+COPY Document_RAG_Assistant/backend/ .
 
 EXPOSE 8000
 

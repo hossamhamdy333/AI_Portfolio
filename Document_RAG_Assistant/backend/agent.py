@@ -21,7 +21,7 @@ from safe_math import safe_calculate
 EMBEDDING_DIMENSIONS = 384
 
 SYSTEM_PROMPT = (
-    "You are Azure RAG Assistant, a helpful enterprise assistant. "
+    "You are Document RAG Assistant, a helpful enterprise assistant. "
     "Always check the company_knowledge_base tool first for questions that "
     "might be answered by uploaded documents. Use the calculator tool for "
     "any arithmetic. Answer concisely. Every knowledge base result starts "
