@@ -132,6 +132,8 @@ Proof that it works: on the `worse-router` branch, swapping the `sports`
 and `tech` descriptions made the build fail. The same code on `main`
 passes.
 
+![Routing gate failing on swapped domain descriptions (routing accuracy 0.655 to 0.3)](docs/router-gate-failed.png)
+
 ## What I'd do differently / limitations
 
 - **The corpus is small and cleanly separated.** 300 articles per domain

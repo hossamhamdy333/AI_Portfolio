@@ -178,6 +178,8 @@ Proof that it works: on the `worse-embedder` branch, swapping the
 multilingual embedder for English-only `all-MiniLM-L6-v2` dropped MRR from
 0.9058 to 0.0143, and the build failed. The same code on `main` passes.
 
+![Retrieval gate failing on the worse embedder (MRR 0.9058 to 0.0143)](docs/vanilla-gate-failed.png)
+
 ## Data
 
 - Source: `csebuetnlp/xlsum`, Arabic train split — 37,519 articles (BBC
