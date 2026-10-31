@@ -1,6 +1,6 @@
 <div align="center">
 
-# rag_router — Multi-Domain RAG with Query Routing
+# rag_router: Multi-Domain RAG with Query Routing
 
 `LlamaIndex` `Qdrant Cloud` `google-genai` `sentence-transformers/all-MiniLM-L6-v2` `HuggingFace datasets` `MLflow` `DVC` `pytest`
 
@@ -15,6 +15,7 @@
 - [Approach](#approach)
 - [Data](#data)
 - [Results](#results)
+- [How to run](#how-to-run)
 - [What I'd do differently / limitations](#what-id-do-differently--limitations)
 - [Stack](#stack)
 
@@ -134,6 +135,25 @@ passes.
 
 ![Routing gate failing on swapped domain descriptions (routing accuracy 0.655 to 0.3)](docs/router-gate-failed.png)
 
+## How to run
+
+From this folder:
+
+```bash
+pip install -r requirements.txt
+PYTHONPATH=src:shared:. pytest tests
+```
+
+That runs the 24 tests. The routing check that CI runs on every push is:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r eval/requirements.txt
+python eval/run_routing_eval.py
+```
+
+The notebooks in `notebooks/` (01 build the corpus, 02 ingest and router, 03 synthetic questions, 04 evaluation) read `GEMINI_API_KEY`, and `DAGSHUB_TOKEN` for MLflow tracking, from the environment.
+
 ## What I'd do differently / limitations
 
 - **The corpus is small and cleanly separated.** 300 articles per domain
@@ -183,5 +203,5 @@ passes.
 - `HuggingFace datasets` to stream the Wikipedia source corpus
 - `MLflow`, hosted via DagsHub, for run tracking
 - `DVC` for data and model artifact versioning
-- `pytest`, 30 tests covering pure logic plus in-memory Qdrant and real
+- `pytest`, 24 tests covering pure logic plus in-memory Qdrant and real
   LlamaIndex routing, no API keys required to run them
