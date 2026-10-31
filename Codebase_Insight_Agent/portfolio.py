@@ -512,7 +512,11 @@ def build_agent(indexes, router):
             "results, start by naming the best model and quoting its "
             "actual metric values from the context (for example its F1), "
             "and only then discuss trade-offs like speed or size. Call a "
-            "metric by its real name: say F1 when it is F1, not accuracy.\n\n"
+            "metric by its real name: say F1 when it is F1, not accuracy. "
+            "Only name a metric that the context actually reports. If the "
+            "question is about cost, savings or anything else, answer "
+            "with those numbers and never mention a metric that is not "
+            "in the context.\n\n"
             f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
         )
         with tracing.span("draft") as s:
