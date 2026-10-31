@@ -7,7 +7,7 @@ Design, in one sentence each:
     clicking a link on a CV.
   - Rate limiting (rate_limit.py) instead of a login wall: stops one
     visitor from burning the Gemini quota for everyone else.
-  - Guardrails (guardrails.py, same module as Azure_RAG_Assistant /
+  - Guardrails (guardrails.py, same module as Document_RAG_Assistant /
     customer_support_copilot): stops prompt-injection turning this into
     a general-purpose chatbot or saying something embarrassing on a
     page with your name on it.

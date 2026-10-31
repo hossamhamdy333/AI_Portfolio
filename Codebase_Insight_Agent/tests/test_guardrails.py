@@ -43,7 +43,7 @@ def test_guard_output_passes_through_normal_answer():
 def test_adversarial_prompt_set_catch_rate():
     """Runs the full labeled adversarial set (tests/adversarial_prompts.json)
     through guard_input and reports a measured catch rate, the same way
-    Azure_RAG_Assistant's guardrails are benchmarked - not just the 6
+    Document_RAG_Assistant's guardrails are benchmarked - not just the 6
     hand-picked cases above. Currently 19/20: one prompt-injection phrasing
     ("Forget the previous instructions...") isn't caught by the regex
     patterns in guardrails.py -- a real, known gap, not hidden by this

@@ -23,7 +23,7 @@ def configure_llama_index():
     embed_model is a local, free, no-API-key sentence-transformers model
     (config.EMBEDDING_MODEL) - runs on CPU, no rate limit, no quota,
     same model already used elsewhere in this portfolio
-    (rag_router/fact_check_crew's shared corpus, Azure_RAG_Assistant,
+    (rag_router/fact_check_crew's shared corpus, Document_RAG_Assistant,
     customer_support_copilot). llm stays on Gemini (config.LLM_MODEL) -
     only embedding was ever hitting the free-tier quota wall during
     indexing, chat generation is a separate, much lower-volume call.
@@ -199,7 +199,7 @@ def split_into_chunks(text, chunk_size=512, overlap=64):
 def get_qdrant_client():
     """One real client, shared across every call in this process. Points
     at a persistent Qdrant Cloud instance if QDRANT_URL is set (same
-    pattern Azure_RAG_Assistant already uses) - this is what makes an
+    pattern Document_RAG_Assistant already uses) - this is what makes an
     index built by running 01_indexing.ipynb still be there the next
     time mcp_server.py or web_app.py starts, instead of every process
     restart silently re-embedding every project from scratch.

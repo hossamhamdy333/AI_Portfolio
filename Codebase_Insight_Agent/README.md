@@ -251,7 +251,7 @@ I can't say how much each one helped. The slowest question (4.6 seconds)
 failed the critique twice and returned its last draft anyway.
 
 **Guardrails**: `guardrails.py` and `tests/adversarial_prompts.json` are
-byte-identical to the ones in `Azure_RAG_Assistant`. On the 20-prompt
+byte-identical to the ones in `Document_RAG_Assistant`. On the 20-prompt
 set, 19/20 (95%) are handled correctly:
 
 | Category | Correct |
