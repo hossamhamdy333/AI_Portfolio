@@ -3,7 +3,9 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 
 
 def build_collection(qdrant_client, collection_name, embedding_dim):
-    qdrant_client.recreate_collection(
+    if qdrant_client.collection_exists(collection_name):
+        qdrant_client.delete_collection(collection_name)
+    qdrant_client.create_collection(
         collection_name=collection_name,
         vectors_config=VectorParams(size=embedding_dim, distance=Distance.COSINE)
     )
