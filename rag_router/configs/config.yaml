@@ -52,7 +52,7 @@ llm:
   temperature: 0.1
 
 qdrant:
-  url: https://50992c4f-7703-4444-bed8-d12777da3c9b.eu-west-1-0.aws.cloud.qdrant.io
+  url: ""   # read from the QDRANT_URL environment variable
   collection_prefix: "wiki_router"   # actual collections: wiki_router_sports, wiki_router_tech, etc.
 
 cost:
