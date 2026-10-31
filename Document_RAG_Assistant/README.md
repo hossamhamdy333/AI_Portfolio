@@ -147,6 +147,18 @@ The full backend test suite passes: 128 tests (`pytest -v` from
 (with a fake deterministic embedding model, no live API key needed),
 safe-math, document deletion, OAuth, and health checks.
 
+## How to run
+
+You need a Gemini API key and a free Qdrant Cloud cluster. Copy `.env.example` to `.env` in this folder and fill in `GEMINI_API_KEY`, `QDRANT_URL` and `QDRANT_API_KEY`. Keys stay in `.env` and are never committed.
+
+```bash
+cd Document_RAG_Assistant
+cp .env.example .env
+docker compose up --build
+```
+
+Open http://localhost:8000. It is both the API and the chat page.
+
 ## What I'd do differently / limitations
 
 - **Slide decks work worse than text documents.** A lecture PDF
