@@ -102,6 +102,21 @@ Retention intervention ROI (target: top 20% by risk score AND working overtime; 
 
 This number is entirely a function of the two stated assumptions (cost per employee, risk-reduction effectiveness), not a measured outcome. The dashboard's What-If sliders show it's genuinely sensitive to targeting: widening the target group to 45% of the workforce with a weaker 10% risk-reduction assumption turns the same calculation negative.
 
+## How to run
+
+```bash
+cd employee-attrition
+pip install -r requirements.txt
+```
+
+Download the IBM HR Analytics Employee Attrition dataset from Kaggle and put `WA_Fn-UseC_-HR-Employee-Attrition.csv` in `data/raw/`. Then run the notebooks `01_eda` to `05_cost_of_attrition` in `notebooks/` in order. The Streamlit dashboard starts with:
+
+```bash
+streamlit run dashboard/streamlit_app.py
+```
+
+The Power BI file in `dashboard/` needs Power BI Desktop.
+
 ## What I'd do differently / limitations
 
 - **The single-split-vs-CV reversal is the most important methodological finding in this project, and it's worth stating plainly: with only 47 positive test cases, a single train/test split is not a reliable way to rank two models here.** Anyone re-running just the single-split cell would pick Logistic Regression and be wrong by the project's own more trustworthy metric.
