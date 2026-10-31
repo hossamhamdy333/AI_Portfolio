@@ -89,6 +89,15 @@ SHAP (`TreeExplainer` on the `explainability.ipynb` XGBoost model, a 1,456 × 23
 
 Raw-data correlation with `SalePrice` (before any modeling, on untransformed features) ranks `OverallQual` highest at 0.791, followed by `GrLivArea` at 0.709, `GarageCars` at 0.640, and `GarageArea` at 0.623, consistent with what SHAP finds on the trained model, though the raw ranking has no equivalent for the engineered features since they don't exist yet at that stage.
 
+## How to run
+
+```bash
+cd House_Price_Prediction
+pip install -r requirements.txt
+```
+
+Download `train.csv` and `test.csv` from the Kaggle competition "House Prices: Advanced Regression Techniques" and put them in `data/`. Then run the notebooks in `notebooks/` in this order: `EDA`, `feature_engineering`, `modeling`, `Hyperparameters_Tuning`, `explainability`.
+
 ## What I'd do differently / limitations
 
 - **Optuna isn't seeded, and it shows.** The XGBoost and LightGBM "best" hyperparameters differ meaningfully between `Hyperparameters_Tuning.ipynb`'s own saved output and the copy hardcoded into `explainability.ipynb`, because `optuna.create_study()` doesn't fix a sampler seed. The resulting CV RMSE only moves by about 0.001–0.003 between the two parameter sets, so it isn't costing much here, but it means the specific hyperparameter values in this repo aren't reproducible from the code alone, running the tuning notebook again would produce a third, different set.
