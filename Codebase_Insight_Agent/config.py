@@ -37,7 +37,7 @@ OVERVIEW_WORDS = {
 
 PROJECTS = [
     "customer_support_copilot",
-    "Azure_RAG_Assistant",
+    "Document_RAG_Assistant",
     "Credit_Fraud_Detection",
     "House_Price_Prediction",
     "allam_finetune",
@@ -56,14 +56,15 @@ PROJECTS = [
     "machine-learning-techniques-for-intrusion-detection",
     "ids-deploy",
     "Codebase_Insight_Agent",
+    "llm-cost-router",
     "portfolio_overview",
 ]
 
 # One short description per project, used by the router to match a
 # question to the right project(s). Keep these specific.
 PROJECT_DESCRIPTIONS = {
-    "customer_support_copilot": "RAG customer support chatbot with a fine-tuned Llama-3-8B model (GGUF), deployed on Azure Container Apps",
-    "Azure_RAG_Assistant": "Document-upload RAG chat assistant deployed on Azure",
+    "customer_support_copilot": "RAG customer support chatbot with a fine-tuned Llama-3-8B model (GGUF), shown in a demo video, not hosted",
+    "Document_RAG_Assistant": "Document-upload RAG chat assistant with per-user retrieval, page-number citations and a grounding check, deployed on AWS EC2",
     "Credit_Fraud_Detection": "Credit card fraud detection model, imbalanced data, SHAP explainability",
     "House_Price_Prediction": "House price prediction regression model",
     "allam_finetune": "QLoRA fine-tuning of an Arabic legal LLM, with before/after evaluation",
@@ -81,7 +82,8 @@ PROJECT_DESCRIPTIONS = {
     "sentiment_forge": "Sentiment analysis comparing TF-IDF, BiLSTM, and fine-tuned BERT models",
     "machine-learning-techniques-for-intrusion-detection": "Graduation project modeling repo: cascade network intrusion detection (binary to 21-class multiclass to attack-only) on the ~76M-row NF-UQ-NIDS-v2 NetFlow dataset, comparing XGBoost, CatBoost, TabNet, Residual MLP, and FT-Transformer",
     "ids-deploy": "Graduation project deployment repo: real-time intrusion-detection dashboard serving the ML-NIDS cascade models, validated in a GNS3-emulated enterprise network",
-    "Codebase_Insight_Agent": "This site's own agent: LangGraph plan/retrieve/critique loop over the portfolio READMEs, LlamaIndex and Qdrant retrieval, MCP server, FastAPI website, Azure Container Apps deployment, guardrails, rate limiting and pytest",
+    "Codebase_Insight_Agent": "This site's own agent: LangGraph plan/retrieve/critique loop over the portfolio READMEs, LlamaIndex and Qdrant retrieval, MCP server, FastAPI website, AWS EC2 deployment with Docker Compose and Caddy, guardrails, rate limiting and pytest",
+    "llm-cost-router": "Separate repo: FastAPI service that routes each question to a cheap or a strong Gemini model by difficulty score, logs cost per request, exposes Prometheus metrics, with an evaluation of cost saving and answer quality",
     "portfolio_overview": "About Hossam Hamdy Fakry: skills, experience, background, tech stack, tools, programming languages, frameworks, live deployments, graduation project, contact details and a summary of every project",
 }
 
@@ -99,6 +101,7 @@ PROJECT_REPO_OVERRIDES = {
     "portfolio_overview": "AI_Portfolio",
     "machine-learning-techniques-for-intrusion-detection": "machine-learning-techniques-for-intrusion-detection",
     "ids-deploy": "ids-deploy",
+    "llm-cost-router": "llm-cost-router",
 }
 
 # Branch override for projects whose repo doesn't use GITHUB_BRANCH's
@@ -141,7 +144,7 @@ PROJECT_FILES = {
 # Visitors ask questions with no login at all - that's the point, zero
 # friction for someone clicking a link on a CV. What protects the app
 # instead of a login wall: a per-IP rate limit and the same guardrails
-# layer used in Azure_RAG_Assistant / customer_support_copilot. The one
+# layer used in Document_RAG_Assistant / customer_support_copilot. The one
 # thing that DOES need a login is the admin dashboard - just for you, to
 # see what's being asked and what got blocked.
 import os
