@@ -46,7 +46,7 @@ def load_models():
     qdrant_api_key = os.environ.get("QDRANT_API_KEY")
     qdrant_url = os.environ.get("QDRANT_URL")
     if not qdrant_url:
-        raise RuntimeError("QDRANT_URL is not set. Put it in your .env file.")
+        raise RuntimeError("QDRANT_URL is not set. Set it as an environment variable.")
     if not qdrant_api_key:
         raise RuntimeError(
             "QDRANT_API_KEY is not set. Get one from your free cluster at "

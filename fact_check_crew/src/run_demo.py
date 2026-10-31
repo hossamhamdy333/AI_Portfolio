@@ -40,7 +40,7 @@ def main():
 
     qdrant_url = os.environ.get("QDRANT_URL")
     if not qdrant_url:
-        sys.exit("Set QDRANT_URL in your .env first.")
+        sys.exit("Set the QDRANT_URL environment variable first.")
     qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
     prefix = config["qdrant"]["collection_prefix"]
