@@ -2,7 +2,7 @@
 Curation helpers for the synthetic 'analysis' examples generated in
 notebooks/05_synthetic_data_engineering.ipynb.
 
-Same idea as the guardrails layer added to Azure_RAG_Assistant (PII/format
+Same idea as the guardrails layer added to Document_RAG_Assistant (PII/format
 checks before data is trusted), applied here to LLM-generated training
 data instead of a live query.
 """
