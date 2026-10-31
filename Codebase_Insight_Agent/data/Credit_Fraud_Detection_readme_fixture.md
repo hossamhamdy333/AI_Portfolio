@@ -141,6 +141,15 @@ SQL layer: run end to end against a live Oracle XE instance, all
 284,807 rows loaded with zero rejects. Highest fraud-rate hours were
 2 AM (1.71%) and 4 AM (1.04%), both well above the overall average.
 
+## How to run
+
+```bash
+cd Credit_Fraud_Detection
+pip install -r requirements.txt
+```
+
+Download `creditcard.csv` from the Kaggle dataset `mlg-ulb/creditcardfraud` and put it in a `data/` folder here. The data is not in the repo. Then run the notebooks in `notebooks/`: `EDA`, `preprocessing`, `modeling`, `explainability`.
+
 ## What I'd do differently / limitations
 
 - **The false-alarm cost ($5) is an assumption, not a measured

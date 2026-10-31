@@ -1,6 +1,6 @@
 <div align="center">
 
-# rag_router — Multi-Domain RAG with Query Routing
+# rag_router: Multi-Domain RAG with Query Routing
 
 `LlamaIndex` `Qdrant Cloud` `google-genai` `sentence-transformers/all-MiniLM-L6-v2` `HuggingFace datasets` `MLflow` `DVC` `pytest`
 
@@ -15,6 +15,7 @@
 - [Approach](#approach)
 - [Data](#data)
 - [Results](#results)
+- [How to run](#how-to-run)
 - [What I'd do differently / limitations](#what-id-do-differently--limitations)
 - [Stack](#stack)
 
@@ -115,6 +116,44 @@ corpus, the four domain descriptions aren't distinct enough in embedding
 space for similarity matching alone to match an LLM's judgment. The
 embedding selector's only real advantage is cost and latency.
 
+### Regression gate
+
+`eval/` holds the 400 golden questions and a routing check that runs in
+GitHub Actions on every push (`rag router gate`), so a worse change fails
+the build before it is merged.
+
+- It runs the real `EmbeddingSingleSelector` with the real domain
+  descriptions from `src/router.py` on all 400 questions. No API keys and
+  no Qdrant needed, so it takes about two minutes.
+- It fails if routing accuracy or the worst domain's accuracy drops more
+  than 0.03 below `eval/baseline.json` (0.655 and 0.4).
+- It checks routing only. Retrieval and answer quality are not gated here.
+
+Proof that it works: on the `worse-router` branch, swapping the `sports`
+and `tech` descriptions made the build fail. The same code on `main`
+passes.
+
+![Routing gate failing on swapped domain descriptions (routing accuracy 0.655 to 0.3)](docs/router-gate-failed.png)
+
+## How to run
+
+From this folder:
+
+```bash
+pip install -r requirements.txt
+PYTHONPATH=src:shared:. pytest tests
+```
+
+That runs the 24 tests. The routing check that CI runs on every push is:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r eval/requirements.txt
+python eval/run_routing_eval.py
+```
+
+The notebooks in `notebooks/` (01 build the corpus, 02 ingest and router, 03 synthetic questions, 04 evaluation) read `GEMINI_API_KEY`, and `DAGSHUB_TOKEN` for MLflow tracking, from the environment.
+
 ## What I'd do differently / limitations
 
 - **The corpus is small and cleanly separated.** 300 articles per domain
@@ -164,7 +203,7 @@ embedding selector's only real advantage is cost and latency.
 - `HuggingFace datasets` to stream the Wikipedia source corpus
 - `MLflow`, hosted via DagsHub, for run tracking
 - `DVC` for data and model artifact versioning
-- `pytest`, 30 tests covering pure logic plus in-memory Qdrant and real
+- `pytest`, 24 tests covering pure logic plus in-memory Qdrant and real
   LlamaIndex routing, no API keys required to run them
 
 
@@ -200,7 +239,7 @@ Both selectors were run on the same 400-question set in `notebooks/04_evaluation
 
 ## The failure rate understates the LLM selector's edge
 
-Failed questions count as wrong routing — there's no domain to compare against `None`. Excluding failures:
+Failed questions count as wrong routing, there's no domain to compare against `None`. Excluding failures:
 
 - Embedding selector: 258/396 correct = **65.2%**
 - LLM selector: 279/361 correct = **77.3%**
@@ -209,4 +248,4 @@ So the actual gap in routing quality is wider than the headline accuracy numbers
 
 ## Conclusion
 
-The LLM selector wins on every metric, including after accounting for its higher failure rate. The embedding selector's only advantage is cost and latency — no extra Gemini call per question. On this corpus, the four domain descriptions aren't distinct enough in embedding space for similarity matching to match an LLM's judgment; the extra API call buys real accuracy.
+The LLM selector wins on every metric, including after accounting for its higher failure rate. The embedding selector's only advantage is cost and latency, no extra Gemini call per question. On this corpus, the four domain descriptions aren't distinct enough in embedding space for similarity matching to match an LLM's judgment; the extra API call buys real accuracy.

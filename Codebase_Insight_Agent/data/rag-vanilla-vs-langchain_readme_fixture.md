@@ -15,6 +15,7 @@
 - [Approach](#approach)
 - [Data](#data)
 - [Results](#results)
+- [How to run](#how-to-run)
 - [What I'd do differently / limitations](#what-id-do-differently--limitations)
 - [Stack](#stack)
 
@@ -41,8 +42,8 @@ sized in **words** (256 of those), because `RecursiveCharacterTextSplitter`
 and `chunk_fixed()` count different units from the same config value. The
 two sides also rank different numbers of candidates. So the MRR gap is a
 gap between two systems that differ in more than their retriever
-architecture. Everything downstream of that — the corpus, the questions,
-the reranker, the LLM, the scoring code — genuinely is shared, verifiably,
+architecture. Everything downstream of that (the corpus, the questions,
+the reranker, the LLM, the scoring code) genuinely is shared, verifiably,
 through `shared/`.
 
 ## Problem & motivation
@@ -62,7 +63,7 @@ should be traceable to the one thing that's different.
 That framing matters because the repo's own history shows how easily it
 breaks. `shared/eval_set.py`'s docstring records that `impl_vanilla` used
 to sample 30 questions inline in two separate notebooks while
-`impl_langchain` sampled 100 through a different code path — two numbers
+`impl_langchain` sampled 100 through a different code path: two numbers
 that looked like a comparison and weren't. `shared/metrics.py` records that
 the same MRR/NDCG math existed in three copies. Both were consolidated.
 The chunk-unit mismatch described below is the same class of problem,
@@ -89,8 +90,8 @@ where the source article's id is the ground-truth answer.
 `random_state=42` for both implementations.
 
 ### `impl_vanilla`
-
-— flat chunking, explicit retrieval loop.
+:
+flat chunking, explicit retrieval loop.
 `03_chunking.ipynb` implements three strategies (`fixed`, `sentence`,
 `semantic`) and picks between them by MRR/NDCG rather than by preference;
 the notebook asserts that the winner matches `configs/config.yaml`'s
@@ -101,19 +102,19 @@ Cloud collection, retrieves `top_k_retrieve = 10`, reranks to
 `top_k_rerank = 5` with `mmarco-mMiniLMv2-L12-H384-v1`, and generates with
 Gemini under a prompt that forces `[N]` citation tags. Citations are then
 re-checked against what was actually retrieved rather than taken at face
-value — a `[3]` in the answer maps back to the third reranked chunk's real
+value; a `[3]` in the answer maps back to the third reranked chunk's real
 `article_id`.
 
 ### `impl_langchain`
-
-— `ParentDocumentRetriever` and an LCEL chain. Child
+:
+`ParentDocumentRetriever` and an LCEL chain. Child
 chunks are embedded and searched; the larger parent chunk is what reaches
 the LLM, which is the thing flat chunking can't do without restructuring.
 `chain.py` is a two-stage LCEL graph: a `RunnableParallel` that
 retrieves-and-reranks on one branch while passing the question through
 untouched on the other, then a second `RunnableParallel` that generates the
 answer while carrying the document list forward, so `run(question)` returns
-`(answer, docs)` — the same shape `impl_vanilla`'s `generate_answer()`
+`(answer, docs)`; the same shape `impl_vanilla`'s `generate_answer()`
 returns. The reranker object is passed *into* `build_chain()` rather than
 constructed there, so both implementations provably hold the same model.
 `citation.py` re-verifies `[N]` tags the same way `impl_vanilla` does.
@@ -122,7 +123,7 @@ constructed there, so both implementations provably hold the same model.
 
 `retriever.py`'s docstring
 records that `ParentDocumentRetriever` was originally built with
-LangChain's `InMemoryStore` for parent documents — which never touches
+LangChain's `InMemoryStore` for parent documents, which never touches
 disk, despite `dvc add data/chroma_db` implying the whole retriever was
 saved. Every downstream notebook therefore had to rebuild from scratch, and
 since `build_parent_document_retriever()` called `add_documents()`
@@ -139,7 +140,7 @@ returning an answer plus structured citations, and `src/mcp_server.py`
 exposes the identical pipeline as an MCP tool (`ask_arabic_news`) over
 stdio for Claude Desktop or any MCP client. Both load models once and read
 everything from `config.yaml`. Both point at Qdrant Cloud rather than an
-embedded instance — the config records why: `QdrantClient(path=...)`
+embedded instance; the config records why: `QdrantClient(path=...)`
 ignored the old `host`/`port` keys entirely, and an embedded collection
 only existed inside the Colab session that built it, so anything serving
 from it worked nowhere else.
@@ -156,9 +157,33 @@ resume, which is not theoretical: the committed RAGAS output is full of
 Gemini free-tier 429s (15 requests/minute), and both runs were completed
 across multiple sessions.
 
+### Regression gate
+
+`eval/` holds a golden set (400 questions, 747 chunks) and two checks in
+GitHub Actions, so a worse change fails the build before it is merged.
+
+- **Retrieval gate** (`rag retrieval gate`, every push): builds an in-memory
+  Qdrant index from the committed chunks and runs all 400 questions through
+  `impl_vanilla`'s real embedder, search and reranker. It fails if MRR,
+  NDCG@10 or hit rate drop more than 0.02 below `eval/baseline.json`
+  (MRR 0.9058, NDCG@10 0.9095, hit rate 0.92). No API keys needed. These
+  numbers cover retrieval only, on 400 questions, so they are not directly
+  comparable to the 100-question table below.
+- **RAGAS job** (`rag ragas eval`, started by hand): answers 30 sampled
+  questions with Gemini and scores faithfulness, answer relevancy and
+  context recall. It fails if any drops more than 0.05 below
+  `eval/ragas_baseline.json` (1.0, 0.9651, 0.9667). It is manual because the
+  Gemini free tier allows 15 requests per minute and 500 per day.
+
+Proof that it works: on the `worse-embedder` branch, swapping the
+multilingual embedder for English-only `all-MiniLM-L6-v2` dropped MRR from
+0.9058 to 0.0143, and the build failed. The same code on `main` passes.
+
+![Retrieval gate failing on the worse embedder (MRR 0.9058 to 0.0143)](docs/vanilla-gate-failed.png)
+
 ## Data
 
-- Source: `csebuetnlp/xlsum`, Arabic train split — 37,519 articles (BBC
+- Source: `csebuetnlp/xlsum`, Arabic train split: 37,519 articles (BBC
   Arabic news), fields `id`, `url`, `title`, `summary`, `text`.
 - Validation drops 3 rows, all for falling under the 50%-Arabic threshold
   (ratios 0.221, 0.405, 0.465) → **37,516 articles** in
@@ -168,12 +193,12 @@ across multiple sessions.
   counts them and does not drop them (see Limitations).
 - `arabic_ratio` is tight across the corpus: mean 0.810, std 0.013, min
   0.221, max 0.856. Titles average 9.4 words and correlate with article
-  length at 0.032 — i.e. not at all.
+  length at 0.032: i.e. not at all.
 - Vocabulary (Arabic-script tokens only): 15,937,111 total, 459,148
   unique, 215,324 singletons (47%).
 - **The RAG corpus is not the full 37,516.** `03_chunking.ipynb` samples
-  300 articles (`random_state=42`), and everything downstream — the Qdrant
-  collection, the Chroma store, both eval runs, and the served API — uses
+  300 articles (`random_state=42`), and everything downstream (the Qdrant
+  collection, the Chroma store, both eval runs, and the served API) uses
   only those 300.
 - Eval set: 200 articles sampled for question generation × 2 questions =
   400 Q&A pairs, of which `shared/eval_set.py` samples 100 for the
@@ -198,7 +223,7 @@ similarity over each strategy's own chunk set):
 | semantic | 0.768 | 0.809 |
 
 `fixed` and `sentence` are tied on MRR to three decimals and separated by
-0.003 on NDCG@10 — a tie-break, not a win, and `config.yaml` says so in a
+0.003 on NDCG@10; a tie-break, not a win, and `config.yaml` says so in a
 comment rather than presenting `fixed` as a clear winner. `semantic`
 trails both while producing the most erratic chunks (word-count std 234.8
 vs. 78.5 and 67.7), which is what a similarity-threshold splitter does when
@@ -226,7 +251,7 @@ excluded from RAGAS scoring, so its RAGAS column is over 99 rows;
 
 **What the split actually says.** `ParentDocumentRetriever` puts the right
 article higher in the ranking (MRR 0.925 vs. 0.802) and its answers address
-the question better (relevancy 0.906 vs. 0.824) — both consistent with the
+the question better (relevancy 0.906 vs. 0.824); both consistent with the
 LLM receiving a larger, more coherent parent chunk instead of a 200-word
 window that may cut mid-argument. But the same larger context makes the
 answers slightly less grounded (faithfulness 0.978 vs. 0.991) and the
@@ -242,7 +267,7 @@ of citation accuracy is 2 questions.
 **Tests.** 29 test functions: `shared/tests/test_metrics.py` (8),
 `shared/tests/test_eval_set.py` (4), `impl_vanilla/tests/test_data_utils.py`
 (5), `test_evaluate.py` (5), `test_qa_generation.py` (2),
-`impl_langchain/tests/test_citation.py` (5). I ran them directly — the 12
+`impl_langchain/tests/test_citation.py` (5). I ran them directly; the 12
 shared and 10 of the 12 vanilla tests pass locally, and the 5
 `impl_langchain` tests pass; `test_qa_generation.py`'s 2 need the
 `google-genai` SDK installed, which CI does install.
@@ -253,6 +278,20 @@ shared and 10 of the 12 vanilla tests pass locally, and the 5
 published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
 `MCPServer` in its `__all__`.
 
+## How to run
+
+The two implementations have separate requirements files. These are the commands the CI workflow runs on Python 3.11, from this folder:
+
+```bash
+pip install -r impl_vanilla/requirements.txt
+PYTHONPATH=shared pytest shared/tests/ -v
+PYTHONPATH=impl_vanilla:. pytest impl_vanilla/tests/ -v
+pip install -r impl_langchain/requirements.txt
+PYTHONPATH=impl_langchain:. pytest impl_langchain/tests/ -v
+```
+
+To serve the vanilla chatbot, run `uvicorn src.api:app --host 0.0.0.0 --port 8000` from `impl_vanilla/`. The API and the MCP server read `GEMINI_API_KEY`, `QDRANT_API_KEY` and `QDRANT_URL` from the environment (see `.env.example`). The code does not load `.env` by itself, so export them first with `set -a; source .env; set +a`. You need your own Qdrant Cloud cluster with the collection built by `impl_vanilla/src/ingest.py`.
+
 ## What I'd do differently / limitations
 
 - **The child chunk size is passed in the wrong unit, which undermines the
@@ -261,7 +300,7 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
   as `child_chunk_size` to `RecursiveCharacterTextSplitter`, which measures
   **characters**. `impl_vanilla`'s `chunk_fixed()` measures **words**. So
   vanilla searches over ~200-word chunks while LangChain searches over
-  ~256-character (~40-word) children — roughly a 5x difference in the unit
+  ~256-character (~40-word) children, roughly a 5x difference in the unit
   that actually gets embedded. `retriever.py`'s docstring explicitly claims
   the opposite ("Mirrors impl_vanilla's chunk_size=256/overlap=32 choice
   ... so the retrieval-quality comparison isn't confounded by a different
@@ -275,7 +314,7 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
   5 long. `chain.py` calls `retriever.invoke(question)` with no
   `search_kwargs`, so `ParentDocumentRetriever` uses its default k and
   returns at most ~4 parent documents, which the reranker then "reranks to
-  5" — a no-op slice. `rag.top_k_retrieve = 10` never reaches the LangChain
+  5"; a no-op slice. `rag.top_k_retrieve = 10` never reaches the LangChain
   retriever at all. Both sides' MRR is therefore truncated, at different
   lengths, and "NDCG@10" is computed over lists shorter than 10 on both
   sides.
@@ -284,16 +323,15 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
   passed into `evaluate()` and assigned nowhere in the file. The scores are
   real (the checkpoint resumed 40/99 rows from a prior session), but the
   judge model and embedding model that produced them aren't recoverable
-  from the repo, so "both sides used the same RAGAS setup" isn't verifiable
-  — `impl_langchain`'s notebook does define its judge explicitly
+  from the repo, so "both sides used the same RAGAS setup" isn't verifiable:
+  `impl_langchain`'s notebook does define its judge explicitly
   (`ChatGoogleGenerativeAI` on `gemini-3.1-flash-lite` plus
   `models/gemini-embedding-001` embeddings). Re-running the vanilla RAGAS
   cell as committed would raise `NameError`.
 - **`shared/tracking.py` reads the wrong environment variable.**
   `os.environ.get("DAGSHUB_TOKEN:")` has a trailing colon in the key name,
   so the `DAGSHUB_TOKEN` a user actually exports is never found and
-  `getpass` prompts on every run. Harmless interactively in Colab —
-  which is why it survived — but it makes any unattended or CI-driven run
+  `getpass` prompts on every run. Harmless interactively in Colab (which is why it survived), but it makes any unattended or CI-driven run
   hang on a prompt. One-character fix.
 - **The RAGAS judge is the same model family being evaluated.** Gemini
   scoring Gemini's own Arabic answers for faithfulness, with no
@@ -305,7 +343,7 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
   `impl_vanilla` reports $0.000655/query; `impl_langchain` routes through
   LangSmith, and no number is committed.
   `ParentDocumentRetriever` sends larger contexts, so its input-token cost
-  per generation should be higher — the comparison's most practical
+  per generation should be higher; the comparison's most practical
   dimension, and it's an open number. **Open item:** impl_langchain's mean input
   tokens and cost per query, from the LangSmith run for `langchain_eval`.
 - **94 duplicate articles are counted in EDA and never dropped.** They
@@ -320,15 +358,15 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
   that keeps the opening intact and means late-article content is indexed
   but never queried.
 - **The served API answers from 300 of 37,516 articles.** The Qdrant Cloud
-  collection holds 747 chunks — the experimental sample, not the corpus.
+  collection holds 747 chunks; the experimental sample, not the corpus.
   `src/api.py` and `src/mcp_server.py` are wired correctly; they just point
   at an index built for measurement. Indexing the full corpus is an
   embedding run, not a code change, but nothing in the repo says the
   deployed surface is this narrow.
 - **CI doesn't run `shared/tests/`.** The workflow runs
   `impl_vanilla/tests/` and `impl_langchain/tests/` with two different
-  `PYTHONPATH` prefixes, and the 12 shared tests — covering
-  `shared/metrics.py`, the code every number in COMPARISON.md depends on —
+  `PYTHONPATH` prefixes, and the 12 shared tests (covering
+  `shared/metrics.py`, the code every number in COMPARISON.md depends on)
   are never executed. They also need a third invocation form
   (`PYTHONPATH=shared`), since they import `from metrics import ...` rather
   than `from shared.metrics import ...`. Three path conventions for one
@@ -347,17 +385,17 @@ published package: `mcp` 2.2.0's `mcp/server/__init__.py` exports
 
 ## Stack
 
-- `sentence-transformers` 2.7.0 — `paraphrase-multilingual-mpnet-base-v2`
+- `sentence-transformers` 2.7.0: `paraphrase-multilingual-mpnet-base-v2`
   (768-dim) as the shared bi-encoder, `CrossEncoder` with
   `mmarco-mMiniLMv2-L12-H384-v1` as the shared reranker
-- `qdrant-client` against Qdrant Cloud (cosine) — `impl_vanilla`'s vector
+- `qdrant-client` against Qdrant Cloud (cosine): `impl_vanilla`'s vector
   store, and what the API and MCP server both read
 - `langchain` <1.0 with `langchain-chroma`, `langchain-huggingface`,
-  `langchain-text-splitters`, `langchain-google-genai` — LCEL chain,
+  `langchain-text-splitters`, `langchain-google-genai`: LCEL chain,
   `ParentDocumentRetriever`, Chroma for child vectors, `LocalFileStore` +
   `create_kv_docstore` for parent documents
 - `google-genai` (`gemini-3.1-flash-lite`, temperature 0.1) for generation
-  and synthetic Q&A, behind `shared/llm_client.py`'s retry wrapper — which
+  and synthetic Q&A, behind `shared/llm_client.py`'s retry wrapper, which
   parses Google's own "retry in Xs" hint out of the error rather than
   guessing a backoff
 - `ragas` 0.2.15 (faithfulness, answer relevancy, context recall) for
@@ -467,14 +505,14 @@ See [../COMPARISON.md](../COMPARISON.md) for how this stacks up against `impl_va
 
 ## Notebooks (run in order)
 
-1. **`01_build_retriever.ipynb`** — builds the `ParentDocumentRetriever` against the same 300-article sample `impl_vanilla`'s RAG eval uses, persists both the Chroma vectorstore and the parent-document store to disk, pushes to DVC.
-2. **`02_rag_pipeline.ipynb`** — loads the persisted retriever (no re-embedding), builds the LCEL chain, sanity-checks it on one question. Optional LangSmith tracing setup lives here.
-3. **`03_evaluation.ipynb`** — runs the same eval sample `impl_vanilla` scores against (`shared/eval_set.py` guarantees this), computes citation accuracy / MRR / NDCG, then RAGAS.
+1. **`01_build_retriever.ipynb`**, builds the `ParentDocumentRetriever` against the same 300-article sample `impl_vanilla`'s RAG eval uses, persists both the Chroma vectorstore and the parent-document store to disk, pushes to DVC.
+2. **`02_rag_pipeline.ipynb`**, loads the persisted retriever (no re-embedding), builds the LCEL chain, sanity-checks it on one question. Optional LangSmith tracing setup lives here.
+3. **`03_evaluation.ipynb`**, runs the same eval sample `impl_vanilla` scores against (`shared/eval_set.py` guarantees this), computes citation accuracy / MRR / NDCG, then RAGAS.
 
 ## Observability
 
-- **MLflow**: logs to the same tracking store/experiment `impl_vanilla` uses (`configs/config.yaml`'s `mlflow:` section) — runs from both implementations are comparable in one MLflow UI.
-- **LangSmith** (optional): set up in `02_rag_pipeline.ipynb`. Once enabled, every `chain.invoke()` call afterwards — including the whole eval loop in `03_evaluation.ipynb` — gets per-step tracing (retrieve → rerank → generate) for free at [smith.langchain.com](https://smith.langchain.com), since `langchain-core` reads the tracing env vars automatically. Leave the key blank when prompted to skip it.
+- **MLflow**: logs to the same tracking store/experiment `impl_vanilla` uses (`configs/config.yaml`'s `mlflow:` section), runs from both implementations are comparable in one MLflow UI.
+- **LangSmith** (optional): set up in `02_rag_pipeline.ipynb`. Once enabled, every `chain.invoke()` call afterwards, including the whole eval loop in `03_evaluation.ipynb`, gets per-step tracing (retrieve → rerank → generate) for free at [smith.langchain.com](https://smith.langchain.com), since `langchain-core` reads the tracing env vars automatically. Leave the key blank when prompted to skip it.
 
 ## Tests
 
@@ -492,7 +530,7 @@ PYTHONPATH=impl_langchain:. pytest impl_langchain/tests/ -v
 
 # impl_vanilla
 
-Hand-rolled RAG pipeline: flat chunking (fixed-size, sentence-based, or semantic — see `03_chunking.ipynb` for which one wins and why), Qdrant for vector search, a cross-encoder reranker, Gemini for generation with enforced `[N]` citation tags, RAGAS for answer-quality scoring.
+Hand-rolled RAG pipeline: flat chunking (fixed-size, sentence-based, or semantic, see `03_chunking.ipynb` for which one wins and why), Qdrant for vector search, a cross-encoder reranker, Gemini for generation with enforced `[N]` citation tags, RAGAS for answer-quality scoring.
 
 `Python` `Qdrant` `cross-encoder` `Gemini API` `RAGAS` `FastAPI` `MCP`
 
@@ -512,14 +550,14 @@ See [../COMPARISON.md](../COMPARISON.md) for how this stacks up against `impl_la
 
 ## Notebooks (run in order)
 
-1. **`01_eda.ipynb`** — pulls XLSum Arabic, explores it, validates the corpus with Pydantic (drops empty/too-short/non-Arabic rows, logs why), writes `src/data_utils.py`.
-2. **`02_synthetic_qa.ipynb`** — generates the synthetic Q&A eval set with Gemini, writes `src/qa_generation.py`.
-3. **`03_chunking.ipynb`** — compares fixed/sentence/semantic chunking by MRR/NDCG against the eval set, writes `src/chunking.py`. Asserts that the winning strategy actually matches `configs/config.yaml`, so this can't silently drift out of sync again.
-4. **`04_evaluation.ipynb`** — builds the full pipeline (embed → Qdrant → rerank → generate), then scores citation accuracy, MRR/NDCG, and RAGAS in one pass over the shared eval sample. Writes `src/ingest.py`, `src/retrieval.py`, `src/generation.py`, `src/evaluate.py`, and the test files under `tests/`.
+1. **`01_eda.ipynb`**, pulls XLSum Arabic, explores it, validates the corpus with Pydantic (drops empty/too-short/non-Arabic rows, logs why), writes `src/data_utils.py`.
+2. **`02_synthetic_qa.ipynb`**, generates the synthetic Q&A eval set with Gemini, writes `src/qa_generation.py`.
+3. **`03_chunking.ipynb`**, compares fixed/sentence/semantic chunking by MRR/NDCG against the eval set, writes `src/chunking.py`. Asserts that the winning strategy actually matches `configs/config.yaml`, so this can't silently drift out of sync again.
+4. **`04_evaluation.ipynb`**, builds the full pipeline (embed → Qdrant → rerank → generate), then scores citation accuracy, MRR/NDCG, and RAGAS in one pass over the shared eval sample. Writes `src/ingest.py`, `src/retrieval.py`, `src/generation.py`, `src/evaluate.py`, and the test files under `tests/`.
 
 ## Serving
 
-`src/api.py` wraps the pipeline in a FastAPI `/chat` endpoint, backed by Qdrant Cloud rather than a local embedded vector store — so it works from anywhere, not just the Colab session that built the collection.
+`src/api.py` wraps the pipeline in a FastAPI `/chat` endpoint, backed by Qdrant Cloud rather than a local embedded vector store, so it works from anywhere, not just the Colab session that built the collection.
 
 Local run:
 ```bash
@@ -533,7 +571,7 @@ Needs `GEMINI_API_KEY` and `QDRANT_API_KEY` in the environment.
 
 ## Experiment tracking
 
-Both implementations log to a DagsHub-hosted MLflow server, not a local file — see [shared/tracking.py](../shared/tracking.py) for one-time setup. Runs are viewable at `https://dagshub.com/<owner>/<repo>/experiments`, no local `mlflow ui` needed.
+Both implementations log to a DagsHub-hosted MLflow server, not a local file, see [shared/tracking.py](../shared/tracking.py) for one-time setup. Runs are viewable at `https://dagshub.com/<owner>/<repo>/experiments`, no local `mlflow ui` needed.
 
 ## Tests
 
