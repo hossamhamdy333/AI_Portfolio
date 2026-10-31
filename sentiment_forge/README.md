@@ -333,6 +333,16 @@ I installed the dependencies and ran them directly, all 7 pass. They cover
 the deterministic parts of the pipeline only; no test asserts anything
 about model quality.
 
+## How to run
+
+```bash
+cd sentiment_forge
+pip install -r requirements.txt
+python -m pytest -q
+```
+
+The data files are tracked with DVC on my own remote, so `dvc pull` will not work for you. Get SST-5 from the `SetFit/sst5` Hugging Face dataset instead (see the Data section above). Then run the notebooks `01_eda` to `05_comparison` in `notebooks/` in order.
+
 ## What I'd do differently / limitations
 
 - **The checkpoint-selection bug in `05_comparison.ipynb` is the most
