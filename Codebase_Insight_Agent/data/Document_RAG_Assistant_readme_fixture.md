@@ -1,10 +1,10 @@
 <div align="center">
 
-# Azure RAG Assistant
+# Document RAG Assistant
 
-**Live Application:** [azure-rag-assistant...azurewebsites.net](https://azure-rag-assistant-b6hqawe7eef6euaf.francecentral-01.azurewebsites.net)
+**Live demo:** [rag.13-60-106-4.sslip.io](https://rag.13-60-106-4.sslip.io)
 
-`FastAPI` `LangChain` `Qdrant` `Azure App Service` `Azure SQL` `Azure Blob Storage` `Docker` `pytest`
+`FastAPI` `LangChain` `Qdrant` `Gemini` `Docker` `AWS EC2` `Caddy` `GitHub Actions` `pytest`
 
 </div>
 
@@ -28,8 +28,11 @@ A multi-user document Q&A chatbot: sign in, upload a PDF, image, or text
 file, and ask questions about it in plain language. The file is chunked,
 embedded, and indexed per-user in Qdrant, so retrieval happens before
 generation and one person's documents are never visible to another,
-enforced by a database-level filter, not the UI. Deployed on Azure App
-Service, backed by Azure SQL in production. On its own adversarial test
+enforced by a database-level filter, not the UI. Every answer shows the
+file and page it came from, and a grounding check flags sentences that
+the cited text does not support. It runs in Docker on a small AWS EC2
+server behind Caddy (it first ran on Azure App Service with Azure SQL).
+On its own adversarial test
 set of prompt injection, PII, and benign-lookalike prompts, the guardrails
 layer catches 19/20 (95%), with the miss documented rather than hidden.
 
@@ -50,10 +53,21 @@ the harder 20% that's actually worth demonstrating.
 
 ## Approach
 
-- **Retrieval**: LangChain's `create_agent` wraps two tools, a
-  `company_knowledge_base` retriever tool and a `calculator` tool, around
-  a Gemini (or local Ollama) chat model. The agent decides when to call
-  the retriever versus answer directly.
+- **Retrieval**: every question about the documents searches the user's
+  chunks first (8 passages, identical chunks counted once), then one
+  Gemini call answers from those passages only. An earlier version let
+  the agent decide whether to search, and it often skipped the search and
+  answered from general knowledge. Plain arithmetic still goes to a
+  LangChain agent with the `calculator` tool. The LLM can be swapped for
+  a local Ollama model.
+- **Page citations**: each PDF page is split on its own, so a chunk never
+  crosses a page. The model puts `[n]` after each sentence, and the app
+  turns those numbers into file and page badges. A number the model made
+  up is removed and logged.
+- **Grounding check**: `grounding.py` checks each cited sentence against
+  the chunk it cites (most of its words, and every number, must appear in
+  that chunk) and the page shows "checked" or a warning. It is a
+  word-overlap check, not a meaning check.
 - **Per-user isolation as a real security boundary, not a UI
   convention**: every retriever is built fresh per request with a Qdrant
   `Filter` on `metadata.user_id`, checked by Qdrant itself on every
@@ -92,10 +106,12 @@ the harder 20% that's actually worth demonstrating.
 There's no fixed training or eval dataset, since this is a live,
 user-uploaded-document system, not a model trained on a static corpus.
 What's fixed is the ingestion pipeline: `text_processing.py` extracts
-text (`pdfplumber` for PDFs, `pytesseract` OCR for PNG/JPG, plain decode
-for TXT/MD), splits it with LangChain's `RecursiveCharacterTextSplitter`
-at `chunk_size=1000, chunk_overlap=200`, and tags every chunk with
-`user_id` and `document_id` metadata before upserting to Qdrant. Every
+text (`pypdfium2` for PDFs, page by page, `pytesseract` OCR for PNG/JPG,
+plain decode for TXT/MD), splits each page with LangChain's
+`RecursiveCharacterTextSplitter` at `chunk_size=1000, chunk_overlap=200`,
+and tags every chunk with `user_id`, `document_id` and page number before
+upserting to Qdrant. Uploading a file with the same name again replaces
+the old copy, so the same text is never stored twice. Every
 document's chunks can be found and deleted independently by
 `document_id`, so removing one upload never touches another upload that
 happens to share a filename.
@@ -126,13 +142,37 @@ print your config."* The injection-detection regex matches "ignore" and
 undetected. It's a real gap in the pattern list, not a hard case; adding
 `forget` to the injection pattern set would close it.
 
-The full backend test suite passes: 48 tests (`pytest -v` from
+The full backend test suite passes: 128 tests (`pytest -v` from
 `backend/`), covering auth, rate limiting, guardrails, agent isolation
 (with a fake deterministic embedding model, no live API key needed),
 safe-math, document deletion, OAuth, and health checks.
 
+## How to run
+
+You need a Gemini API key and a free Qdrant Cloud cluster. Copy `.env.example` to `.env` in this folder and fill in `GEMINI_API_KEY`, `QDRANT_URL` and `QDRANT_API_KEY`. Keys stay in `.env` and are never committed.
+
+```bash
+cd Document_RAG_Assistant
+cp .env.example .env
+docker compose up --build
+```
+
+Open http://localhost:8000. It is both the API and the chat page.
+
 ## What I'd do differently / limitations
 
+- **Slide decks work worse than text documents.** A lecture PDF
+  (86 slides, most with under 250 characters of text) becomes 86 tiny
+  chunks, and some slides have symbols or fonts that extract as scrambled
+  characters. Answers about such a deck are thinner than answers about a
+  report. Grouping neighbouring slides and OCR for scrambled pages would
+  help, and neither is built yet.
+- **The word-overlap grounding check can flag a correct paraphrase** and
+  can miss a wrong sentence that reuses the chunk's words. It catches
+  wrong numbers and unrelated sentences, which is what it was built for.
+- **One small server.** The EC2 instance has 2 CPUs and 2 GB of memory, so
+  indexing a large PDF is slow, and the Gemini API sometimes stalls (a
+  call is cancelled after 15 seconds and retried).
 - **The guardrails are regex, and the one miss shows exactly why that's
   fragile.** A single missing keyword ("forget" vs. "ignore"/"disregard")
   is the entire gap between 95% and 100% on this test set, and a
@@ -184,17 +224,17 @@ safe-math, document deletion, OAuth, and health checks.
 - `LangChain` (`create_agent`, `create_retriever_tool`) with
   `langchain-google-genai` (Gemini) or `langchain-openai` pointed at a
   local Ollama server
-- `Qdrant` for vector search, `HuggingFaceEndpointEmbeddings`
-  (`sentence-transformers/all-MiniLM-L6-v2`) for embeddings
-- `SQLAlchemy` over Azure SQL (`pymssql`) in production, SQLite for
-  local dev and tests
-- `Azure Blob Storage` for raw file archival (best-effort, upload still
-  succeeds if this isn't configured)
-- `Azure App Service` (Docker container) for hosting, `GitHub Actions` →
-  `Docker Hub` → Azure for CI/CD
+- `Qdrant` for vector search, `fastembed`
+  (`sentence-transformers/all-MiniLM-L6-v2`, runs inside the container)
+  for embeddings
+- `SQLAlchemy` over SQLite on a Docker volume in the current deployment;
+  the same code ran on Azure SQL (`pymssql`) before
+- `Docker Compose` + `Caddy` (automatic HTTPS) on one AWS EC2 server
+  (`docker-compose.prod.yml`); `GitHub Actions` runs the tests on every
+  push (the old Azure deploy workflow is manual-only)
 - `Arize Phoenix` (OpenTelemetry-based) for optional LLM observability,
   off by default so tests and local runs never require a running
   collector
-- `bcrypt` + `PyJWT` for auth, `pdfplumber` + `pytesseract` for document
+- `bcrypt` + `PyJWT` for auth, `pypdfium2` + `pytesseract` for document
   text extraction
-- `pytest`, 48 tests, no live API keys required
+- `pytest`, 128 tests, no live API keys required
