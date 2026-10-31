@@ -1,6 +1,6 @@
 <div align="center">
 
-# Semantic Search over ArXiv ML Papers — Four Stages, One Eval Set
+# Semantic Search over ArXiv ML Papers: Four Stages, One Eval Set
 
 **Live Application:** [semantic-search-arxiv-papers.streamlit.app](https://semantic-search-arxiv-papers.streamlit.app)
 
@@ -17,6 +17,7 @@
 - [Approach](#approach)
 - [Data](#data)
 - [Results](#results)
+- [How to run](#how-to-run)
 - [What I'd do differently / limitations](#what-id-do-differently--limitations)
 - [Stack](#stack)
 
@@ -33,7 +34,7 @@ candidates. MRR goes 0.7122 → 0.7526 → 0.7526 → 0.8178, and Recall@1 goes
 0.635 → 0.670 → 0.670 → 0.760. The result worth knowing is the shape of
 that progression: **reranking bought more than switching from keyword
 search to embeddings did** (+0.065 MRR vs. +0.040), and it bought it almost
-entirely by reordering documents the bi-encoder had already retrieved —
+entirely by reordering documents the bi-encoder had already retrieved:
 Recall@10 barely moves (0.910 → 0.920) while Recall@1 jumps 9 points. The
 FAISS → Qdrant step produces byte-identical metrics, which is the expected
 and desired outcome for an infrastructure swap rather than a finding about
@@ -62,7 +63,7 @@ operational cost has to be made against that number, not against nothing.
 
 Second, "add a reranker" and "use a vector DB" are usually asserted rather
 than measured, and they're very different kinds of change. One is a
-quality/latency trade — a full transformer forward pass over 50
+quality/latency trade: a full transformer forward pass over 50
 (query, document) pairs per search instead of one vector lookup. The other
 should, if done correctly, change nothing about quality at all. Building
 the stages separately and re-running identical evaluation after each one is
@@ -76,7 +77,7 @@ out below.
 
 ## Approach
 
-Everything — chunk size, model names, `top_k`, collection name, k-values —
+Everything (chunk size, model names, `top_k`, collection name, k-values)
 lives in `configs/config.yaml`, read by all six notebooks, by
 `scripts/build_index.py`, by `src/serve.py`, and by `streamlit_app.py`, so
 no component can quietly diverge from the benchmarked settings.
@@ -94,35 +95,35 @@ one correct paper land in the top k), and NDCG@k reduces to
 `1/log2(rank+1)` with an ideal DCG of 1, so it's a rank-discounted version
 of the same signal rather than independent information.
 
-**Stage 1 — BM25** (`rank-bm25`'s `BM25Okapi`, default k1/b). Abstracts are
-tokenized with `re.findall(r"[a-z]+", text.lower())` — no stemming, no
+**Stage 1: BM25** (`rank-bm25`'s `BM25Okapi`, default k1/b). Abstracts are
+tokenized with `re.findall(r"[a-z]+", text.lower())`, with no stemming, no
 stopword removal, since BM25's IDF term already discounts terms that appear
 everywhere. Each query is scored against all 49,969 documents and the full
 corpus is ranked.
 
-**Stage 2 — dense retrieval** (`BAAI/bge-base-en-v1.5`, 768-dim). All
+**Stage 2: dense retrieval** (`BAAI/bge-base-en-v1.5`, 768-dim). All
 49,969 abstracts encoded on a Colab T4 in 781 batches of 64, with
 `normalize_embeddings=True`, then indexed with `faiss.IndexFlatIP`. Inner
 product over L2-normalized vectors is cosine similarity, and `IndexFlat` is
-exhaustive — so this stage measures the embedding model's ceiling with no
+exhaustive, so this stage measures the embedding model's ceiling with no
 approximation error mixed in. At 49,969 vectors, exact search is cheap
 enough that an ANN index would only add a recall/latency knob with nothing
 to tune it against yet.
 
-**Stage 3 — Qdrant** (`notebooks/04_vector_db.ipynb`). The same encoder,
+**Stage 3: Qdrant** (`notebooks/04_vector_db.ipynb`). The same encoder,
 the same vectors, upserted in batches of 500 into a Qdrant collection
 (768-dim, `Distance.COSINE`) with `paper_id`, `title`, `abstract` and
 `categories` in the payload, then re-evaluated. This runs against
-`QdrantClient(":memory:")` — the client's local in-process mode, not a
-server — so it validates the client API, the payload round-trip and the
+`QdrantClient(":memory:")` (the client's local in-process mode, not a
+server), so it validates the client API, the payload round-trip and the
 distance configuration, not the network behavior of a hosted cluster.
 
-**Stage 4 — cross-encoder reranking** (`notebooks/05_reranking.ipynb`). The
+**Stage 4: cross-encoder reranking** (`notebooks/05_reranking.ipynb`). The
 bi-encoder retrieves `top_k = 50` candidates from FAISS, then
 `cross-encoder/ms-marco-MiniLM-L-6-v2` scores each `[query, abstract]` pair
 and the 50 candidates are re-sorted by that score. A cross-encoder can't be
-precomputed the way bi-encoder vectors can — it needs the query and the
-document in the same forward pass — which is exactly why it sees
+precomputed the way bi-encoder vectors can: it needs the query and the
+document in the same forward pass, which is exactly why it sees
 interactions two independently-encoded vectors can't, and exactly why it
 costs 50 forward passes per search.
 
@@ -141,7 +142,7 @@ same collection through the same functions.
 from scratch (delete-then-create, so a re-run can't leave stale vectors
 behind), chunks each abstract at 256 words with 32-word overlap, embeds
 every chunk, and upserts in batches of 256. This is the piece that makes
-the hosted demo possible at all — notebook 04 only ever built an in-memory
+the hosted demo possible at all: notebook 04 only ever built an in-memory
 collection, which has no path to a queryable production index.
 
 ## Data
@@ -162,7 +163,7 @@ title + abstract per paper.
 | Missing titles or abstracts | 0 |
 
 Two details about how the 50,000 are selected matter for reading every
-number below. They're taken with `dataset.select(range(50000))` — the
+number below. They're taken with `dataset.select(range(50000))`: the
 **first** 50,000 rows, not a random sample, despite `random_seed: 42` being
 present in `config.yaml` (it's used for the query sample, not the corpus
 sample). Since the source is ordered, that means the corpus is the oldest
@@ -173,12 +174,12 @@ is the row index cast to a string, not a real arXiv identifier, so results
 can't be linked back to arxiv.org without rejoining the source.
 
 The `categories` column is the literal string `"cs.LG"` assigned to every
-row in the ingest loop, not read from the dataset — hence the EDA line
+row in the ingest loop, not read from the dataset, hence the EDA line
 "Unique categories: 1". It carries no information and nothing filters on
 it.
 
 Top title words are `learning` (15,226), `deep` (6,527), `networks`
-(6,045), `neural` (6,031), `based` (3,989) — a sanity check that the corpus
+(6,045), `neural` (6,031), `based` (3,989), a sanity check that the corpus
 is what it claims to be before spending GPU time embedding all of it.
 
 ## Results
@@ -203,7 +204,7 @@ look at the top 10.
 
 **FAISS and Qdrant are identical to 16 decimal places** (the two JSON files
 have the same `mrr` value, 0.7525725798588703). Same model, same vectors,
-same cosine metric, exhaustive search on both sides — this is the result
+same cosine metric, exhaustive search on both sides; this is the result
 that says the infrastructure swap was lossless, which is the point of the
 stage. It is not evidence about how a hosted, HNSW-indexed Qdrant cluster
 behaves; see Limitations.
@@ -211,7 +212,7 @@ behaves; see Limitations.
 **Reranking is the biggest single win, and it's a reordering win.**
 Recall@10 moves 0.910 → 0.920 while Recall@1 moves 0.670 → 0.760. The
 cross-encoder can only re-sort the 50 candidates the bi-encoder already
-found — its Recall@k is hard-capped by the bi-encoder's Recall@50 — so
+found: its Recall@k is hard-capped by the bi-encoder's Recall@50, so
 nearly all of the gain is promoting a correct document that was already in
 the candidate set from somewhere in the top 50 to position 1. That's the
 practical argument for two-stage retrieval: the bi-encoder's job is to not
@@ -219,14 +220,14 @@ lose the answer, the cross-encoder's job is to put it first, and they're
 good at different things.
 
 **What's still missing at the top.** Even after reranking, Recall@1 is
-0.760 — on a quarter of queries, the paper whose own title was used as the
+0.760: on a quarter of queries, the paper whose own title was used as the
 query does not come back first. Some of that is genuine near-duplicate
 competition in a corpus of 50K ML abstracts, where several papers can
 legitimately match a title-shaped query; none of it has been inspected
 qualitatively, so that's a hypothesis, not a finding.
 
 **Open item:** the bi-encoder's Recall@50, which is the hard ceiling on every
-reranked metric above — computable from `05_reranking.ipynb` by calling
+reranked metric above, computable from `05_reranking.ipynb` by calling
 `recall_at_k(all_rankings_reranked, correct_ids, 50)`, but not currently
 run.
 
@@ -239,6 +240,28 @@ cluster: 55,752 vectors indexed (49,969 abstracts expanded into chunks),
 collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
 `ef_construct=100`.
 
+## How to run
+
+All three entry points read the Qdrant Cloud connection from `QDRANT_URL` and `QDRANT_API_KEY`. You need your own free cluster at cloud.qdrant.io. From this folder:
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+set -a; source .env; set +a
+python scripts/build_index.py
+uvicorn src.serve:app
+```
+
+Fill in the two values in `.env` before the third line. `build_index.py` deletes and recreates the collection, then embeds and uploads every chunk. `uvicorn` starts the `POST /search` API.
+
+For the Streamlit page, put the same two values in `.streamlit/secrets.toml` (it is git-ignored) as `QDRANT_URL = "..."` and `QDRANT_API_KEY = "..."`, then run:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The notebooks in `notebooks/` run the offline evaluation and do not need a Qdrant cluster. The first run downloads the models from Hugging Face. This project has no automated tests.
+
 ## What I'd do differently / limitations
 
 - **The benchmarked index and the served index are different systems, and
@@ -246,8 +269,8 @@ collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
   whole abstract (49,969 points) and search exhaustively.
   `scripts/build_index.py` chunks each abstract at 256 words with 32-word
   overlap, producing 55,752 points on Qdrant Cloud's approximate HNSW
-  index, with a payload of `{title, abstract-chunk}` and **no `paper_id`**
-  — so the eval code, which scores by `hit.payload["paper_id"]`, cannot
+  index, with a payload of `{title, abstract-chunk}` and **no `paper_id`**,
+  so the eval code, which scores by `hit.payload["paper_id"]`, cannot
   even be pointed at the production collection as written. Every number in
   the Results table describes the offline configuration. Re-running the
   200-query eval against the deployed collection, with `paper_id` added to
@@ -255,7 +278,7 @@ collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
 - **Nothing deduplicates by paper at serve time.** Since long abstracts
   become multiple chunks, `POST /search`'s top 5 can be five chunks of
   two papers. Both `serve.py` and `streamlit_app.py` sort by cross-encoder
-  score and slice — neither groups by title or paper id first.
+  score and slice; neither groups by title or paper id first.
 - **Title-as-query is a biased proxy, and it's biased toward the
   baseline.** A title shares vocabulary with its own abstract far more
   often than a real user's phrasing does, which is the case BM25 is
@@ -289,13 +312,13 @@ collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
 - **The FAISS/Qdrant equivalence result doesn't transfer to the cloud
   cluster.** Both benchmarked paths are exact; the deployed one is HNSW
   with `ef_construct=100`, which trades recall for speed by design. Whether
-  that costs anything at this corpus size is untested — and it's the same
+  that costs anything at this corpus size is untested, and it's the same
   experiment as the "try approximate indexes and measure the trade-off"
   item, which the offline FAISS setup could answer directly with
   `IndexHNSWFlat` or `IndexIVFFlat`.
 - **No hybrid retrieval.** BM25 and the bi-encoder clearly fail on
-  different queries — that's implied by the metric gaps but never measured
-  per-query — so reciprocal rank fusion before reranking is the obvious
+  different queries: that's implied by the metric gaps but never measured
+  per-query, so reciprocal rank fusion before reranking is the obvious
   next arm, and the per-query overlap analysis that would justify it is
   cheap to run from the artifacts already committed.
 - **The DVC remote is incomplete.** `01_eda.ipynb`'s own `dvc push` output
@@ -310,7 +333,7 @@ collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
   cluster is in the repo permanently; clearing that cell's output before
   committing would cost nothing.
 - **Chunking exists but is never evaluated.** 4.5% of abstracts exceed 256
-  words, which is the stated reason chunking is in the ingest path — but no
+  words, which is the stated reason chunking is in the ingest path, but no
   stage of the evaluation uses chunked documents, so whether chunk-level
   retrieval helps or hurts on this corpus is an open question the repo
   doesn't answer despite shipping the chunking code to production.
@@ -318,12 +341,12 @@ collection status green, `indexed_vectors_count = 55752`, HNSW at `m=16`,
 ## Stack
 
 - `rank-bm25` 0.2.2 (`BM25Okapi`) for the sparse baseline
-- `sentence-transformers` 2.7.0 — `SentenceTransformer` with
+- `sentence-transformers` 2.7.0: `SentenceTransformer` with
   `BAAI/bge-base-en-v1.5` (768-dim) for the bi-encoder, `CrossEncoder` with
   `cross-encoder/ms-marco-MiniLM-L-6-v2` for reranking
 - `faiss-cpu` 1.8.0 (`IndexFlatIP`, exact inner-product search over
   normalized vectors)
-- `qdrant-client` 1.9.1 — `":memory:"` mode for the offline evaluation,
+- `qdrant-client` 1.9.1: `":memory:"` mode for the offline evaluation,
   a hosted Qdrant Cloud cluster (cosine, HNSW `m=16`/`ef_construct=100`)
   for the deployed app
 - `FastAPI` 0.111.0 + `uvicorn` 0.29.0 + `pydantic` 2.7.1 for the
