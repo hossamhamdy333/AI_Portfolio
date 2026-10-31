@@ -17,9 +17,9 @@ llm:
   temperature: 0.2
 
 qdrant:
-  # Same cluster/collections rag_router built -- fill in the same url
-  # you used there.
-  url: https://50992c4f-7703-4444-bed8-d12777da3c9b.eu-west-1-0.aws.cloud.qdrant.io
+  # Same cluster/collections rag_router built. The url is read from the
+  # QDRANT_URL environment variable (see .env.example), not kept here.
+  url: ""
   collection_prefix: "wiki_router"
 
 embedding:

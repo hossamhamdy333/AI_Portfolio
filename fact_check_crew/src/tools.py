@@ -20,7 +20,9 @@ def build_tools(config):
 
     from search_tool import build_search_tool
 
-    qdrant_url = os.environ.get("QDRANT_URL", config["qdrant"]["url"])
+    qdrant_url = os.environ.get("QDRANT_URL")
+    if not qdrant_url:
+        raise RuntimeError("Set QDRANT_URL first.")
     client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
     prefix = config["qdrant"]["collection_prefix"]

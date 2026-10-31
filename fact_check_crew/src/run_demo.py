@@ -38,14 +38,16 @@ def main():
     from search_tool import build_search_tool
     from supervisor import run_supervised
 
-    qdrant_url = os.environ.get("QDRANT_URL", config["qdrant"]["url"])
+    qdrant_url = os.environ.get("QDRANT_URL")
+    if not qdrant_url:
+        sys.exit("Set QDRANT_URL in your .env first.")
     qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
     prefix = config["qdrant"]["collection_prefix"]
     try:
         names = {c.name for c in qdrant_client.get_collections().collections}
     except Exception as e:
-        sys.exit(f"Qdrant check failed: {e}\nCheck QDRANT_API_KEY and the url in configs/config.yaml.")
+        sys.exit(f"Qdrant check failed: {e}\nCheck QDRANT_API_KEY and QDRANT_URL.")
     missing = [f"{prefix}_{d}" for d in config["domains"] if f"{prefix}_{d}" not in names]
     if missing:
         sys.exit(f"Missing Qdrant collections: {missing}")
