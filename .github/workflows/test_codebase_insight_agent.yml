@@ -1,0 +1,42 @@
+name: Codebase Insight Agent tests
+
+on:
+  push:
+    paths:
+      - "Codebase_Insight_Agent/**"
+      - ".github/workflows/test_codebase_insight_agent.yml"
+  pull_request:
+    paths:
+      - "Codebase_Insight_Agent/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Codebase_Insight_Agent
+    env:
+      GOOGLE_API_KEY: ci-dummy
+      DATABASE_URL: sqlite:///./ci_test.db
+      QDRANT_URL: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            Codebase_Insight_Agent/requirements-base.txt
+            Codebase_Insight_Agent/requirements-web.txt
+            Codebase_Insight_Agent/requirements-mcp.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-web.txt -r requirements-mcp.txt pytest
+
+      - name: Run tests
+        run: python -m pytest -q
