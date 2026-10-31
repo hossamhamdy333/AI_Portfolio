@@ -103,6 +103,21 @@ Under these assumptions, the campaign lost money, $0.39 returned per $1 spent. T
 
 The top 1% of `ad`-group users (200+ ads shown each) account for 13.2% of total ad impressions, cost is concentrated in a small segment of heavy-exposure accounts, not spread evenly across everyone who saw an ad.
 
+## How to run
+
+```bash
+cd marketing-ab-testing
+pip install -r requirements.txt
+```
+
+Download the Marketing A/B testing dataset from Kaggle and put `marketing_AB.csv` in `data/raw/`. Then run the notebooks `01_eda`, `02_ab_test_analysis` and `03_campaign_roi` in `notebooks/`. The dashboard starts with:
+
+```bash
+streamlit run dashboard/streamlit_app.py
+```
+
+The checks in `tests/` are plain scripts. Run them from inside that folder, for example `python test_ab_analysis.py`.
+
 ## What I'd do differently / limitations
 
 - **Both ROI inputs are stated placeholders, not measured values**, neither cost-per-impression nor revenue-per-conversion exists in the source dataset. The sensitivity table shows the conclusion is fairly robust (ROI stays under 1.0x across most of the grid), but "under most of the grid" is still a statement about assumed numbers, not this campaign's real unit economics.
