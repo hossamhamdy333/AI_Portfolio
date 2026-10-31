@@ -1,6 +1,6 @@
 <div align="center">
 
-# Sentiment Forge — Three Models, One Test Set
+# Sentiment Forge: Three Models, One Test Set
 
 `scikit-learn` `torch` `transformers` `onnx` `huggingface_hub` `MLflow` `DVC` `pandas` `PyYAML` `pytest`
 
@@ -29,15 +29,15 @@
 - BiLSTM + GloVe: weighted F1 0.4140, macro F1 0.4122, AUC-ROC 0.7564.
 
 A 5-class sentiment classifier for single-sentence movie reviews (SST-5),
-built three separate ways — TF-IDF + Logistic Regression, a BiLSTM over
-GloVe embeddings, and a fully fine-tuned `bert-base-uncased` — and scored
+built three separate ways, TF-IDF + Logistic Regression, a BiLSTM over
+GloVe embeddings, and a fully fine-tuned `bert-base-uncased`, and scored
 head-to-head on the identical 2,204-sentence held-out test set by the
 identical `compute_metrics()` function. BERT wins by roughly 10 F1 points
 (0.5136 weighted F1 vs. 0.4171 and 0.4140) and by a wider margin on AUC-ROC
 (0.8361 vs. 0.7410 and 0.7564). The more interesting number is the one
 between the two non-transformer models: the BiLSTM, with pretrained
 embeddings, 4M parameters and a GPU training loop, lands 0.003 F1 *below*
-a bag-of-words linear model, and 0.0015 above it on macro F1 — a tie, in
+a bag-of-words linear model, and 0.0015 above it on macro F1, a tie, in
 other words, for a large difference in engineering cost. The best model is
 exported to ONNX (verified against the PyTorch logits, max absolute
 difference 7.82e-4) and hosted on the Hugging Face Hub, so it can be run
@@ -70,7 +70,7 @@ function on the same rows. That's what makes the TF-IDF-vs-BiLSTM result
 above meaningful: it isn't a claim that LSTMs are bad, it's a measurement
 that on 19-word sentences there is little sequential structure left for a
 recurrent model to exploit that a word + character n-gram representation
-hasn't already captured — so the extra capacity buys ~0 F1, 5x the model
+hasn't already captured, so the extra capacity buys ~0 F1, 5x the model
 size, and a GPU dependency.
 
 Second, the vocabulary is long-tailed in a way that shapes every modeling
@@ -94,7 +94,7 @@ numbered notebook.
 (`src/data_utils.py`, applied in `notebooks/01_eda.ipynb`):
 `clean_dataframe()` drops exact-duplicate sentences, lowercases, collapses
 runs of whitespace, and drops sentences under `min_length = 3` words.
-Punctuation is deliberately kept — it carries sentiment signal, and the
+Punctuation is deliberately kept, it carries sentiment signal, and the
 character n-gram vectorizer can use it. Order matters here and is worth
 stating: deduplication happens on the raw text, before lowercasing, so
 two sentences differing only in case would both survive.
@@ -123,14 +123,14 @@ the training split only (16,572 entries including
 `Uniform(-0.25, 0.25)` with `<PAD>` forced to zeros. The model is a
 2-layer bidirectional LSTM, hidden dim 256, dropout 0.3 on both the
 embedding output and the pooled representation, classifying from the
-concatenated final forward and backward hidden states (512-dim) — 3,969,909
+concatenated final forward and backward hidden states (512-dim), 3,969,909
 parameters total. Sequences are truncated and padded to a fixed 64 tokens;
 since the longest training sentence is 52 words, truncation never actually
 binds on train. Trained 10 epochs, Adam at 1e-3, batch 64, gradient-norm
 clipping at 1.0, and a class-weighted cross-entropy using
 `sklearn.utils.class_weight.compute_class_weight("balanced")`, which gives
 `[1.567, 0.770, 1.056, 0.734, 1.325]`. The checkpoint kept is the best
-epoch by **validation F1**, not by validation loss or last epoch — a
+epoch by **validation F1**, not by validation loss or last epoch, a
 distinction that matters here, because validation loss bottoms out at
 epoch 3 and rises steadily afterward while validation F1 keeps improving
 through epoch 7.
@@ -138,14 +138,14 @@ through epoch 7.
 ### 3. BERT fine-tuning
 
 (`notebooks/04_BERT-Fine-tuning.ipynb`). `bert-base-uncased`, all
-109,486,085 parameters trainable — fully
+109,486,085 parameters trainable, fully
 fine-tuned, not frozen or probed. 5 epochs, batch size 32, LR 2e-5,
 `warmup_ratio=0.1`, `weight_decay=0.01`, fp16, seed 42, evaluation and
 checkpointing every epoch with `load_best_model_at_end=True` selecting on
 `f1_weighted`. Class weighting is applied through a `WeightedTrainer`
 subclass overriding `compute_loss`, because the stock `Trainer` has no
 hook for a weighted loss. Note that its weights are hardcoded as
-`[2.0, 1.3, 1.8, 1.3, 2.0]` — hand-chosen, not the computed balanced
+`[2.0, 1.3, 1.8, 1.3, 2.0]`, hand-chosen, not the computed balanced
 weights the BiLSTM uses, so the two models are not weighted identically
 (see Limitations).
 
@@ -183,7 +183,7 @@ or fewer, and those at exactly 3 are kept, because most are still real
 signal (*"too bad ."*, *"stay away ."*, *"delirious fun ."*). Word counts
 run 2–52 in train, median 18.
 
-Class balance is moderately skewed but not severe — train counts (raw):
+Class balance is moderately skewed but not severe, train counts (raw):
 positive 2,322, negative 2,218, neutral 1,624, very positive 1,288, very
 negative 1,092, a 2.13:1 ratio between largest and smallest. Test-set
 support after cleaning: negative 632, positive 510, very positive 399,
@@ -212,14 +212,14 @@ The BERT row needs a caveat the notebook doesn't state. `04_BERT-Fine-tuning.ipy
 evaluates the best-by-validation-F1 model that `load_best_model_at_end`
 restored, and reports **0.5076 / 0.5081 / 0.8346**. `05_comparison.ipynb`
 re-loads BERT from disk with `sorted(glob(f"{ckpt_dir}/checkpoint-*"))[-1]`
-— a lexicographic sort, not a numeric one. With 266 optimizer steps per
+- a lexicographic sort, not a numeric one. With 266 optimizer steps per
 epoch, the five checkpoints are `checkpoint-266` … `checkpoint-1330`, and
 string-sorting them puts `checkpoint-798` (epoch 3) last. So the two
 notebooks report two different sets of weights, and the per-class numbers
 confirm it (very-negative precision 0.43 in notebook 04 vs. 0.51 in
 notebook 05). Both land at ≈0.51 weighted F1, so the headline comparison
 holds either way, but the comparison table above is not scoring the
-checkpoint that was exported to ONNX and published — notebook 04's is.
+checkpoint that was exported to ONNX and published, notebook 04's is.
 
 ### Per-class F1
 
@@ -257,7 +257,7 @@ best-checkpoint run).
   1.6255, 1.6418, 1.8860. Train loss falls monotonically 1.5094 → 0.6477.
   The model is clearly overfitting from epoch 4 on by loss, while still
   improving on the metric that was selected on.
-- **Open item:** BERT per-epoch validation F1 — the training cell's output is saved
+- **Open item:** BERT per-epoch validation F1, the training cell's output is saved
   as an HTML widget object, so the numbers aren't recoverable from the
   committed notebook; they're in the `bert_base_uncased` W&B run.
 
@@ -280,7 +280,7 @@ TF-IDF calls *very negative*, and both fail for the same reason: the
 sentiment lives in word order and in words that were rare in training
 ("invigorating", "electric"), neither of which a bag of n-grams can use.
 The top-weighted word features per class show the same thing from the other
-direction — TF-IDF's strongest "neutral" features are `but`, `yet`,
+direction, TF-IDF's strongest "neutral" features are `but`, `yet`,
 `but not`, `not`, `though`, i.e. the model has learned that hedging
 conjunctions mean mixed sentiment, which is real signal, but it's the only
 kind of structure available to it.
@@ -301,7 +301,7 @@ committed notebook actually printed, so here is what the repo supports:
 The size cell in `05_comparison.ipynb` prints **0.7 MB** for BERT, because
 it measures only `model.onnx` from the downloaded Hub snapshot. The real
 figure is in `outputs/models/bert_base_onnx.dvc`, which records
-439,301,420 bytes over 4 files for the export directory — consistent with
+439,301,420 bytes over 4 files for the export directory, consistent with
 109.5M fp32 parameters, and consistent with the ONNX weights living in a
 separate external-data file that the size cell never looks at. So BERT is
 roughly 140x the classical model on disk and ~8x its per-sample latency,
@@ -309,7 +309,7 @@ not the 0.7 MB the notebook's own table claims.
 
 Two caveats on the latency column: it's a single un-repeated wall-clock
 measurement including the first-batch warm-up, and it isn't measured on
-equal hardware — the BiLSTM and BERT run on a Colab GPU, TF-IDF on CPU. It
+equal hardware, the BiLSTM and BERT run on a Colab GPU, TF-IDF on CPU. It
 supports "BERT is roughly an order of magnitude slower" and nothing
 finer-grained than that.
 
@@ -329,7 +329,7 @@ it was okay , nothing special                    → neutral (0.632)
 
 **Tests**: 7 unit tests in `tests/test_pipeline.py` (3 on `clean_text`,
 2 on `clean_dataframe`'s dedupe and length filter, 2 on `compute_metrics`).
-I installed the dependencies and ran them directly — all 7 pass. They cover
+I installed the dependencies and ran them directly, all 7 pass. They cover
 the deterministic parts of the pipeline only; no test asserts anything
 about model quality.
 
@@ -355,7 +355,7 @@ about model quality.
   `bilstm.pt` is a bare `state_dict`; `05_comparison.ipynb` reconstructs the
   vocab by re-running `build_vocab()` over `train.parquet`. That works only
   as long as the training data file and the tokenization function both stay
-  byte-identical — if either changes, every embedding index silently shifts
+  byte-identical, if either changes, every embedding index silently shifts
   and the model produces confident nonsense with no error raised. The vocab
   should be saved next to the checkpoint.
 - **BERT and the BiLSTM are not weighted the same way**, despite being
@@ -365,12 +365,12 @@ about model quality.
   what BERT scores under the computed weights, so part of its margin could
   be a better-tuned loss rather than a better representation. The data
   splits and the metric function *are* identical, so the comparison is still
-  meaningful — just not as clean as "same everything but the architecture."
+  meaningful, just not as clean as "same everything but the architecture."
 - **MLflow does not cover all three models, despite being described as the
   cross-run comparison layer.** Only `02_classical.ipynb` and
   `05_comparison.ipynb` log to it; the BiLSTM and BERT training runs report
   to W&B only. So the per-model training runs aren't queryable in one place
-  — only the final comparison run is.
+ , only the final comparison run is.
 - **The DVC remote is a local Google Drive path**
   (`/content/drive/MyDrive/AI_Portfolio_DVC`), added inline in each
   notebook. Nobody else can `dvc pull` this project, and
@@ -385,12 +385,12 @@ about model quality.
   a training run to the published model.
 - **Neutral is the weak class in all three models and nothing here
   targets it.** Focal loss, an ordinal-regression objective (which would
-  use the fact that the labels are ordered — none of these three models
+  use the fact that the labels are ordered, none of these three models
   does), or a two-stage coarse-then-fine classifier are the obvious things
   to try, and none is tested.
 - **No smaller transformer was benchmarked.** DistilBERT or MiniLM would
-  answer the actual deployment question this project raises — how much of
-  BERT's 10-point gain survives at a fraction of 419 MB and 2.52 ms — and
+  answer the actual deployment question this project raises, how much of
+  BERT's 10-point gain survives at a fraction of 419 MB and 2.52 ms, and
   would make the accuracy/cost curve three points instead of a binary
   choice. Int8 quantization of the existing ONNX export is the cheaper
   version of the same experiment.
@@ -402,7 +402,7 @@ about model quality.
 - **`LogisticRegression(multi_class="multinomial")` is deprecated** in
   scikit-learn ≥1.5 and removed in 1.7; `requirements.txt` pins 1.4.2, so
   it works today and breaks on a dependency bump. The parameter can simply
-  be dropped — multinomial is the default for `lbfgs`.
+  be dropped, multinomial is the default for `lbfgs`.
 - **`01_eda.ipynb` writes the parquet splits twice**, first the raw
   DataFrames and then, further down, the cleaned ones. Correct only if the
   whole notebook runs top to bottom; a partial run leaves uncleaned data as
@@ -410,13 +410,13 @@ about model quality.
 
 ## Stack
 
-- `scikit-learn` 1.4.2 — `TfidfVectorizer`, `FeatureUnion`, `Pipeline`,
+- `scikit-learn` 1.4.2, `TfidfVectorizer`, `FeatureUnion`, `Pipeline`,
   `LogisticRegression`, `GridSearchCV`, `compute_class_weight`, and all
   metrics (`f1_score`, `roc_auc_score`, `confusion_matrix`,
   `classification_report`, `precision_recall_curve`)
 - `torch` 2.2.0 (`nn.LSTM`, `nn.Embedding`, `clip_grad_norm_`) for the
   BiLSTM; GloVe `glove.6B.100d` from Stanford NLP for the embedding matrix
-- `transformers` 4.40.0 — `AutoTokenizer`,
+- `transformers` 4.40.0, `AutoTokenizer`,
   `AutoModelForSequenceClassification`, `TrainingArguments`,
   `DataCollatorWithPadding`, and a `Trainer` subclass for weighted loss
 - `datasets` 2.19.0 for loading `SetFit/sst5`
@@ -431,7 +431,7 @@ about model quality.
 - `DVC` 3.49.0 + `dvc-gdrive` 3.0.1 for dataset and model-binary versioning
 - `pandas` 2.2.2, `numpy` 1.26.4, `matplotlib` 3.8.4, `seaborn` 0.13.2,
   `ydata-profiling` for EDA and figures
-- `PyYAML` 6.0.1 — every hyperparameter loaded from `configs/config.yaml`
+- `PyYAML` 6.0.1, every hyperparameter loaded from `configs/config.yaml`
 - `pytest` + GitHub Actions (`.github/workflows/test_sentiment_forge.yml`),
   triggered on pushes touching `sentiment_forge/**`
 - Trained on a Colab GPU; served model at
