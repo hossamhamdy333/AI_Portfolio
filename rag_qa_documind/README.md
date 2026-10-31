@@ -219,6 +219,18 @@ outdated claim. The notebook's own tiny 2-question precision@3 eval scores
 2/2 (100%), far too small a set to generalize from, and the notebook's
 own "Takeaways" section says as much.
 
+## How to run
+
+You need a Gemini API key. Copy `.env.example` to `.env` and put the key in it.
+
+```bash
+cd rag_qa_documind
+cp .env.example .env
+docker compose up --build
+```
+
+The API runs on http://localhost:8000 and the Streamlit page on http://localhost:8501.
+
 ## What I'd do differently / limitations
 
 - **The daily Gemini quota is only enforced on one of the two deployment
