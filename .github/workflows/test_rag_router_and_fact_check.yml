@@ -1,0 +1,75 @@
+name: rag_router and fact_check_crew tests
+
+on:
+  push:
+    paths:
+      - "rag_router/**"
+      - "fact_check_crew/**"
+      - ".github/workflows/test_rag_router_and_fact_check.yml"
+  pull_request:
+    paths:
+      - "rag_router/**"
+      - "fact_check_crew/**"
+  workflow_dispatch:
+
+env:
+  GOOGLE_API_KEY: ci-dummy
+  QDRANT_URL: http://ci-dummy:6333
+  QDRANT_API_KEY: ci-dummy
+
+jobs:
+  rag_router:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rag_router
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-tests-v1
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: src:shared:.
+        run: python -m pytest -q
+
+  fact_check_crew:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fact_check_crew
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-tests-v1
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: src
+        run: python -m pytest -q
