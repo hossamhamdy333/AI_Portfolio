@@ -49,6 +49,9 @@ _state = {}
 def _get_state():
     if not _state:
         qdrant_api_key = os.environ.get("QDRANT_API_KEY")
+        qdrant_url = os.environ.get("QDRANT_URL")
+        if not qdrant_url:
+            raise RuntimeError("QDRANT_URL is not set. Put it in your .env file.")
         if not qdrant_api_key:
             raise RuntimeError(
                 "QDRANT_API_KEY is not set. Get one from your free cluster at "
@@ -56,7 +59,7 @@ def _get_state():
             )
         _state["embedder"] = SentenceTransformer(CONFIG["retrieval"]["model_name"])
         _state["reranker"] = CrossEncoder(CONFIG["reranker"]["model_name"])
-        _state["qdrant_client"] = QdrantClient(url=CONFIG["qdrant"]["url"], api_key=qdrant_api_key)
+        _state["qdrant_client"] = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
         _state["gemini_client"] = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     return _state
 

@@ -44,12 +44,15 @@ def load_models():
     _state["reranker"] = CrossEncoder(CONFIG["reranker"]["model_name"])
 
     qdrant_api_key = os.environ.get("QDRANT_API_KEY")
+    qdrant_url = os.environ.get("QDRANT_URL")
+    if not qdrant_url:
+        raise RuntimeError("QDRANT_URL is not set. Put it in your .env file.")
     if not qdrant_api_key:
         raise RuntimeError(
             "QDRANT_API_KEY is not set. Get one from your free cluster at "
             "https://cloud.qdrant.io and set it as an env var (or a Space secret)."
         )
-    _state["qdrant_client"] = QdrantClient(url=CONFIG["qdrant"]["url"], api_key=qdrant_api_key)
+    _state["qdrant_client"] = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
     _state["gemini_client"] = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     logger.info("Models and Qdrant Cloud client loaded (chunking strategy: %s).", CONFIG["chunking"]["strategy"])
 
